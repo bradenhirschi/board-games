@@ -47,6 +47,21 @@ const LANE_DEPTH = 0.55;
 const SPACER = 2 - 2 * LANE_DEPTH;
 const INNER = `${LANE_DEPTH}fr ${LANE_DEPTH}fr ${SPACER}fr repeat(7, 1fr) ${SPACER}fr ${LANE_DEPTH}fr ${LANE_DEPTH}fr`;
 
+/*
+ * Outline of the open field inside the track, in inner-grid units (the inner grid is 11
+ * track-square widths across). It follows the track's inner edge and steps around the
+ * four meeting lanes, which span squares 2–9 and are 2 × LANE_DEPTH deep.
+ */
+const L = 2 * LANE_DEPTH;
+const FIELD_LINE = [
+  [0, 0], [2, 0], [2, L], [9, L], [9, 0], [11, 0],
+  [11, 2], [11 - L, 2], [11 - L, 9], [11, 9], [11, 11],
+  [9, 11], [9, 11 - L], [2, 11 - L], [2, 11], [0, 11],
+  [0, 9], [L, 9], [L, 2], [0, 2],
+]
+  .map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`)
+  .join(" ") + " Z";
+
 /** Key for any cell a token can sit on. */
 function posKey(pos: Pos): string {
   return pos.kind === "track" ? `t${pos.index}` : `l${pos.lane}:${laneCell(pos.from, pos.p)}`;
@@ -85,6 +100,11 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
         {LANES.map((lane, l) => (
           <MeetingLane key={lane.side} lane={lane} laneIndex={l} landed={landed} tokens={tokens} />
         ))}
+
+        {/* The thick black line around the inside of the track, stepping in around each meeting lane. */}
+        <svg className="field-line" viewBox="0 0 11 11" preserveAspectRatio="none" aria-hidden>
+          <path d={FIELD_LINE} />
+        </svg>
 
         {CAREERS.map((career, i) => (
           <CareerCorner

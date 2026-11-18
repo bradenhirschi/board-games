@@ -1256,3 +1256,57 @@ button.link {
     margin-left: 0;
   }
 }
+
+/* ---------- Lines matched to the original board ---------- */
+/* Hairlines between track squares; one thick line around the inside of the track. */
+.board {
+  gap: 0;
+  padding: 0;
+  background: var(--paper);
+  border: 0.3cqw solid var(--frame);
+  border-radius: 0;
+}
+.board .sq {
+  box-shadow: inset 0 0 0 0.07cqw rgb(0 0 0 / 0.6);
+}
+.board .sq.sq-landing {
+  box-shadow: inset 0 0 0 0.07cqw rgb(0 0 0 / 0.6), 0 0 0 0.35cqw #111, 0 0 1.5cqw 0.4cqw rgb(255 220 0 / 0.9);
+}
+.board-inner {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: var(--paper);
+}
+.lane-cell,
+.lane-label {
+  border: 0;
+  box-shadow: inset 0 0 0 0.06cqw #9a9384;
+}
+.career {
+  border: 0;
+  box-shadow: none;
+}
+.career-active {
+  box-shadow: inset 0 0 0 0.3cqw #d9a400;
+}
+.field-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+.field-line path {
+  fill: none;
+  stroke: var(--frame);
+  stroke-width: 0.1;
+  stroke-linejoin: miter;
+}
+.lane-cell .tokens,
+.career .tokens {
+  z-index: 2;
+}
