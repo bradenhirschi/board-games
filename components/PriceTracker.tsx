@@ -1,10 +1,27 @@
 "use client";
 
-import { MARKET_MAX, MARKET_MIN, STOCKS, STOCK_ORDER, priceAt } from "@/lib/stocks";
+import { FALLERS, MARKET_MAX, MARKET_MIN, RISERS, STOCKS, priceAt, type StockId } from "@/lib/stocks";
 
 const LEVELS = Array.from({ length: MARKET_MAX - MARKET_MIN + 1 }, (_, i) => MARKET_MIN + i);
 
+const nameCell = (id: StockId) => (
+  <div key={id} className="tracker-name" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+    {STOCKS[id].short}
+  </div>
+);
+
+const priceRow = (id: StockId) => (
+  <div key={id} className="tracker-row" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+    {LEVELS.map((l) => (
+      <div key={l} className="tracker-cell">
+        {priceAt(id, l)}
+      </div>
+    ))}
+  </div>
+);
+
 /**
+ * Risers above the slider row, fallers below it (as on the board).
  * A strip of prices (one column per market level) that slides under a fixed
  * slider, like the physical tracker in the middle of the board.
  */
@@ -13,15 +30,13 @@ export default function PriceTracker({ market, delta }: { market: number; delta:
   return (
     <div className="tracker" aria-label={`Stock price tracker, market level ${market}`}>
       <div className="tracker-names">
+        {RISERS.map(nameCell)}
         <div className="tracker-head">MARKET</div>
-        {STOCK_ORDER.map((id) => (
-          <div key={id} className="tracker-name" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
-            {STOCKS[id].short}
-          </div>
-        ))}
+        {FALLERS.map(nameCell)}
       </div>
       <div className="tracker-window">
         <div className="tracker-strip" style={offset}>
+          {RISERS.map(priceRow)}
           <div className="tracker-row tracker-levels">
             {LEVELS.map((l) => (
               <div key={l} className="tracker-cell">
@@ -29,15 +44,7 @@ export default function PriceTracker({ market, delta }: { market: number; delta:
               </div>
             ))}
           </div>
-          {STOCK_ORDER.map((id) => (
-            <div key={id} className="tracker-row" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
-              {LEVELS.map((l) => (
-                <div key={l} className="tracker-cell">
-                  {priceAt(id, l)}
-                </div>
-              ))}
-            </div>
-          ))}
+          {FALLERS.map(priceRow)}
         </div>
         <div className="tracker-slider" />
       </div>

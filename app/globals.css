@@ -1303,10 +1303,57 @@ button.link {
 .field-line path {
   fill: none;
   stroke: var(--frame);
-  stroke-width: 0.1;
+  stroke-width: 0.045;
   stroke-linejoin: miter;
 }
 .lane-cell .tokens,
 .career .tokens {
   z-index: 2;
+}
+
+/* Shareholders' meeting entrances: a flat black triangle pointing into the meeting. */
+.entry-arrow {
+  position: absolute;
+  background: var(--frame);
+  z-index: 1;
+}
+.entry-arrow-bottom,
+.entry-arrow-top {
+  left: 12%;
+  right: 12%;
+  height: 0.85cqw;
+}
+.entry-arrow-left,
+.entry-arrow-right {
+  top: 12%;
+  bottom: 12%;
+  width: 0.85cqw;
+}
+.entry-arrow-bottom {
+  top: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.entry-arrow-top {
+  bottom: 0;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.entry-arrow-left {
+  right: 0;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.entry-arrow-right {
+  left: 0;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+.sq-entry-bottom {
+  padding-top: 0.9cqw;
+}
+.sq-entry-top {
+  padding-bottom: 0.9cqw;
+}
+.sq-entry-left {
+  padding-right: 0.9cqw;
+}
+.sq-entry-right {
+  padding-left: 0.9cqw;
 }

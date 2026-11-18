@@ -59,8 +59,14 @@ export const STOCKS: Record<StockId, Stock> = {
   ISHOE: { id: "ISHOE", name: "International Shoe", short: "INT. SHOE", color: "#d7649c", ink: "#2a0f1c", ladder: down(GMILLS_ISHOE), pair: "GMILLS" },
 };
 
-/** Order of rows on the price tracker: each pair sits together. */
-export const STOCK_ORDER: StockId[] = ["ALCOA", "WOOL", "AMMO", "WPUB", "CASE", "MAYTAG", "GMILLS", "ISHOE"];
+/**
+ * Order of rows on the price tracker, as on the board: the four stocks that rise as the
+ * slider moves UP sit above the slider row, the four that fall sit below it, mirrored so
+ * each pair is the same distance from the middle.
+ */
+export const RISERS: StockId[] = ["ALCOA", "AMMO", "CASE", "GMILLS"];
+export const FALLERS: StockId[] = ["ISHOE", "MAYTAG", "WPUB", "WOOL"];
+export const STOCK_ORDER: StockId[] = [...RISERS, ...FALLERS];
 
 export const MARKET_MIN = 0;
 export const MARKET_MAX = 50;

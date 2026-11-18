@@ -209,7 +209,7 @@ function TrackSquare({
 
   return (
     <div className={cls} style={colors} {...common}>
-      {sq.entry && <div className={`entry-banner entry-${side}`} title="Shareholders' meeting entrance" />}
+      {sq.entry && <div className={`entry-arrow entry-arrow-${side}`} title="Shareholders' meeting entrance" />}
       <div className="sq-small">${sq.dividend} DIV</div>
       <div className="sq-title">{stock.short}</div>
       {sq.limitOne && <div className="sq-tiny">LIMIT 1 SHARE</div>}
