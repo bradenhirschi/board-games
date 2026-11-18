@@ -1382,3 +1382,9 @@ button.link {
 .sq-entry-right {
   padding-left: 1.45cqw;
 }
+
+.sell-low {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--rule);
+}

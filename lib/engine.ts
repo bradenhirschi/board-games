@@ -270,12 +270,19 @@ function apply(s: GameState, a: Action): boolean {
     }
 
     case "forcedSell": {
-      if (ph.t !== "raiseCash") return false;
+      // Any sale after the throw is at the lowest price on the board: to cover a fee,
+      // or by choice while buying (e.g. to raise cash for the stock just landed on).
+      if (ph.t !== "raiseCash" && ph.t !== "buy") return false;
       const qty = Math.min(Math.floor(a.qty), p.shares[a.stock]);
       if (qty <= 0) return false;
       const price = lowestPrice(a.stock);
       p.shares[a.stock] -= qty;
       p.cash += qty * price;
+      if (ph.t === "buy") {
+        log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} after the throw, at the lowest price ($${price})`, "bad");
+        ph.max = maxBuy(p.cash, ph.price, ph.limited);
+        return true;
+      }
       log(s, p.id, `must sell ${qty} ${STOCKS[a.stock].name} at the lowest price, $${price}`, "bad");
       if (p.cash >= ph.owed) payFee(s, ph.owed, ph.reason);
       return true;
@@ -364,9 +371,9 @@ function land(s: GameState) {
       }
       const price = priceAt(sq.stock, s.market);
       const limited = !!sq.limitOne;
-      const affordable = Math.floor(p.cash / price);
-      const max = limited ? Math.min(1, affordable) : affordable;
-      if (max === 0) {
+      const max = maxBuy(p.cash, price, limited);
+      // Short of cash but holding stock? They may still sell (at the lowest price) to buy.
+      if (max === 0 && totalShares(p) === 0) {
         log(s, p.id, `can't afford ${STOCKS[sq.stock].name} at $${price}`);
         return endTurn(s);
       }
@@ -374,6 +381,11 @@ function land(s: GameState) {
       return;
     }
   }
+}
+
+function maxBuy(cash: number, price: number, limited: boolean): number {
+  const affordable = Math.floor(cash / price);
+  return limited ? Math.min(1, affordable) : affordable;
 }
 
 function charge(s: GameState, amount: number, reason: string) {

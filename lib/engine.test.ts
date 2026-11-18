@@ -119,6 +119,28 @@ describe("moving", () => {
   });
 });
 
+describe("selling after the throw", () => {
+  it("can sell at the lowest price to raise cash for what you landed on", () => {
+    let s = place(game(), 0, { kind: "track", index: 6 }, 0);
+    s.players[0].shares.WPUB = 20;
+    s = rollAndMove(s, [1, 1]); // even: back to square 4, Woolworth (no share limit)
+    expect(s.phase).toMatchObject({ t: "buy", stock: "WOOL", max: 0 });
+    s = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
+    expect(s.players[0].cash).toBe(20 * lowestPrice("WPUB"));
+    expect(s.players[0].shares.WPUB).toBe(0);
+    expect(s.phase.t).toBe("buy");
+    const ph = s.phase as Extract<typeof s.phase, { t: "buy" }>;
+    expect(ph.max).toBe(Math.floor(s.players[0].cash / ph.price));
+  });
+
+  it("can't sell at the board price after the throw", () => {
+    let s = place(game(), 0, { kind: "track", index: 6 }, 0);
+    s.players[0].shares.WPUB = 20;
+    s = rollAndMove(s, [1, 1]);
+    expect(reducer(s, { type: "sell", stock: "WPUB", qty: 1 })).toBe(s);
+  });
+});
+
 describe("fees and forced sales", () => {
   it("charges $10 per share on broker fee corners", () => {
     let s = place(game(), 0, { kind: "track", index: 11 });

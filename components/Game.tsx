@@ -475,13 +475,22 @@ function BuyBox({
   const ph = state.phase;
   const [qty, setQty] = useState(ph.t === "buy" ? Math.min(ph.max, ph.limited ? 1 : 0) : 0);
   if (ph.t !== "buy") return null;
+  const player = state.players[state.current];
   const stock = STOCKS[ph.stock];
   const set = (n: number) => setQty(Math.max(0, Math.min(ph.max, Math.floor(n) || 0)));
+  // Limit squares buy exactly one share once it's affordable.
+  const n = ph.limited ? ph.max : Math.min(qty, ph.max);
+  const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
   return (
     <div className="controls">
       <p className="hint">
         Buy <b>{stock.name}</b> at <b>${ph.price}</b>/share
-        {ph.limited ? " — limit 1 share here." : ` — up to ${fmt(ph.max)}.`} This is your only chance this turn.
+        {ph.max === 0
+          ? " — you can't afford a share yet."
+          : ph.limited
+            ? " — limit 1 share here."
+            : ` — up to ${fmt(ph.max)}.`}{" "}
+        This is your only chance this turn.
       </p>
       {!ph.limited && (
         <div className="qty">
@@ -511,15 +520,32 @@ function BuyBox({
       <div className="btn-row">
         <button
           className="btn btn-primary"
-          disabled={disabled || qty === 0}
-          onClick={() => dispatch({ type: "buy", qty })}
+          disabled={disabled || n === 0}
+          onClick={() => dispatch({ type: "buy", qty: n })}
         >
-          Buy {qty} for ${fmt(qty * ph.price)}
+          Buy {n} for ${fmt(n * ph.price)}
         </button>
         <button className="btn" disabled={disabled} onClick={() => dispatch({ type: "buy", qty: 0 })}>
           Pass
         </button>
       </div>
+      {held.length > 0 && (
+        <div className="sell-box sell-low">
+          <div className="small muted">
+            Need cash? You can still sell, but after the throw only at the <b>lowest board price</b>:
+          </div>
+          {held.map((id) => (
+            <SellRow
+              key={`${id}-${player.shares[id]}`}
+              stock={id}
+              owned={player.shares[id]}
+              price={lowestPrice(id)}
+              disabled={disabled}
+              onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

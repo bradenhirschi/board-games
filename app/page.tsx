@@ -156,8 +156,9 @@ export default function Home() {
               market moves, one of each pair goes up and the other goes down.
             </li>
             <li>
-              <b>Sell</b> only just before your throw, at the board price. Forced sales (fees, SELL ALL squares) are at
-              the lowest price on the board.
+              <b>Sell</b> at the board price just before your throw. After the throw you can still sell (for example
+              to afford the stock you landed on), but only at the lowest price on the board, as with fees and SELL ALL
+              squares.
             </li>
             <li>
               <b>Fees:</b> $100 for landing on START, $10 per share you own on a broker fee corner.

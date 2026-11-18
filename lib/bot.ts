@@ -42,7 +42,7 @@ export function botMove(state: GameState): BotMove | null {
       // Keep enough back for a START fee and a broker fee on everything held.
       const reserve = START_FEE + BROKER_FEE_PER_SHARE * totalShares(p);
       const unit = ph.price + BROKER_FEE_PER_SHARE;
-      if (ph.limited) return { type: "buy", qty: p.cash - ph.price >= reserve ? 1 : 0 };
+      if (ph.limited) return { type: "buy", qty: ph.max > 0 && p.cash - ph.price >= reserve ? 1 : 0 };
       const budget = Math.max(0, p.cash - reserve) * appetite(pricePosition(ph.stock, state.market));
       return { type: "buy", qty: Math.min(ph.max, Math.floor(budget / unit)) };
     }
