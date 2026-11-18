@@ -38,13 +38,19 @@ export function botMove(state: GameState): BotMove | null {
     }
     case "detour":
       return { type: "detour", enter: true };
-    case "buy": {
+    case "afterRoll": {
+      // One buying decision per turn, then end the turn.
+      const offer = ph.buy;
+      if (!offer || offer.bought > 0 || offer.max === 0) return { type: "endTurn" };
       // Keep enough back for a START fee and a broker fee on everything held.
       const reserve = START_FEE + BROKER_FEE_PER_SHARE * totalShares(p);
-      const unit = ph.price + BROKER_FEE_PER_SHARE;
-      if (ph.limited) return { type: "buy", qty: p.cash - ph.price >= reserve ? 1 : 0 };
-      const budget = Math.max(0, p.cash - reserve) * appetite(pricePosition(ph.stock, state.market));
-      return { type: "buy", qty: Math.min(ph.max, Math.floor(budget / unit)) };
+      const unit = offer.price + BROKER_FEE_PER_SHARE;
+      const qty = offer.limited
+        ? p.cash - offer.price >= reserve
+          ? 1
+          : 0
+        : Math.min(offer.max, Math.floor((Math.max(0, p.cash - reserve) * appetite(pricePosition(offer.stock, state.market))) / unit));
+      return qty > 0 ? { type: "buy", qty } : { type: "endTurn" };
     }
     case "raiseCash": {
       const short = ph.owed - p.cash;

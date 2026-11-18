@@ -43,10 +43,24 @@ export type Phase =
   | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null; noDetour: boolean }
   /** Passing (or leaving) an entrance for a stock the player owns. */
   | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
-  | { t: "buy"; stock: StockId; price: number; max: number; limited: boolean }
+  /**
+   * After landing, until the player ends their turn. They may sell at the lowest board
+   * price, and buy the stock they landed on (`buy`) if it was a stock square.
+   */
+  | { t: "afterRoll"; buy: BuyOffer | null }
   /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
   | { t: "raiseCash"; owed: number; reason: string }
   | { t: "gameOver"; winnerId: number; reason: "target" | "time" };
+
+export interface BuyOffer {
+  stock: StockId;
+  price: number;
+  limited: boolean;
+  /** Shares the player can afford right now (0 once a limited square's share is bought). */
+  max: number;
+  /** Shares bought so far this turn. */
+  bought: number;
+}
 
 export interface LogEntry {
   id: number;
@@ -152,6 +166,7 @@ export type Action =
   | { type: "step" }
   | { type: "detour"; enter: boolean }
   | { type: "buy"; qty: number }
+  | { type: "endTurn" }
   | { type: "forcedSell"; stock: StockId; qty: number }
   | { type: "goBroke" }
   | { type: "endGame" };
@@ -257,25 +272,38 @@ function apply(s: GameState, a: Action): boolean {
     }
 
     case "buy": {
-      if (ph.t !== "buy") return false;
+      if (ph.t !== "afterRoll" || !ph.buy) return false;
+      const offer = ph.buy;
       const qty = Math.floor(a.qty);
-      if (qty < 0 || qty > ph.max) return false;
-      if (qty > 0) {
-        p.shares[ph.stock] += qty;
-        p.cash -= qty * ph.price;
-        log(s, p.id, `buys ${qty} ${STOCKS[ph.stock].name} at $${ph.price} for $${fmt(qty * ph.price)}`, "money");
-      }
+      if (qty <= 0 || qty > offer.max) return false;
+      p.shares[offer.stock] += qty;
+      p.cash -= qty * offer.price;
+      offer.bought += qty;
+      offer.max = buyable(p.cash, offer);
+      log(s, p.id, `buys ${qty} ${STOCKS[offer.stock].name} at $${offer.price} for $${fmt(qty * offer.price)}`, "money");
+      return true;
+    }
+
+    case "endTurn": {
+      if (ph.t !== "afterRoll") return false;
       endTurn(s);
       return true;
     }
 
     case "forcedSell": {
-      if (ph.t !== "raiseCash") return false;
+      // Any sale after the throw is at the lowest price on the board: to cover a fee,
+      // or by choice while buying (e.g. to raise cash for the stock just landed on).
+      if (ph.t !== "raiseCash" && ph.t !== "afterRoll") return false;
       const qty = Math.min(Math.floor(a.qty), p.shares[a.stock]);
       if (qty <= 0) return false;
       const price = lowestPrice(a.stock);
       p.shares[a.stock] -= qty;
       p.cash += qty * price;
+      if (ph.t === "afterRoll") {
+        log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} after the throw, at the lowest price ($${price})`, "bad");
+        if (ph.buy) ph.buy.max = buyable(p.cash, ph.buy);
+        return true;
+      }
       log(s, p.id, `must sell ${qty} ${STOCKS[a.stock].name} at the lowest price, $${price}`, "bad");
       if (p.cash >= ph.owed) payFee(s, ph.owed, ph.reason);
       return true;
@@ -326,7 +354,7 @@ function land(s: GameState) {
       p.shares[id] += gained;
       log(s, p.id, `lands on ${n} FOR 1 and receives ${gained} ${STOCKS[id].name} shares (now ${p.shares[id]})`, "up");
     }
-    endTurn(s);
+    afterRoll(s, null);
     return;
   }
 
@@ -354,7 +382,7 @@ function land(s: GameState) {
         p.cash += qty * price;
         log(s, p.id, `must sell all ${qty} ${STOCKS[sq.stock].name} at the lowest price, $${price}`, "bad");
       }
-      return endTurn(s);
+      return afterRoll(s, null);
     }
     case "stock": {
       const owned = p.shares[sq.stock];
@@ -362,23 +390,27 @@ function land(s: GameState) {
         p.cash += owned * sq.dividend;
         log(s, p.id, `collects a $${fmt(owned * sq.dividend)} dividend on ${owned} ${STOCKS[sq.stock].name}`, "money");
       }
-      const price = priceAt(sq.stock, s.market);
-      const limited = !!sq.limitOne;
-      const affordable = Math.floor(p.cash / price);
-      const max = limited ? Math.min(1, affordable) : affordable;
-      if (max === 0) {
-        log(s, p.id, `can't afford ${STOCKS[sq.stock].name} at $${price}`);
-        return endTurn(s);
-      }
-      s.phase = { t: "buy", stock: sq.stock, price, max, limited };
-      return;
+      const offer: BuyOffer = { stock: sq.stock, price: priceAt(sq.stock, s.market), limited: !!sq.limitOne, max: 0, bought: 0 };
+      offer.max = buyable(p.cash, offer);
+      return afterRoll(s, offer);
     }
   }
 }
 
+/** Shares of the offered stock the player can buy right now. */
+function buyable(cash: number, offer: BuyOffer): number {
+  const affordable = Math.floor(cash / offer.price);
+  return offer.limited ? Math.min(1 - offer.bought, affordable) : affordable;
+}
+
+/** The player has landed; they act (sell low, maybe buy) until they end their turn. */
+function afterRoll(s: GameState, buy: BuyOffer | null) {
+  s.phase = { t: "afterRoll", buy };
+}
+
 function charge(s: GameState, amount: number, reason: string) {
   const p = s.players[s.current];
-  if (amount <= 0) return endTurn(s);
+  if (amount <= 0) return afterRoll(s, null);
   if (p.cash >= amount) return payFee(s, amount, reason);
   s.phase = { t: "raiseCash", owed: amount, reason };
 }
@@ -387,7 +419,7 @@ function payFee(s: GameState, amount: number, reason: string) {
   const p = s.players[s.current];
   p.cash -= amount;
   log(s, p.id, `pays a $${fmt(amount)} ${reason.replace(/^\$100 /, "")}`, "bad");
-  endTurn(s);
+  afterRoll(s, null);
 }
 
 function endTurn(s: GameState) {
