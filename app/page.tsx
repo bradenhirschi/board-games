@@ -141,7 +141,7 @@ export default function Home() {
           <ul>
             <li>
               <b>Go to work.</b> Pick an occupation. Whenever <i>anyone</i> throws your numbers you&apos;re paid. Once you
-              have $1,000 you must start playing the market at your next turn.
+              have $1,000 you start playing the market at your next turn.
             </li>
             <li>
               <b>Play the market.</b> Start on any START square (no fee). Each throw, move the way the arrow on the square
@@ -150,6 +150,10 @@ export default function Home() {
             <li>
               <b>Land</b> and the market slider moves up or down. Then buy as many shares of that stock as you like at
               the new price (1 on limit squares). Own it already? Collect the dividend first.
+            </li>
+            <li>
+              <b>Paired stocks.</b> The eight stocks come in four pairs that share one price ladder, flipped: when the
+              market moves, one of each pair goes up and the other goes down.
             </li>
             <li>
               <b>Sell</b> only just before your throw, at the board price. Forced sales (fees, SELL ALL squares) are at

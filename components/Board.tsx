@@ -38,6 +38,15 @@ const at = (row: number, col: number, rowSpan = 1, colSpan = 1): CSSProperties =
 // Corners are a little larger than regular squares.
 const TEMPLATE = `1.45fr repeat(${GRID - 2}, 1fr) 1.45fr`;
 
+/*
+ * Inner grid (spans the 11 track-square widths inside the corners). Each meeting lane is
+ * two shallow strips (0.55 of a square deep, like the printed board), then a spacer, so
+ * the 7 middle tracks still line up with the track squares around them.
+ */
+const LANE_DEPTH = 0.55;
+const SPACER = 2 - 2 * LANE_DEPTH;
+const INNER = `${LANE_DEPTH}fr ${LANE_DEPTH}fr ${SPACER}fr repeat(7, 1fr) ${SPACER}fr ${LANE_DEPTH}fr ${LANE_DEPTH}fr`;
+
 /** Key for any cell a token can sit on. */
 function posKey(pos: Pos): string {
   return pos.kind === "track" ? `t${pos.index}` : `l${pos.lane}:${laneCell(pos.from, pos.p)}`;
@@ -70,27 +79,31 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
         );
       })}
 
-      {LANES.map((lane, l) => (
-        <MeetingLane key={lane.side} lane={lane} laneIndex={l} landed={landed} tokens={tokens} />
-      ))}
+      {/* Everything inside the track lives on its own grid, so the meeting lanes can be
+          shallow (like the printed board) while still lining up with the track squares. */}
+      <div className="board-inner" style={{ ...at(1, 1, GRID - 2, GRID - 2), gridTemplateColumns: INNER, gridTemplateRows: INNER }}>
+        {LANES.map((lane, l) => (
+          <MeetingLane key={lane.side} lane={lane} laneIndex={l} landed={landed} tokens={tokens} />
+        ))}
 
-      {CAREERS.map((career, i) => (
-        <CareerCorner
-          key={career.name}
-          career={career}
-          active={diceTotal !== null && career.rolls.includes(diceTotal)}
-        >
-          {tokens(`c${i}`)}
-        </CareerCorner>
-      ))}
+        {CAREERS.map((career, i) => (
+          <CareerCorner
+            key={career.name}
+            career={career}
+            active={diceTotal !== null && career.rolls.includes(diceTotal)}
+          >
+            {tokens(`c${i}`)}
+          </CareerCorner>
+        ))}
 
-      <div className="board-center" style={at(3, 3, 7, 7)}>
-        <div className="logo">
-          STONKS<span className="logo-arrow">↗</span>
-        </div>
-        <PriceTracker market={market} delta={marketDelta} />
-        <div className="logo logo-flipped" aria-hidden>
-          STONKS<span className="logo-arrow">↗</span>
+        <div className="board-center" style={at(3, 2, 7, 9)}>
+          <div className="logo">
+            STONKS<span className="logo-arrow">↗</span>
+          </div>
+          <PriceTracker market={market} delta={marketDelta} />
+          <div className="logo logo-flipped" aria-hidden>
+            STONKS<span className="logo-arrow">↗</span>
+          </div>
         </div>
       </div>
     </div>
@@ -207,10 +220,11 @@ function Tokens({ players, currentId }: { players: Player[]; currentId: number }
 
 const LANE_BOX: Record<Side, { outer: [number, number]; inner: [number, number]; vertical: boolean }> = {
   // [row, col] of the lane's first cell, for the row nearest the track and the row nearest the center.
-  bottom: { outer: [11, 3], inner: [10, 3], vertical: false },
-  top: { outer: [1, 3], inner: [2, 3], vertical: false },
-  left: { outer: [3, 1], inner: [3, 2], vertical: true },
-  right: { outer: [3, 11], inner: [3, 10], vertical: true },
+  // (Positions on the inner grid.)
+  bottom: { outer: [12, 3], inner: [11, 3], vertical: false },
+  top: { outer: [0, 3], inner: [1, 3], vertical: false },
+  left: { outer: [3, 0], inner: [3, 1], vertical: true },
+  right: { outer: [3, 12], inner: [3, 11], vertical: true },
 };
 
 function MeetingLane({
@@ -232,11 +246,13 @@ function MeetingLane({
     return sq.kind === "stock" ? STOCKS[sq.stock].short : "";
   });
   const key = (c: string) => `l${laneIndex}:${c}`;
-  const cls = (c: string, extra = "") => `lane-cell ${extra} ${landed === key(c) ? "sq-landing" : ""}`;
+  const cls = (c: string, extra = "") =>
+    `lane-cell ${box.vertical ? "lane-cell-v" : ""} ${extra} ${landed === key(c) ? "sq-landing" : ""}`;
   return (
     <>
       <div className={cls("end0")} style={cell(box.outer, 0)}>
-        1 FOR 1{tokens(key("end0"))}
+        <span className="lane-text">1 FOR 1</span>
+        {tokens(key("end0"))}
       </div>
       <div className={`lane-label ${box.vertical ? "lane-label-v" : ""}`} style={cell(box.outer, 1, 5)}>
         <span className="lane-sub">
@@ -248,11 +264,13 @@ function MeetingLane({
         </span>
       </div>
       <div className={cls("end1")} style={cell(box.outer, 6)}>
-        1 FOR 1{tokens(key("end1"))}
+        <span className="lane-text">1 FOR 1</span>
+        {tokens(key("end1"))}
       </div>
       {lane.splits.map((n, k) => (
         <div key={k} className={cls(`in${k}`, "lane-split")} style={cell(box.inner, k)}>
-          {n} FOR 1{tokens(key(`in${k}`))}
+          <span className="lane-text">{n} FOR 1</span>
+          {tokens(key(`in${k}`))}
         </div>
       ))}
     </>
@@ -260,16 +278,16 @@ function MeetingLane({
 }
 
 const CAREER_POS: Record<Career["corner"], [number, number]> = {
-  tl: [1, 1],
-  tr: [1, 10],
-  bl: [10, 1],
+  tl: [0, 0],
+  tr: [0, 10],
+  bl: [10, 0],
   br: [10, 10],
 };
 
 function CareerCorner({ career, active, children }: { career: Career; active: boolean; children: ReactNode }) {
   const [r, c] = CAREER_POS[career.corner];
   return (
-    <div className={`career ${active ? "career-active" : ""}`} style={at(r, c, 2, 2)}>
+    <div className={`career ${active ? "career-active" : ""}`} style={at(r, c, 3, 3)}>
       <div className="career-icon">{career.icon}</div>
       <div className="career-name">{career.name.toUpperCase()}</div>
       <div className="career-rule">

@@ -177,6 +177,8 @@ function apply(s: GameState, a: Action): boolean {
 
     case "goToMarket": {
       if (ph.t !== "preRoll" || p.status !== "work" || !START_SQUARES.includes(a.start)) return false;
+      // Nobody plays the market until they've earned $1,000 at work.
+      if (p.cash < WORK_CAP) return false;
       p.status = "market";
       p.pos = { kind: "track", index: a.start };
       log(s, p.id, `starts playing the market with $${fmt(p.cash)}`, "money");

@@ -106,6 +106,22 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
 
   return (
     <div className="game">
+      <header className="topbar">
+        <h1>
+          STONKS <span className="logo-arrow">↗</span>
+        </h1>
+        <div className="topbar-info">
+          First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
+        </div>
+        <div className="topbar-tools">
+          <button className="link" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
+            {speed === "normal" ? "Speed: normal" : "Speed: fast"}
+          </button>
+          <button className="link" onClick={onQuit}>
+            Menu
+          </button>
+        </div>
+      </header>
       <div className="board-wrap">
         <Board
           players={state.players}
@@ -126,24 +142,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
       </div>
 
       <aside className="panel">
-        <header className="panel-head">
-          <h1>
-            STONKS <span className="logo-arrow">↗</span>
-          </h1>
-          <div className="panel-tools">
-            <button className="link" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
-              {speed === "normal" ? "Speed: normal" : "Speed: fast"}
-            </button>
-            <button className="link" onClick={onQuit}>
-              Menu
-            </button>
-          </div>
-        </header>
-        <div className="muted small">
-          First to <b>${fmt(state.target)}</b> at their turn to roll wins · Round{" "}
-          {Math.floor((state.turn - 1) / state.players.length) + 1}
-        </div>
-
         {winner ? (
           <section className="turn turn-over" style={{ borderColor: winner.color }}>
             <div className="turn-label">
@@ -327,7 +325,8 @@ function TurnControls({
             </>
           ) : (
             <>
-              At work. You&apos;re paid whenever <i>anyone</i> throws your number. Reach $1,000 and you must play the market.
+              At work. You&apos;re paid whenever <i>anyone</i> throws your number. Earn $1,000 to start playing the
+              market (${fmt(1000 - player.cash)} to go).
             </>
           )}
         </p>
@@ -368,11 +367,6 @@ function TurnControls({
                 </button>
               ))}
             </div>
-            {!must && (
-              <button className="link small" onClick={() => setPickingStart(false)}>
-                Cancel
-              </button>
-            )}
           </div>
         ) : (
           <div className="btn-row">
@@ -381,9 +375,11 @@ function TurnControls({
                 Roll for salary
               </button>
             )}
-            <button className={`btn ${must ? "btn-primary" : ""}`} disabled={disabled} onClick={() => setPickingStart(true)}>
-              Play the market →
-            </button>
+            {must && (
+              <button className="btn btn-primary" disabled={disabled} onClick={() => setPickingStart(true)}>
+                Play the market →
+              </button>
+            )}
           </div>
         )}
       </div>

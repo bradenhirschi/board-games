@@ -1,6 +1,6 @@
 import { START_SQUARES } from "./board";
 import { BROKER_FEE_PER_SHARE, START_FEE, canRoll, mustGoToMarket, totalShares, type Action, type GameState } from "./engine";
-import { MARKET_MAX, STOCK_ORDER, lowestPrice } from "./stocks";
+import { STOCK_ORDER, lowestPrice, pricePosition } from "./stocks";
 
 /** What a computer player wants to do next. `roll` is handled by the UI so the dice animate. */
 export type BotMove = Action | { type: "rollDice" };
@@ -10,12 +10,11 @@ const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 // Doctor (4/10) and Deep Sea Diver (3/11) pay the most per throw on average.
 const BEST_CAREERS = [2, 3];
 
-/** Sell everything once the slider is this high. */
-const SELL_LEVEL = Math.round(MARKET_MAX * 0.76);
+/** Sell a holding once its price is this far up its ladder (0 = cheapest, 1 = dearest). */
+const SELL_POSITION = 0.76;
 
-/** Fraction of spare cash a bot will spend, by how cheap the market is. */
-function appetite(level: number): number {
-  const r = level / MARKET_MAX;
+/** Fraction of spare cash a bot will spend, by how cheap the stock is on its ladder. */
+function appetite(r: number): number {
   if (r <= 0.3) return 0.9;
   if (r <= 0.5) return 0.6;
   if (r <= 0.7) return 0.3;
@@ -33,10 +32,8 @@ export function botMove(state: GameState): BotMove | null {
         if (mustGoToMarket(p)) return { type: "goToMarket", start: pick(START_SQUARES) };
         return { type: "rollDice" };
       }
-      if (state.market >= SELL_LEVEL) {
-        const held = STOCK_ORDER.find((id) => p.shares[id] > 0);
-        if (held) return { type: "sell", stock: held, qty: p.shares[held] };
-      }
+      const dear = STOCK_ORDER.find((id) => p.shares[id] > 0 && pricePosition(id, state.market) >= SELL_POSITION);
+      if (dear) return { type: "sell", stock: dear, qty: p.shares[dear] };
       return canRoll(state) ? { type: "rollDice" } : null;
     }
     case "detour":
@@ -46,7 +43,7 @@ export function botMove(state: GameState): BotMove | null {
       const reserve = START_FEE + BROKER_FEE_PER_SHARE * totalShares(p);
       const unit = ph.price + BROKER_FEE_PER_SHARE;
       if (ph.limited) return { type: "buy", qty: p.cash - ph.price >= reserve ? 1 : 0 };
-      const budget = Math.max(0, p.cash - reserve) * appetite(state.market);
+      const budget = Math.max(0, p.cash - reserve) * appetite(pricePosition(ph.stock, state.market));
       return { type: "buy", qty: Math.min(ph.max, Math.floor(budget / unit)) };
     }
     case "raiseCash": {

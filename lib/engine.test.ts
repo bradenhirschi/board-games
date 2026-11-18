@@ -51,12 +51,27 @@ describe("working", () => {
     expect(s.players[0].cash).toBe(200);
     expect(s.players[1].cash).toBe(0);
   });
+  it("can't play the market before earning $1,000", () => {
+    let s = game(2);
+    s = { ...s, players: s.players.map((p, i) => (i === 0 ? { ...p, career: DOCTOR, cash: 999 } : p)) };
+    expect(reducer(s, { type: "goToMarket", start: 6 })).toBe(s);
+  });
   it("must go to the market once they have $1,000", () => {
     let s = game(2);
     s = { ...s, players: s.players.map((p, i) => (i === 0 ? { ...p, career: DOCTOR, cash: 1000 } : p)) };
     expect(reducer(s, { type: "roll", dice: [2, 2] })).toBe(s);
     s = run(s, { type: "goToMarket", start: 6 }, { type: "roll", dice: [1, 2] });
     expect(s.phase.t).not.toBe("preRoll");
+  });
+});
+
+describe("paired stocks", () => {
+  it("each pair shares one ladder, inverted", () => {
+    for (const [a, b] of [["ALUM", "WOOL"], ["AMMO", "PRESS"], ["CRATE", "SPIN"], ["GRAIN", "SOLE"]] as const) {
+      for (let l = 0; l <= 50; l++) expect(priceAt(b, l)).toBe(priceAt(a, 50 - l));
+      expect(priceAt(a, 50)).toBeGreaterThan(priceAt(a, 0));
+      expect(priceAt(b, 50)).toBeLessThan(priceAt(b, 0));
+    }
   });
 });
 
