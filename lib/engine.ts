@@ -68,6 +68,8 @@ export interface GameState {
   lastMarketDelta: number;
   log: LogEntry[];
   nextLogId: number;
+  /** First log id of the current turn (for showing what this turn's player did). */
+  turnLogStart?: number;
 }
 
 export interface PlayerSetup {
@@ -111,6 +113,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
     lastMarketDelta: 0,
     log: [],
     nextLogId: 1,
+    turnLogStart: 1,
   };
 }
 
@@ -386,6 +389,7 @@ function payFee(s: GameState, amount: number, reason: string) {
 function endTurn(s: GameState) {
   s.current = (s.current + 1) % s.players.length;
   s.turn += 1;
+  s.turnLogStart = s.nextLogId;
   s.phase = { t: "preRoll" };
   // A player wins if they're worth the target at their turn to roll.
   const next = s.players[s.current];

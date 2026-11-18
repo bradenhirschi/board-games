@@ -1004,3 +1004,39 @@ button.link:disabled {
     content: "...";
   }
 }
+
+/* Bot turn card */
+.bot-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bot-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+}
+.bot-actions li {
+  padding-left: 8px;
+  border-left: 3px solid #e4e4df;
+}
+.bot-turn .bot-actions li::first-letter {
+  text-transform: uppercase;
+}
+.bot-status {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.recap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper-2);
+}
