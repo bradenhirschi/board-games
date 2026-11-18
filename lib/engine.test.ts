@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { botMove } from "./bot";
-import { CAREERS } from "./board";
+import { CAREERS, TRACK, arrowFor, directionFor } from "./board";
 import { newGame, reducer, netWorth, type Action, type GameState, type Pos } from "./engine";
 import { lowestPrice, moveMarket, priceAt } from "./stocks";
 
@@ -86,6 +86,29 @@ describe("paired stocks", () => {
       for (let l = 0; l <= 50; l++) expect(priceAt(b, l)).toBe(priceAt(a, 50 - l));
       expect(priceAt(a, 50)).toBeGreaterThan(priceAt(a, 0));
       expect(priceAt(b, 50)).toBeLessThan(priceAt(b, 0));
+    }
+  });
+});
+
+describe("board arrows", () => {
+  it("match the original board on every square", () => {
+    // Read square by square off the playtest board, in track order (0 = bottom-right corner,
+    // then clockwise). "S" = START (checked separately).
+    // prettier-ignore
+    const expected = [
+      "↑", "→", "→", "→", "←", "←", "S", "←", "←", "←", "←", "←", // bottom row, right to left
+      "→", "↓", "↓", "↓", "↑", "↑", "S", "↑", "↑", "↑", "↑", "↑", // left side, bottom to top
+      "↓", "←", "←", "←", "→", "→", "S", "→", "→", "→", "→", "→", // top row, left to right
+      "←", "↑", "↑", "↑", "↓", "↓", "S", "↓", "↓", "↓", "↓", "↓", // right side, top to bottom
+    ];
+    TRACK.forEach((sq, i) => {
+      if (sq.kind === "start") return;
+      expect([i, arrowFor(i, sq.dir)]).toEqual([i, expected[i]]);
+    });
+    // START: odd / even arrows on each side.
+    const starts: Record<number, [string, string]> = { 6: ["←", "→"], 18: ["↑", "↓"], 30: ["→", "←"], 42: ["↓", "↑"] };
+    for (const [i, [odd, even]] of Object.entries(starts)) {
+      expect([arrowFor(Number(i), directionFor(Number(i), 3)), arrowFor(Number(i), directionFor(Number(i), 4))]).toEqual([odd, even]);
     }
   });
 });
