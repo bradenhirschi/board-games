@@ -1418,3 +1418,16 @@ button.link {
   font-size: 10px;
   border-width: 1.5px;
 }
+
+/* Home screen: size to the visible screen (dvh excludes mobile browser toolbars), and on
+   phones sit the card at the top instead of centering it in leftover space. */
+.setup {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@media (max-width: 600px) {
+  .setup {
+    place-items: start center;
+    padding: 12px;
+  }
+}
