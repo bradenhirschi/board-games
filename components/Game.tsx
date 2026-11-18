@@ -12,8 +12,9 @@ export const SAVE_KEY = "stonks:game:v2";
 
 const ROLL_MS = 550;
 const SPEEDS = {
-  normal: { step: 200, bot: 750 },
-  fast: { step: 70, bot: 180 },
+  // Bots pause for a random "thinking" time between `bot` and `bot + botJitter` ms before each decision.
+  normal: { step: 200, bot: 1000, botJitter: 900 },
+  fast: { step: 70, bot: 180, botJitter: 0 },
 };
 
 const rollDie = () => 1 + Math.floor(Math.random() * 6);
@@ -72,12 +73,16 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Computer players.
   useEffect(() => {
     if (!botTurn || rolling || ph.t === "moving") return;
-    const t = setTimeout(() => {
-      const move = botMove(state);
-      if (!move) return;
-      if (move.type === "rollDice") roll();
-      else dispatch(move);
-    }, SPEEDS[speed].bot);
+    const { bot, botJitter } = SPEEDS[speed];
+    const t = setTimeout(
+      () => {
+        const move = botMove(state);
+        if (!move) return;
+        if (move.type === "rollDice") roll();
+        else dispatch(move);
+      },
+      bot + Math.random() * botJitter,
+    );
     return () => clearTimeout(t);
   }, [botTurn, rolling, ph, state, speed, roll]);
 
@@ -163,6 +168,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               </span>
               <b>{current.name}</b>
               {current.isBot && <span className="tag">BOT</span>}
+              {botTurn && !rolling && ph.t !== "moving" && <span className="muted small thinking">thinking</span>}
               <span className="turn-cash">${fmt(current.cash)}</span>
             </div>
 

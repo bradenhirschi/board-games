@@ -157,11 +157,11 @@ function TrackSquare({
   }
 
   const stock = STOCKS[sq.stock];
-  const colors = { ...style, background: stock.color, color: stock.ink };
+  const colors = { ...style, backgroundColor: stock.color, color: stock.ink };
 
   if (sq.kind === "sellAll") {
     return (
-      <div className={cls} style={colors} {...common}>
+      <div className={`${cls} sq-sellall`} style={colors} {...common}>
         <div className="sq-small strong">SELL ALL</div>
         <div className="sq-title">{stock.short}</div>
         <div className="sq-small">AT ${lowestPrice(sq.stock)}/SH</div>
