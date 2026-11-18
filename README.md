@@ -1,4 +1,4 @@
-# Stonks
+# Stock Market
 
 A stock market board game, built as a Next.js web app.
 
@@ -42,7 +42,7 @@ npm test      # rules engine tests + simulated bot games
 
 | File | What it holds |
 | --- | --- |
-| `lib/stocks.ts` | Placeholder companies (names, colors) and the price formula for each market level |
+| `lib/stocks.ts` | The eight companies (names, colors) and their quotation board price ladders |
 | `lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
 | `lib/engine.ts` | All game rules: state, turn phases and actions |
 | `lib/bot.ts` | Computer player strategy |

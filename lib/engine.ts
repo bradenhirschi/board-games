@@ -56,7 +56,7 @@ export interface LogEntry {
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   players: Player[];
   current: number;
   market: number;
@@ -91,7 +91,7 @@ export const emptyHoldings = (): Holdings =>
 
 export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
   return {
-    version: 2,
+    version: 3,
     players: setup.map((p, i) => ({
       id: i,
       name: p.name,

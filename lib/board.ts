@@ -30,13 +30,13 @@ export const TRACK_LENGTH = 48;
 export const GRID = 13;
 
 const DIVIDEND: Record<StockId, number> = {
-  ALUM: 4,
+  ALCOA: 4,
   AMMO: 3,
-  GRAIN: 1,
-  SOLE: 1,
-  CRATE: 2,
-  SPIN: 2,
-  PRESS: 3,
+  GMILLS: 1,
+  ISHOE: 1,
+  CASE: 2,
+  MAYTAG: 2,
+  WPUB: 3,
   WOOL: 4,
 };
 
@@ -53,59 +53,59 @@ const corner = (move: number): Square => ({ kind: "corner", move, dir: "ccw" });
 
 // Each side lists its 11 squares in clockwise order (START is always 6th).
 const BOTTOM: Square[] = [
-  sellAll("GRAIN", -5, "ccw"),
-  stock("CRATE", 4, "ccw"),
-  stock("SOLE", -1, "ccw", { entry: true, limitOne: true }),
+  sellAll("GMILLS", -5, "ccw"),
+  stock("CASE", 4, "ccw"),
+  stock("ISHOE", -1, "ccw", { entry: true, limitOne: true }),
   stock("WOOL", 2, "cw"),
-  stock("PRESS", -1, "cw"),
+  stock("WPUB", -1, "cw"),
   { kind: "start", side: "bottom" },
   stock("AMMO", -1, "cw"),
-  stock("ALUM", 2, "cw"),
-  stock("GRAIN", -3, "cw", { entry: true, limitOne: true }),
-  stock("SPIN", 4, "cw"),
-  sellAll("SOLE", -5, "cw"),
+  stock("ALCOA", 2, "cw"),
+  stock("GMILLS", -3, "cw", { entry: true, limitOne: true }),
+  stock("MAYTAG", 4, "cw"),
+  sellAll("ISHOE", -5, "cw"),
 ];
 
 const LEFT: Square[] = [
   sellAll("AMMO", 5, "ccw"),
   stock("WOOL", -4, "ccw"),
-  stock("PRESS", 3, "ccw", { entry: true, limitOne: true }),
-  stock("CRATE", -2, "ccw"),
-  stock("SOLE", 1, "ccw"),
+  stock("WPUB", 3, "ccw", { entry: true, limitOne: true }),
+  stock("CASE", -2, "ccw"),
+  stock("ISHOE", 1, "ccw"),
   { kind: "start", side: "left" },
-  stock("GRAIN", 1, "cw"),
-  stock("SPIN", -2, "cw"),
+  stock("GMILLS", 1, "cw"),
+  stock("MAYTAG", -2, "cw"),
   stock("AMMO", 3, "cw", { entry: true, limitOne: true }),
-  stock("ALUM", -4, "cw"),
-  sellAll("PRESS", 5, "cw"),
+  stock("ALCOA", -4, "cw"),
+  sellAll("WPUB", 5, "cw"),
 ];
 
 const TOP: Square[] = [
-  sellAll("CRATE", -5, "ccw"),
-  stock("SOLE", 4, "ccw"),
-  stock("SPIN", -3, "ccw", { entry: true, limitOne: true }),
-  stock("PRESS", 2, "cw"),
+  sellAll("CASE", -5, "ccw"),
+  stock("ISHOE", 4, "ccw"),
+  stock("MAYTAG", -3, "ccw", { entry: true, limitOne: true }),
+  stock("WPUB", 2, "cw"),
   stock("WOOL", -1, "cw"),
   { kind: "start", side: "top" },
-  stock("ALUM", -1, "cw"),
+  stock("ALCOA", -1, "cw"),
   stock("AMMO", 2, "cw"),
-  stock("CRATE", -3, "cw", { entry: true, limitOne: true }),
-  stock("GRAIN", 4, "cw"),
-  sellAll("SPIN", -5, "cw"),
+  stock("CASE", -3, "cw", { entry: true, limitOne: true }),
+  stock("GMILLS", 4, "cw"),
+  sellAll("MAYTAG", -5, "cw"),
 ];
 
 const RIGHT: Square[] = [
   sellAll("WOOL", 5, "ccw"),
   stock("AMMO", -4, "ccw"),
-  stock("ALUM", 3, "ccw", { entry: true, limitOne: true }),
-  stock("GRAIN", -2, "ccw"),
-  stock("SPIN", 1, "ccw"),
+  stock("ALCOA", 3, "ccw", { entry: true, limitOne: true }),
+  stock("GMILLS", -2, "ccw"),
+  stock("MAYTAG", 1, "ccw"),
   { kind: "start", side: "right" },
-  stock("CRATE", 1, "cw"),
-  stock("SOLE", -2, "cw"),
+  stock("CASE", 1, "cw"),
+  stock("ISHOE", -2, "cw"),
   stock("WOOL", 3, "cw", { entry: true, limitOne: true }),
-  stock("PRESS", -4, "cw"),
-  sellAll("ALUM", 5, "cw"),
+  stock("WPUB", -4, "cw"),
+  sellAll("ALCOA", 5, "cw"),
 ];
 
 export const TRACK: Square[] = [

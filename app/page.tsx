@@ -10,7 +10,7 @@ function loadSaved(): GameState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     const s = raw ? (JSON.parse(raw) as GameState) : null;
-    return s && s.version === 2 && s.phase.t !== "gameOver" ? s : null;
+    return s && s.version === 3 && s.phase.t !== "gameOver" ? s : null;
   } catch {
     return null;
   }
@@ -47,7 +47,7 @@ export default function Home() {
     <main className="setup">
       <div className="setup-card">
         <h1 className="setup-logo">
-          STONKS <span className="logo-arrow">↗</span>
+          Stock Market
         </h1>
         <p className="muted">Buy low, sell high, and be first to ${fmt(target)}. For 2–8 players.</p>
 

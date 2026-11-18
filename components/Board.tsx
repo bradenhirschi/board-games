@@ -98,11 +98,11 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
 
         <div className="board-center" style={at(3, 2, 7, 9)}>
           <div className="logo">
-            STONKS<span className="logo-arrow">↗</span>
+            STOCK MARKET
           </div>
           <PriceTracker market={market} delta={marketDelta} />
           <div className="logo logo-flipped" aria-hidden>
-            STONKS<span className="logo-arrow">↗</span>
+            STOCK MARKET
           </div>
         </div>
       </div>

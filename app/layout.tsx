@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stonks",
+  title: "Stock Market",
   description: "A stock market board game.",
   // Ask Dark Reader-based night modes (used by some browsers) not to recolor the board.
   other: { "darkreader-lock": "true" },

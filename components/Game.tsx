@@ -8,7 +8,7 @@ import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import { Die } from "./Dice";
 
-export const SAVE_KEY = "stonks:game:v2";
+export const SAVE_KEY = "stock-market:game:v3";
 
 const ROLL_MS = 550;
 const SPEEDS = {
@@ -108,7 +108,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
     <div className="game">
       <header className="topbar">
         <h1>
-          STONKS <span className="logo-arrow">↗</span>
+          STOCK MARKET
         </h1>
         <div className="topbar-info">
           First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
