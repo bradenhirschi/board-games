@@ -36,10 +36,25 @@ describe("quotation board", () => {
     expect(moveMarket(3, -5)).toBe(2);
     expect(moveMarket(25, 20)).toBe(45);
   });
-  it("prices rise with the slider", () => {
-    expect(priceAt("GRAIN", 0)).toBe(18);
-    expect(priceAt("GRAIN", 50)).toBe(43);
-    expect(lowestPrice("PRESS")).toBe(10);
+  it("matches the printed quotation board", () => {
+    // Ends and middle of each row (DOWN end, START, UP end).
+    const rows: [Parameters<typeof priceAt>[0], number, number, number][] = [
+      ["ALCOA", 30, 130, 230],
+      ["AMMO", 10, 60, 110],
+      ["CASE", 15, 45, 75],
+      ["GMILLS", 18, 30, 42],
+      ["WOOL", 230, 130, 30],
+      ["WPUB", 110, 60, 10],
+      ["MAYTAG", 75, 45, 15],
+      ["ISHOE", 42, 30, 18],
+    ];
+    for (const [id, down, start, up] of rows) {
+      expect([priceAt(id, 0), priceAt(id, 25), priceAt(id, 50)]).toEqual([down, start, up]);
+    }
+    // J.I. Case climbs $2 a space through the middle of the board.
+    expect([20, 21, 22, 30, 31].map((l) => priceAt("CASE", l))).toEqual([35, 37, 39, 55, 56]);
+    expect(lowestPrice("WPUB")).toBe(10);
+    expect(lowestPrice("WOOL")).toBe(30);
   });
 });
 
@@ -67,7 +82,7 @@ describe("working", () => {
 
 describe("paired stocks", () => {
   it("each pair shares one ladder, inverted", () => {
-    for (const [a, b] of [["ALUM", "WOOL"], ["AMMO", "PRESS"], ["CRATE", "SPIN"], ["GRAIN", "SOLE"]] as const) {
+    for (const [a, b] of [["ALCOA", "WOOL"], ["AMMO", "WPUB"], ["CASE", "MAYTAG"], ["GMILLS", "ISHOE"]] as const) {
       for (let l = 0; l <= 50; l++) expect(priceAt(b, l)).toBe(priceAt(a, 50 - l));
       expect(priceAt(a, 50)).toBeGreaterThan(priceAt(a, 0));
       expect(priceAt(b, 50)).toBeLessThan(priceAt(b, 0));
@@ -85,21 +100,21 @@ describe("moving", () => {
   });
 
   it("follows the arrow on the square being left", () => {
-    // Square 2 (J.T. Crate, bottom row) points toward the bottom-right corner.
+    // Square 2 (J.I. Case, bottom row) points toward the bottom-right corner.
     const s = rollAndMove(place(game(), 0, { kind: "track", index: 2 }), [1, 1]);
     expect(s.players[0].pos).toEqual({ kind: "track", index: 0 });
   });
 
   it("moves the slider and offers stock at the new price", () => {
-    const s = rollAndMove(place(game(), 0, { kind: "track", index: 6 }), [1, 2]); // lands on General Grains, DOWN 3
+    const s = rollAndMove(place(game(), 0, { kind: "track", index: 6 }), [1, 2]); // lands on General Mills, DOWN 3
     expect(s.market).toBe(22);
-    expect(s.phase).toMatchObject({ t: "buy", stock: "GRAIN", price: priceAt("GRAIN", 22), limited: true, max: 1 });
+    expect(s.phase).toMatchObject({ t: "buy", stock: "GMILLS", price: priceAt("GMILLS", 22), limited: true, max: 1 });
   });
 
   it("pays dividends on shares already owned", () => {
     let s = place(game(), 0, { kind: "track", index: 6 });
     s.players[0].shares.WOOL = 10;
-    s = rollAndMove(s, [1, 1]); // even → back to square 4, Woolmart $4 DIV
+    s = rollAndMove(s, [1, 1]); // even → back to square 4, Woolworth $4 DIV
     expect(s.players[0].cash).toBe(1040);
   });
 });
@@ -107,7 +122,7 @@ describe("moving", () => {
 describe("fees and forced sales", () => {
   it("charges $10 per share on broker fee corners", () => {
     let s = place(game(), 0, { kind: "track", index: 11 });
-    s.players[0].shares.ALUM = 7;
+    s.players[0].shares.ALCOA = 7;
     s = rollAndMove(s, [1, 0] as unknown as [number, number]);
     expect(s.players[0].pos).toEqual({ kind: "track", index: 12 });
     expect(s.players[0].cash).toBe(1000 - 70);
@@ -115,19 +130,19 @@ describe("fees and forced sales", () => {
 
   it("sell-all squares sell at the lowest board price", () => {
     let s = place(game(), 0, { kind: "track", index: 2 });
-    s.players[0].shares.GRAIN = 10;
-    s = rollAndMove(s, [1, 0] as unknown as [number, number]); // square 1: Sell All General Grains
-    expect(s.players[0].shares.GRAIN).toBe(0);
-    expect(s.players[0].cash).toBe(1000 + 10 * lowestPrice("GRAIN"));
+    s.players[0].shares.GMILLS = 10;
+    s = rollAndMove(s, [1, 0] as unknown as [number, number]); // square 1: Sell All General Mills
+    expect(s.players[0].shares.GMILLS).toBe(0);
+    expect(s.players[0].cash).toBe(1000 + 10 * lowestPrice("GMILLS"));
   });
 
   it("makes a short player sell at the lowest price, or go broke", () => {
     let s = place(game(), 0, { kind: "track", index: 11 }, 5);
-    s.players[0].shares.PRESS = 20;
+    s.players[0].shares.WPUB = 20;
     s = rollAndMove(s, [1, 0] as unknown as [number, number]); // broker fee $200
     expect(s.phase).toMatchObject({ t: "raiseCash", owed: 200 });
-    const sold = reducer(s, { type: "forcedSell", stock: "PRESS", qty: 20 });
-    expect(sold.players[0].cash).toBe(5 + 20 * lowestPrice("PRESS") - 200);
+    const sold = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
+    expect(sold.players[0].cash).toBe(5 + 20 * lowestPrice("WPUB") - 200);
     expect(sold.phase.t).toBe("preRoll");
     const broke = reducer(s, { type: "goBroke" });
     expect(broke.players[0]).toMatchObject({ status: "work", cash: 0, pos: null });
@@ -137,10 +152,10 @@ describe("fees and forced sales", () => {
 describe("shareholders' meetings", () => {
   it("detours owners into the meeting and pays a stock dividend", () => {
     let s = place(game(), 0, { kind: "track", index: 6 });
-    s.players[0].shares.SOLE = 5;
+    s.players[0].shares.ISHOE = 5;
     s = rollAndMove(s, [3, 3], true); // 5, 4, 3 (entrance) → lane p0, p1, p2
     expect(s.players[0].pos).toEqual({ kind: "lane", lane: 0, from: 1, p: 2 });
-    expect(s.players[0].shares.SOLE).toBe(15); // landed on 2 FOR 1
+    expect(s.players[0].shares.ISHOE).toBe(15); // landed on 2 FOR 1
     expect(s.market).toBe(25); // the slider doesn't move in a meeting
   });
 
@@ -151,8 +166,8 @@ describe("shareholders' meetings", () => {
 
   it("can't re-enter a meeting straight after leaving one", () => {
     let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
-    s.players[0].shares.SOLE = 1;
-    s.players[0].shares.GRAIN = 1; // owns the stock at the far entrance too
+    s.players[0].shares.ISHOE = 1;
+    s.players[0].shares.GMILLS = 1; // owns the stock at the far entrance too
     s = reducer(s, { type: "roll", dice: [1, 2] });
     const phases: string[] = [];
     while (s.phase.t === "moving") {
@@ -165,9 +180,9 @@ describe("shareholders' meetings", () => {
 
   it("can enter from the far entrance on a later turn after landing there", () => {
     let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
-    s.players[0].shares.SOLE = 1;
-    s.players[0].shares.GRAIN = 1;
-    s = rollAndMove(s, [1, 1]); // p8, then out onto the General Grains entrance
+    s.players[0].shares.ISHOE = 1;
+    s.players[0].shares.GMILLS = 1;
+    s = rollAndMove(s, [1, 1]); // p8, then out onto the General Mills entrance
     expect(s.players[0].pos).toEqual({ kind: "track", index: 9 });
     s = { ...s, current: 0, phase: { t: "preRoll" } };
     s = reducer(s, { type: "roll", dice: [1, 2] });
@@ -177,7 +192,7 @@ describe("shareholders' meetings", () => {
 
   it("exits by the far entrance and keeps going", () => {
     let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
-    s.players[0].shares.SOLE = 1;
+    s.players[0].shares.ISHOE = 1;
     s = rollAndMove(s, [1, 2]);
     expect(s.players[0].pos).toEqual({ kind: "track", index: 10 });
   });

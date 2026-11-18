@@ -47,6 +47,21 @@ const LANE_DEPTH = 0.55;
 const SPACER = 2 - 2 * LANE_DEPTH;
 const INNER = `${LANE_DEPTH}fr ${LANE_DEPTH}fr ${SPACER}fr repeat(7, 1fr) ${SPACER}fr ${LANE_DEPTH}fr ${LANE_DEPTH}fr`;
 
+/*
+ * Outline of the open field inside the track, in inner-grid units (the inner grid is 11
+ * track-square widths across). It follows the track's inner edge and steps around the
+ * four meeting lanes, which span squares 2–9 and are 2 × LANE_DEPTH deep.
+ */
+const L = 2 * LANE_DEPTH;
+const FIELD_LINE = [
+  [0, 0], [2, 0], [2, L], [9, L], [9, 0], [11, 0],
+  [11, 2], [11 - L, 2], [11 - L, 9], [11, 9], [11, 11],
+  [9, 11], [9, 11 - L], [2, 11 - L], [2, 11], [0, 11],
+  [0, 9], [L, 9], [L, 2], [0, 2],
+]
+  .map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`)
+  .join(" ") + " Z";
+
 /** Key for any cell a token can sit on. */
 function posKey(pos: Pos): string {
   return pos.kind === "track" ? `t${pos.index}` : `l${pos.lane}:${laneCell(pos.from, pos.p)}`;
@@ -86,6 +101,11 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
           <MeetingLane key={lane.side} lane={lane} laneIndex={l} landed={landed} tokens={tokens} />
         ))}
 
+        {/* The thick black line around the inside of the track, stepping in around each meeting lane. */}
+        <svg className="field-line" viewBox="0 0 11 11" preserveAspectRatio="none" aria-hidden>
+          <path d={FIELD_LINE} />
+        </svg>
+
         {CAREERS.map((career, i) => (
           <CareerCorner
             key={career.name}
@@ -98,11 +118,11 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
 
         <div className="board-center" style={at(3, 2, 7, 9)}>
           <div className="logo">
-            STONKS<span className="logo-arrow">↗</span>
+            STOCK MARKET
           </div>
           <PriceTracker market={market} delta={marketDelta} />
           <div className="logo logo-flipped" aria-hidden>
-            STONKS<span className="logo-arrow">↗</span>
+            STOCK MARKET
           </div>
         </div>
       </div>
@@ -129,7 +149,8 @@ function TrackSquare({
 }) {
   const sq = TRACK[index];
   const side = sideOf(index);
-  const cls = ["sq", `sq-${side}`, landing ? "sq-landing" : "", onClick ? "sq-pickable" : ""].join(" ");
+  const entry = sq.kind === "stock" && sq.entry ? `sq-entry sq-entry-${side}` : "";
+  const cls = ["sq", `sq-${side}`, entry, landing ? "sq-landing" : "", onClick ? "sq-pickable" : ""].join(" ");
   const common = {
     "data-index": index,
     onClick,
@@ -188,7 +209,11 @@ function TrackSquare({
 
   return (
     <div className={cls} style={colors} {...common}>
-      {sq.entry && <div className={`entry-banner entry-${side}`} title="Shareholders' meeting entrance" />}
+      {sq.entry && (
+        <div className={`entry-arrow entry-arrow-${side}`} title="Shareholders' meeting entrance">
+          <span>SHAREHOLDERS ENTER</span>
+        </div>
+      )}
       <div className="sq-small">${sq.dividend} DIV</div>
       <div className="sq-title">{stock.short}</div>
       {sq.limitOne && <div className="sq-tiny">LIMIT 1 SHARE</div>}

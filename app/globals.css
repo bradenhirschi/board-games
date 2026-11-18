@@ -2,16 +2,26 @@
 
 :root {
   color-scheme: only light;
-  --page: #f4f4f0;
-  --paper: #fafaf7;
-  --paper-2: #f2f2ee;
-  --ink: #1c1c1f;
-  --muted: #6b6b66;
-  --line: #26262a;
-  --accent: #19a463;
-  --up: #15803d;
-  --down: #c2410c;
-  --panel: #fdfdfb;
+  /* Palette from the Stock Market POC: cream paper, deep green ink and trim. */
+  --page: #f6f4ea;
+  --paper: #f4ebd2;
+  --paper-2: #ebe2c6;
+  --card: #fffdf5;
+  --ink: #1f3a30;
+  --muted: #6f7566;
+  --line: #1d1d1b;
+  --frame: #1d1d1b;
+  --rule: #d6d0b8;
+  --accent: #194b39;
+  --accent-shadow: #0f3125;
+  --header: #163f33;
+  --header-ink: #f6f4ea;
+  --highlight: #e7ebd9;
+  --up: #2f7a4f;
+  --down: #b5532f;
+  --panel: #fbf9f1;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -142,7 +152,7 @@ button.link:hover {
 }
 
 .sq-start .start-title {
-  color: #d1203b;
+  color: var(--ink);
   font-size: 1.4cqw;
   font-weight: 900;
 }
@@ -156,7 +166,7 @@ button.link:hover {
 }
 
 .sq-corner {
-  background: #fff;
+  background: var(--card);
   justify-content: center;
   gap: 0.3cqw;
 }
@@ -184,7 +194,7 @@ button.link:hover {
 
 .entry-banner {
   position: absolute;
-  background: #1c1c1f;
+  background: var(--line);
 }
 .entry-bottom {
   top: 0;
@@ -262,9 +272,9 @@ button.link:hover {
   display: grid;
   place-items: center;
   font-size: 0.85cqw;
-  border: 0.1cqw solid #d4d4cf;
-  background: #fff;
-  color: #3a3a3f;
+  border: 0.1cqw solid var(--rule);
+  background: var(--card);
+  color: var(--ink);
   white-space: nowrap;
 }
 .lane-split {
@@ -276,8 +286,8 @@ button.link:hover {
   justify-content: space-between;
   gap: 0.5cqw;
   padding: 0 0.6cqw;
-  border: 0.1cqw solid #d4d4cf;
-  background: #fff;
+  border: 0.1cqw solid var(--rule);
+  background: var(--card);
   min-width: 0;
   overflow: hidden;
 }
@@ -290,7 +300,7 @@ button.link:hover {
   writing-mode: vertical-rl;
 }
 .lane-title {
-  color: #1c9fb4;
+  color: #2f8f86;
   font-size: 1.05cqw;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -310,8 +320,8 @@ button.link:hover {
   justify-content: center;
   text-align: center;
   gap: 0.3cqw;
-  border: 0.12cqw solid #d4d4cf;
-  background: #fff;
+  border: 0.12cqw solid var(--rule);
+  background: var(--card);
   transition: background 0.2s;
 }
 .career-icon {
@@ -451,7 +461,7 @@ button.link:hover {
   flex: 1;
   height: 0.5cqw;
   border-radius: 1cqw;
-  background: linear-gradient(90deg, var(--down), #dadad5 50%, var(--up));
+  background: linear-gradient(90deg, var(--down), var(--rule) 50%, var(--up));
 }
 .gauge-fill {
   position: absolute;
@@ -475,7 +485,7 @@ button.link:hover {
   flex-direction: column;
   gap: 14px;
   box-shadow: 0 2px 12px rgb(0 0 0 / 0.08);
-  border: 1px solid #e2e2dc;
+  border: 1px solid var(--rule);
   position: sticky;
   top: 16px;
   max-height: calc(100vh - 32px);
@@ -512,7 +522,7 @@ button.link:hover {
   letter-spacing: 0.08em;
   padding: 1px 5px;
   border-radius: 4px;
-  background: #ececE8;
+  background: var(--highlight);
   color: var(--muted);
   vertical-align: 2px;
 }
@@ -562,7 +572,7 @@ button.link:hover {
 .die {
   width: 44px;
   height: 44px;
-  background: #fff;
+  background: var(--card);
   border: 2px solid var(--ink);
   border-radius: 9px;
   display: grid;
@@ -596,10 +606,10 @@ button.link:hover {
 /* Buttons */
 .btn {
   appearance: none;
-  border: 1.5px solid #d4d4cf;
+  border: 1.5px solid var(--rule);
   border-radius: 9px;
   padding: 8px 12px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   font-weight: 700;
   font-size: 14px;
@@ -616,7 +626,7 @@ button.link:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-  box-shadow: 0 3px 0 #0d6e40;
+  box-shadow: 0 3px 0 var(--accent-shadow);
 }
 .btn-primary:hover:not(:disabled) {
   filter: brightness(1.08);
@@ -624,7 +634,7 @@ button.link:hover {
 }
 .btn-primary:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 #0d6e40;
+  box-shadow: 0 1px 0 var(--accent-shadow);
 }
 .btn-danger {
   color: var(--down);
@@ -670,8 +680,8 @@ button.link:disabled {
   gap: 2px;
   padding: 7px 9px;
   border-radius: 8px;
-  border: 1.5px solid #dcdcd6;
-  background: #fff;
+  border: 1.5px solid var(--rule);
+  background: var(--card);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -683,7 +693,7 @@ button.link:disabled {
 }
 .career-pick-on {
   border-color: var(--accent);
-  background: #ecf7ef;
+  background: var(--highlight);
 }
 .start-picks {
   display: flex;
@@ -707,10 +717,10 @@ button.link:disabled {
   width: 100%;
   min-width: 0;
   padding: 4px 6px;
-  border: 1.5px solid #dadad5;
+  border: 1.5px solid var(--rule);
   border-radius: 6px;
   font-size: 13px;
-  background: #fff;
+  background: var(--card);
 }
 .qty {
   display: flex;
@@ -761,7 +771,7 @@ button.link:disabled {
   gap: 8px;
 }
 .players-current {
-  background: #ecf7ef;
+  background: var(--highlight);
 }
 .players-name {
   font-weight: 700;
@@ -798,7 +808,7 @@ button.link:disabled {
 }
 .log li {
   padding-left: 8px;
-  border-left: 3px solid #e4e4df;
+  border-left: 3px solid #e0dbc6;
 }
 .log-up {
   border-left-color: var(--up) !important;
@@ -832,7 +842,7 @@ button.link:disabled {
   padding: 28px;
   width: min(520px, 100%);
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.08);
-  border: 1px solid #e2e2dc;
+  border: 1px solid var(--rule);
 }
 .setup-logo {
   margin: 0;
@@ -856,10 +866,10 @@ button.link:disabled {
   flex: 1;
   min-width: 0;
   padding: 9px 11px;
-  border: 1.5px solid #dadad5;
+  border: 1.5px solid var(--rule);
   border-radius: 8px;
   font-size: 15px;
-  background: #fff;
+  background: var(--card);
 }
 .setup-row input:focus,
 .setup-target select:focus {
@@ -881,14 +891,14 @@ button.link:disabled {
 }
 .seg {
   display: flex;
-  border: 1.5px solid #dadad5;
+  border: 1.5px solid var(--rule);
   border-radius: 8px;
   overflow: hidden;
   flex: none;
 }
 .seg button {
   border: 0;
-  background: #fff;
+  background: var(--card);
   padding: 8px 10px;
   font-size: 13px;
   font-weight: 700;
@@ -908,7 +918,7 @@ button.link:disabled {
   margin-top: 16px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #ecf7ef;
+  background: var(--highlight);
   font-size: 14px;
 }
 .rules {
@@ -1023,7 +1033,7 @@ button.link:disabled {
 }
 .bot-actions li {
   padding-left: 8px;
-  border-left: 3px solid #e4e4df;
+  border-left: 3px solid #e0dbc6;
 }
 .bot-turn .bot-actions li::first-letter {
   text-transform: uppercase;
@@ -1099,4 +1109,276 @@ button.link:disabled {
 }
 .lane-title {
   font-size: 0.95cqw;
+}
+
+/* ---------- Stock Market theme ---------- */
+.board,
+.sq-corner,
+.career,
+.lane-cell,
+.lane-label {
+  background: var(--paper);
+}
+.lane-split {
+  background: var(--paper);
+}
+.board .sq {
+  border-color: var(--line);
+}
+.logo {
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+.topbar {
+  background: var(--header);
+  color: var(--header-ink);
+  margin: -16px -16px 0;
+  padding: 12px 16px;
+}
+.topbar h1,
+.setup-logo,
+.turn-label b,
+.panel .turn-over .turn-label {
+  font-family: var(--serif);
+}
+.topbar h1 {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant: small-caps;
+}
+.topbar-info {
+  color: rgb(246 244 234 / 0.75);
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.topbar-info b {
+  color: var(--header-ink);
+}
+.topbar .link {
+  color: var(--header-ink);
+}
+.setup-logo {
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.panel h2 {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.turn-label {
+  font-size: 18px;
+}
+button.link {
+  color: var(--accent);
+}
+@media (max-width: 900px) {
+  .topbar {
+    margin: -8px -8px 0;
+    padding: 10px 12px;
+  }
+}
+
+/* ---------- Board lines: one even black line between squares ---------- */
+.board {
+  /* The black background shows through equal gaps, so every line is the same width. */
+  background: var(--frame);
+  border: 0.45cqw solid var(--frame);
+  padding: 0;
+  gap: 0.18cqw;
+  border-radius: 0.3cqw;
+}
+.board .sq {
+  border: 0;
+}
+.board-inner {
+  background: var(--paper);
+  padding: 0.25cqw;
+}
+.lane-cell,
+.lane-label,
+.career {
+  border: 0.1cqw solid #8a8270;
+}
+.sq-entry-bottom {
+  padding-top: 0.75cqw;
+}
+.sq-entry-top {
+  padding-bottom: 0.75cqw;
+}
+.sq-entry-left {
+  padding-right: 0.75cqw;
+}
+.sq-entry-right {
+  padding-left: 0.75cqw;
+}
+
+/* ---------- Top bar: no green band, green text ---------- */
+.topbar {
+  background: none;
+  color: var(--header);
+  margin: 0;
+  padding: 0 4px;
+}
+.topbar-info {
+  color: var(--muted);
+}
+.topbar-info b {
+  color: var(--header);
+}
+.topbar .link {
+  color: var(--accent);
+}
+.topbar-speed {
+  margin-left: auto;
+}
+.token {
+  border-color: var(--card);
+}
+@media (max-width: 900px) {
+  .topbar {
+    margin: 0;
+    padding: 0 4px;
+  }
+  /* Line 1: title + menu. Line 2: target and round. Line 3: speed. */
+  .topbar-menu {
+    order: 2;
+    margin-left: auto;
+  }
+  .topbar-info {
+    order: 3;
+    width: 100%;
+  }
+  .topbar-speed {
+    order: 4;
+    margin-left: 0;
+  }
+}
+
+/* ---------- Lines matched to the original board ---------- */
+/* Hairlines between track squares; one thick line around the inside of the track. */
+.board {
+  gap: 0;
+  padding: 0;
+  background: var(--paper);
+  border: 0.3cqw solid var(--frame);
+  border-radius: 0;
+}
+.board .sq {
+  box-shadow: inset 0 0 0 0.07cqw rgb(0 0 0 / 0.6);
+}
+.board .sq.sq-landing {
+  box-shadow: inset 0 0 0 0.07cqw rgb(0 0 0 / 0.6), 0 0 0 0.35cqw #111, 0 0 1.5cqw 0.4cqw rgb(255 220 0 / 0.9);
+}
+.board-inner {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: var(--paper);
+}
+.lane-cell,
+.lane-label {
+  border: 0;
+  box-shadow: inset 0 0 0 0.06cqw #9a9384;
+}
+.career {
+  border: 0;
+  box-shadow: none;
+}
+.career-active {
+  box-shadow: inset 0 0 0 0.3cqw #d9a400;
+}
+.field-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+.field-line path {
+  fill: none;
+  stroke: var(--frame);
+  stroke-width: 0.045;
+  stroke-linejoin: miter;
+}
+.lane-cell .tokens,
+.career .tokens {
+  z-index: 2;
+}
+
+/* Shareholders' meeting entrances: a black "house" (pentagon) whose roof points into the meeting. */
+.entry-arrow {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  background: var(--frame);
+  color: #f6f4ea;
+  font-size: 0.4cqw;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1;
+}
+.entry-arrow-bottom,
+.entry-arrow-top {
+  left: 0;
+  right: 0;
+  height: 1.35cqw;
+}
+.entry-arrow-left,
+.entry-arrow-right {
+  top: 0;
+  bottom: 0;
+  width: 1.35cqw;
+  align-items: center;
+}
+.entry-arrow-left span {
+  writing-mode: vertical-rl;
+}
+.entry-arrow-right span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+/* Roof on the meeting side; the label sits in the rectangular half. */
+.entry-arrow-bottom {
+  top: 0;
+  align-items: flex-end;
+  padding-bottom: 0.18cqw;
+  clip-path: polygon(50% 0, 100% 48%, 100% 100%, 0 100%, 0 48%);
+}
+.entry-arrow-top {
+  bottom: 0;
+  align-items: flex-start;
+  padding-top: 0.18cqw;
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 50% 100%, 0 52%);
+}
+.entry-arrow-left {
+  right: 0;
+  justify-content: flex-start;
+  padding-left: 0.18cqw;
+  clip-path: polygon(0 0, 52% 0, 100% 50%, 52% 100%, 0 100%);
+}
+.entry-arrow-right {
+  left: 0;
+  justify-content: flex-end;
+  padding-right: 0.18cqw;
+  clip-path: polygon(48% 0, 100% 0, 100% 100%, 48% 100%, 0 50%);
+}
+.sq-entry-bottom {
+  padding-top: 1.45cqw;
+}
+.sq-entry-top {
+  padding-bottom: 1.45cqw;
+}
+.sq-entry-left {
+  padding-right: 1.45cqw;
+}
+.sq-entry-right {
+  padding-left: 1.45cqw;
 }

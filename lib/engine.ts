@@ -56,7 +56,7 @@ export interface LogEntry {
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   players: Player[];
   current: number;
   market: number;
@@ -77,7 +77,9 @@ export interface PlayerSetup {
   isBot: boolean;
 }
 
-export const PLAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#334155"];
+// Deep, slightly muted tones that sit with the cream board and the stock colors
+// without matching any single stock.
+export const PLAYER_COLORS = ["#1f3f6e", "#8e2f23", "#2d5a3d", "#a87412", "#5c3566", "#1e6670", "#9c4a1a", "#3a3a38"];
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS = 2;
 export const START_FEE = 100;
@@ -91,7 +93,7 @@ export const emptyHoldings = (): Holdings =>
 
 export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
   return {
-    version: 2,
+    version: 3,
     players: setup.map((p, i) => ({
       id: i,
       name: p.name,
