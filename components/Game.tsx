@@ -103,6 +103,9 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
   const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
   const dice = rolling ?? state.dice;
+  // Who threw the dice on show: the current player while rolling, otherwise the last thrower.
+  const lastRollId = state.log.find((e) => e.text.startsWith("rolls "))?.playerId ?? null;
+  const roller = rolling ? current : lastRollId !== null ? state.players[lastRollId] : null;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
@@ -143,6 +146,31 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
       </div>
 
       <aside className="panel">
+        {/* The shared dice sit above the player's box, labelled with who threw them. */}
+        <section className="dice-panel">
+          <div className="dice-row">
+            {dice ? (
+              <>
+                <Die value={dice[0]} rolling={!!rolling} />
+                <Die value={dice[1]} rolling={!!rolling} />
+                {!rolling && <span className="dice-total">= {dice[0] + dice[1]}</span>}
+              </>
+            ) : (
+              <span className="muted small">No one has rolled yet.</span>
+            )}
+          </div>
+          {roller && (
+            <div className="dice-who">
+              <span className="token token-static token-tiny" style={{ background: roller.color }}>
+                {roller.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span>
+                {roller.id === viewer.id ? "You" : roller.name} {rolling ? "rolling…" : "rolled"}
+              </span>
+            </div>
+          )}
+        </section>
+
         {winner ? (
           <section className="turn turn-over" style={{ borderColor: winner.color }}>
             <div className="turn-label">
@@ -168,18 +196,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               <b>{viewer.name}</b>
               {viewer.isBot && <span className="tag">BOT</span>}
               <span className="turn-cash">${fmt(viewer.cash)}</span>
-            </div>
-
-            <div className="dice-row">
-              {dice ? (
-                <>
-                  <Die value={dice[0]} rolling={!!rolling} />
-                  <Die value={dice[1]} rolling={!!rolling} />
-                  {!rolling && <span className="dice-total">= {dice[0] + dice[1]}</span>}
-                </>
-              ) : (
-                <span className="muted">Choose an occupation to start earning.</span>
-              )}
             </div>
 
             {viewer.id === current.id && !botTurn ? (
