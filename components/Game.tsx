@@ -11,11 +11,10 @@ import { Die } from "./Dice";
 export const SAVE_KEY = "stock-market:game:v3";
 
 const ROLL_MS = 550;
-const SPEEDS = {
-  // Bots pause for a random "thinking" time between `bot` and `bot + botJitter` ms before each decision.
-  normal: { step: 200, bot: 1000, botJitter: 900 },
-  fast: { step: 70, bot: 180, botJitter: 0 },
-};
+/** Delay between each square a token steps through. */
+const STEP_MS = 200;
+/** Bots "think" for a random time in this range (ms) before each decision. */
+const BOT_THINK_MS = [1000, 1900] as const;
 
 const rollDie = () => 1 + Math.floor(Math.random() * 6);
 
@@ -23,7 +22,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   const [state, dispatch] = useReducer(reducer, initial);
   const [rolling, setRolling] = useState<[number, number] | null>(null);
   const [pickingStart, setPickingStart] = useState(false);
-  const [speed, setSpeed] = useState<keyof typeof SPEEDS>("normal");
   const rollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = state.players[state.current];
@@ -42,9 +40,9 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Walk the token one square at a time.
   useEffect(() => {
     if (ph.t !== "moving") return;
-    const t = setTimeout(() => dispatch({ type: "step" }), SPEEDS[speed].step);
+    const t = setTimeout(() => dispatch({ type: "step" }), STEP_MS);
     return () => clearTimeout(t);
-  }, [ph, speed]);
+  }, [ph]);
 
   useEffect(
     () => () => {
@@ -73,7 +71,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Computer players.
   useEffect(() => {
     if (!botTurn || rolling || ph.t === "moving") return;
-    const { bot, botJitter } = SPEEDS[speed];
     const t = setTimeout(
       () => {
         const move = botMove(state);
@@ -81,10 +78,10 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
         if (move.type === "rollDice") roll();
         else dispatch(move);
       },
-      bot + Math.random() * botJitter,
+      BOT_THINK_MS[0] + Math.random() * (BOT_THINK_MS[1] - BOT_THINK_MS[0]),
     );
     return () => clearTimeout(t);
-  }, [botTurn, rolling, ph, state, speed, roll]);
+  }, [botTurn, rolling, ph, state, roll]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -103,6 +100,9 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
   const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
   const dice = rolling ?? state.dice;
+  // Who threw the dice on show: the current player while rolling, otherwise the last thrower.
+  const lastRollId = state.log.find((e) => e.text.startsWith("rolls "))?.playerId ?? null;
+  const roller = rolling ? current : lastRollId !== null ? state.players[lastRollId] : null;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
@@ -116,9 +116,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
         <div className="topbar-info">
           First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
         </div>
-        <button className="link topbar-speed" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
-          {speed === "normal" ? "Speed: normal" : "Speed: fast"}
-        </button>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
         </button>
@@ -143,6 +140,31 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
       </div>
 
       <aside className="panel">
+        {/* The shared dice sit above the player's box, labelled with who threw them. */}
+        <section className="dice-panel">
+          <div className="dice-row">
+            {dice ? (
+              <>
+                <Die value={dice[0]} rolling={!!rolling} />
+                <Die value={dice[1]} rolling={!!rolling} />
+                {!rolling && <span className="dice-total">= {dice[0] + dice[1]}</span>}
+              </>
+            ) : (
+              <span className="muted small">No one has rolled yet.</span>
+            )}
+          </div>
+          {roller && (
+            <div className="dice-who">
+              <span className="token token-static token-tiny" style={{ background: roller.color }}>
+                {roller.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span>
+                {roller.id === viewer.id ? "You" : roller.name} {rolling ? "rolling…" : "rolled"}
+              </span>
+            </div>
+          )}
+        </section>
+
         {winner ? (
           <section className="turn turn-over" style={{ borderColor: winner.color }}>
             <div className="turn-label">
@@ -168,18 +190,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               <b>{viewer.name}</b>
               {viewer.isBot && <span className="tag">BOT</span>}
               <span className="turn-cash">${fmt(viewer.cash)}</span>
-            </div>
-
-            <div className="dice-row">
-              {dice ? (
-                <>
-                  <Die value={dice[0]} rolling={!!rolling} />
-                  <Die value={dice[1]} rolling={!!rolling} />
-                  {!rolling && <span className="dice-total">= {dice[0] + dice[1]}</span>}
-                </>
-              ) : (
-                <span className="muted">Choose an occupation to start earning.</span>
-              )}
             </div>
 
             {viewer.id === current.id && !botTurn ? (
