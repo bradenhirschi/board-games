@@ -99,6 +99,9 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
     return () => window.removeEventListener("keydown", onKey);
   }, [roll, current.isBot]);
 
+  // The panel always shows a human's box (never a bot's): the current player on a
+  // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
+  const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
   const dice = rolling ?? state.dice;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
@@ -113,14 +116,12 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
         <div className="topbar-info">
           First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
         </div>
-        <div className="topbar-tools">
-          <button className="link" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
-            {speed === "normal" ? "Speed: normal" : "Speed: fast"}
-          </button>
-          <button className="link" onClick={onQuit}>
-            Menu
-          </button>
-        </div>
+        <button className="link topbar-speed" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
+          {speed === "normal" ? "Speed: normal" : "Speed: fast"}
+        </button>
+        <button className="link topbar-menu" onClick={onQuit}>
+          Menu
+        </button>
       </header>
       <div className="board-wrap">
         <Board
@@ -159,14 +160,14 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
             </button>
           </section>
         ) : (
-          <section className="turn" style={{ borderColor: current.color }}>
+          <section className="turn" style={{ borderColor: viewer.color }}>
             <div className="turn-label">
-              <span className="token token-static" style={{ background: current.color }}>
-                {current.name.slice(0, 1).toUpperCase()}
+              <span className="token token-static" style={{ background: viewer.color }}>
+                {viewer.name.slice(0, 1).toUpperCase()}
               </span>
-              <b>{current.name}</b>
-              {current.isBot && <span className="tag">BOT</span>}
-              <span className="turn-cash">${fmt(current.cash)}</span>
+              <b>{viewer.name}</b>
+              {viewer.isBot && <span className="tag">BOT</span>}
+              <span className="turn-cash">${fmt(viewer.cash)}</span>
             </div>
 
             <div className="dice-row">
@@ -181,11 +182,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               )}
             </div>
 
-            {botTurn ? (
-              <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
-            ) : (
-              <>
-              <SinceLastTurn state={state} />
+            {viewer.id === current.id && !botTurn ? (
               <TurnControls
                 state={state}
                 player={current}
@@ -195,7 +192,15 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
                 pickingStart={pickingStart}
                 setPickingStart={setPickingStart}
               />
-              </>
+            ) : viewer.isBot ? (
+              <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
+            ) : (
+              <div className="controls">
+                <p className="hint muted">Waiting for your turn…</p>
+                <button className="btn btn-primary btn-big" disabled>
+                  Roll dice
+                </button>
+              </div>
             )}
           </section>
         )}
@@ -239,36 +244,16 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   );
 }
 
-/** On a human's turn, recap what the computer players did since that human last played. */
-function SinceLastTurn({ state }: { state: GameState }) {
-  const me = state.players[state.current];
-  if (!state.players.some((p) => p.isBot)) return null;
-  const start = state.turnLogStart ?? 0;
-  const lastMine = state.log.find((e) => e.id < start && e.playerId === me.id)?.id ?? 0;
-  const others = state.log
-    .filter((e) => e.id > lastMine && e.id < start && e.playerId !== me.id && state.players[e.playerId ?? 0]?.isBot)
-    .filter((e) => !/^rolls /.test(e.text))
-    .reverse()
-    .slice(-6);
-  if (others.length === 0) return null;
-  return (
-    <div className="recap">
-      <div className="small muted">Since your last turn</div>
-      <ul className="bot-actions">
-        {others.map((e) => {
-          const p = state.players[e.playerId!];
-          return (
-            <li key={e.id} className={e.tone ? `log-${e.tone}` : ""}>
-              <b style={{ color: p.color }}>{p.name}</b> {e.text}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+function nextHuman(state: GameState): Player | null {
+  const n = state.players.length;
+  for (let k = 1; k <= n; k++) {
+    const p = state.players[(state.current + k) % n];
+    if (!p.isBot) return p;
+  }
+  return null;
 }
 
-/** What a computer player is doing this turn, without showing it the human controls. */
+/** What a computer player is doing this turn (only shown in an all-bot game), without showing it the human controls. */
 function BotTurn({ state, busy }: { state: GameState; busy: boolean }) {
   const p = state.players[state.current];
   const start = state.turnLogStart ?? 0;

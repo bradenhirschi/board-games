@@ -129,7 +129,8 @@ function TrackSquare({
 }) {
   const sq = TRACK[index];
   const side = sideOf(index);
-  const cls = ["sq", `sq-${side}`, landing ? "sq-landing" : "", onClick ? "sq-pickable" : ""].join(" ");
+  const entry = sq.kind === "stock" && sq.entry ? `sq-entry sq-entry-${side}` : "";
+  const cls = ["sq", `sq-${side}`, entry, landing ? "sq-landing" : "", onClick ? "sq-pickable" : ""].join(" ");
   const common = {
     "data-index": index,
     onClick,

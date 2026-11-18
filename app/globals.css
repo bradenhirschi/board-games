@@ -9,7 +9,8 @@
   --card: #fffdf5;
   --ink: #1f3a30;
   --muted: #6f7566;
-  --line: #245843;
+  --line: #1d1d1b;
+  --frame: #1d1d1b;
   --rule: #d6d0b8;
   --accent: #194b39;
   --accent-shadow: #0f3125;
@@ -1177,5 +1178,81 @@ button.link {
   .topbar {
     margin: -8px -8px 0;
     padding: 10px 12px;
+  }
+}
+
+/* ---------- Board lines: one even black line between squares ---------- */
+.board {
+  /* The black background shows through equal gaps, so every line is the same width. */
+  background: var(--frame);
+  border: 0.45cqw solid var(--frame);
+  padding: 0;
+  gap: 0.18cqw;
+  border-radius: 0.3cqw;
+}
+.board .sq {
+  border: 0;
+}
+.board-inner {
+  background: var(--paper);
+  padding: 0.25cqw;
+}
+.lane-cell,
+.lane-label,
+.career {
+  border: 0.1cqw solid #8a8270;
+}
+.sq-entry-bottom {
+  padding-top: 0.75cqw;
+}
+.sq-entry-top {
+  padding-bottom: 0.75cqw;
+}
+.sq-entry-left {
+  padding-right: 0.75cqw;
+}
+.sq-entry-right {
+  padding-left: 0.75cqw;
+}
+
+/* ---------- Top bar: no green band, green text ---------- */
+.topbar {
+  background: none;
+  color: var(--header);
+  margin: 0;
+  padding: 0 4px;
+}
+.topbar-info {
+  color: var(--muted);
+}
+.topbar-info b {
+  color: var(--header);
+}
+.topbar .link {
+  color: var(--accent);
+}
+.topbar-speed {
+  margin-left: auto;
+}
+.token {
+  border-color: var(--card);
+}
+@media (max-width: 900px) {
+  .topbar {
+    margin: 0;
+    padding: 0 4px;
+  }
+  /* Line 1: title + menu. Line 2: target and round. Line 3: speed. */
+  .topbar-menu {
+    order: 2;
+    margin-left: auto;
+  }
+  .topbar-info {
+    order: 3;
+    width: 100%;
+  }
+  .topbar-speed {
+    order: 4;
+    margin-left: 0;
   }
 }
