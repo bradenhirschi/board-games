@@ -108,7 +108,7 @@ describe("moving", () => {
   it("moves the slider and offers stock at the new price", () => {
     const s = rollAndMove(place(game(), 0, { kind: "track", index: 6 }), [1, 2]); // lands on General Mills, DOWN 3
     expect(s.market).toBe(22);
-    expect(s.phase).toMatchObject({ t: "buy", stock: "GMILLS", price: priceAt("GMILLS", 22), limited: true, max: 1 });
+    expect(s.phase).toMatchObject({ t: "afterRoll", buy: { stock: "GMILLS", price: priceAt("GMILLS", 22), limited: true, max: 1 } });
   });
 
   it("pays dividends on shares already owned", () => {
@@ -119,18 +119,49 @@ describe("moving", () => {
   });
 });
 
+describe("ending the turn", () => {
+  it("waits for the player to end their turn after landing", () => {
+    let s = place(game(), 0, { kind: "track", index: 11 }); // → broker fee corner
+    s = rollAndMove(s, [1, 0] as unknown as [number, number]);
+    expect(s.phase).toEqual({ t: "afterRoll", buy: null });
+    expect(s.current).toBe(0);
+    s = reducer(s, { type: "endTurn" });
+    expect(s.current).toBe(1);
+    expect(s.phase.t).toBe("preRoll");
+  });
+
+  it("buying doesn't end the turn, and can be repeated up to what the player can afford", () => {
+    let s = place(game(), 0, { kind: "track", index: 6 }, 1000);
+    s = rollAndMove(s, [1, 1]); // Woolworth, no limit
+    const price = (s.phase as Extract<typeof s.phase, { t: "afterRoll" }>).buy!.price;
+    s = reducer(s, { type: "buy", qty: 2 });
+    expect(s.phase).toMatchObject({ t: "afterRoll", buy: { bought: 2, max: Math.floor((1000 - 2 * price) / price) } });
+    s = reducer(s, { type: "buy", qty: 1 });
+    expect(s.players[0].shares.WOOL).toBe(3);
+    expect(s.current).toBe(0);
+  });
+
+  it("limit squares allow only one share in total", () => {
+    let s = place(game(), 0, { kind: "track", index: 6 }, 1000);
+    s = rollAndMove(s, [1, 2]); // General Mills entrance, limit 1
+    s = reducer(s, { type: "buy", qty: 1 });
+    expect(s.phase).toMatchObject({ t: "afterRoll", buy: { bought: 1, max: 0 } });
+    expect(reducer(s, { type: "buy", qty: 1 })).toBe(s);
+  });
+});
+
 describe("selling after the throw", () => {
   it("can sell at the lowest price to raise cash for what you landed on", () => {
     let s = place(game(), 0, { kind: "track", index: 6 }, 0);
     s.players[0].shares.WPUB = 20;
     s = rollAndMove(s, [1, 1]); // even: back to square 4, Woolworth (no share limit)
-    expect(s.phase).toMatchObject({ t: "buy", stock: "WOOL", max: 0 });
+    expect(s.phase).toMatchObject({ t: "afterRoll", buy: { stock: "WOOL", max: 0 } });
     s = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
     expect(s.players[0].cash).toBe(20 * lowestPrice("WPUB"));
     expect(s.players[0].shares.WPUB).toBe(0);
-    expect(s.phase.t).toBe("buy");
-    const ph = s.phase as Extract<typeof s.phase, { t: "buy" }>;
-    expect(ph.max).toBe(Math.floor(s.players[0].cash / ph.price));
+    expect(s.phase.t).toBe("afterRoll");
+    const ph = s.phase as Extract<typeof s.phase, { t: "afterRoll" }>;
+    expect(ph.buy!.max).toBe(Math.floor(s.players[0].cash / ph.buy!.price));
   });
 
   it("can't sell at the board price after the throw", () => {
@@ -165,7 +196,7 @@ describe("fees and forced sales", () => {
     expect(s.phase).toMatchObject({ t: "raiseCash", owed: 200 });
     const sold = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
     expect(sold.players[0].cash).toBe(5 + 20 * lowestPrice("WPUB") - 200);
-    expect(sold.phase.t).toBe("preRoll");
+    expect(sold.phase).toEqual({ t: "afterRoll", buy: null }); // fee paid; player still ends their own turn
     const broke = reducer(s, { type: "goBroke" });
     expect(broke.players[0]).toMatchObject({ status: "work", cash: 0, pos: null });
   });

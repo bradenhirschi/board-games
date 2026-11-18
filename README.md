@@ -21,7 +21,8 @@ the start screen for a summary of the rules. Everything in the rulebook is in:
   pair rises and the other falls.
 - **Buying and selling.** Buy only right after landing (1 share on LIMIT squares). Sell at the board price
   right before your throw; after the throw you can still sell (say, to afford what you landed on), but only at
-  the lowest board price. Owning the stock you land on pays its dividend first.
+  the lowest board price. Owning the stock you land on pays its dividend first. Your turn lasts until you press
+  **End turn**.
 - **Fees and forced sales.** START costs $100 to land on, and broker fee corners cost $10 per share. SELL ALL
   squares, and selling to cover a fee, pay the lowest price on the board. If you can't pay, you go broke and
   back to work.

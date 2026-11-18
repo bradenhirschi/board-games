@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { botMove } from "@/lib/bot";
 import { CAREERS, START_SQUARES, TRACK, arrowFor, sideOf } from "@/lib/board";
-import { canRoll, fmt, mustGoToMarket, netWorth, posName, reducer, type GameState, type Player } from "@/lib/engine";
+import { canRoll, fmt, mustGoToMarket, netWorth, posName, reducer, type BuyOffer, type GameState, type Player } from "@/lib/engine";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import { Die } from "./Dice";
@@ -429,8 +429,8 @@ function TurnControls({
     );
   }
 
-  if (ph.t === "buy") {
-    return <BuyBox key={state.turn} state={state} disabled={disabled} dispatch={dispatch} />;
+  if (ph.t === "afterRoll") {
+    return <AfterRollBox key={state.turn} state={state} disabled={disabled} dispatch={dispatch} />;
   }
 
   if (ph.t === "raiseCash") {
@@ -463,7 +463,11 @@ function TurnControls({
   return null;
 }
 
-function BuyBox({
+/**
+ * After landing: optionally buy the stock landed on, sell at the lowest board price
+ * (to raise cash or otherwise), then end the turn.
+ */
+function AfterRollBox({
   state,
   disabled,
   dispatch,
@@ -473,66 +477,36 @@ function BuyBox({
   dispatch: (a: Parameters<typeof reducer>[1]) => void;
 }) {
   const ph = state.phase;
-  const [qty, setQty] = useState(ph.t === "buy" ? Math.min(ph.max, ph.limited ? 1 : 0) : 0);
-  if (ph.t !== "buy") return null;
+  const [qty, setQty] = useState(0);
+  if (ph.t !== "afterRoll") return null;
+  const offer = ph.buy;
   const player = state.players[state.current];
-  const stock = STOCKS[ph.stock];
-  const set = (n: number) => setQty(Math.max(0, Math.min(ph.max, Math.floor(n) || 0)));
-  // Limit squares buy exactly one share once it's affordable.
-  const n = ph.limited ? ph.max : Math.min(qty, ph.max);
   const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
+
   return (
     <div className="controls">
       <p className="hint">
-        Buy <b>{stock.name}</b> at <b>${ph.price}</b>/share
-        {ph.max === 0
-          ? " — you can't afford a share yet."
-          : ph.limited
-            ? " — limit 1 share here."
-            : ` — up to ${fmt(ph.max)}.`}{" "}
-        This is your only chance this turn.
+        Landed on <b>{posName(player.pos)}</b>.
+        {offer ? "" : " Nothing to buy here."} You can still sell (at the lowest board price) before you end your turn.
       </p>
-      {!ph.limited && (
-        <div className="qty">
-          <button className="btn btn-sq" disabled={disabled} onClick={() => set(qty - 1)} aria-label="One fewer">
-            −
-          </button>
-          <input
-            type="number"
-            min={0}
-            max={ph.max}
-            value={qty}
-            disabled={disabled}
-            onChange={(e) => set(Number(e.target.value))}
-            aria-label="Shares to buy"
-          />
-          <button className="btn btn-sq" disabled={disabled} onClick={() => set(qty + 1)} aria-label="One more">
-            +
-          </button>
-          <button className="link small" disabled={disabled} onClick={() => set(Math.floor(ph.max / 2))}>
-            Half
-          </button>
-          <button className="link small" disabled={disabled} onClick={() => set(ph.max)}>
-            Max
-          </button>
-        </div>
+
+      {offer && (
+        <BuyControls
+          offer={offer}
+          qty={qty}
+          setQty={setQty}
+          disabled={disabled}
+          onBuy={(n) => {
+            dispatch({ type: "buy", qty: n });
+            setQty(0);
+          }}
+        />
       )}
-      <div className="btn-row">
-        <button
-          className="btn btn-primary"
-          disabled={disabled || n === 0}
-          onClick={() => dispatch({ type: "buy", qty: n })}
-        >
-          Buy {n} for ${fmt(n * ph.price)}
-        </button>
-        <button className="btn" disabled={disabled} onClick={() => dispatch({ type: "buy", qty: 0 })}>
-          Pass
-        </button>
-      </div>
+
       {held.length > 0 && (
         <div className="sell-box sell-low">
           <div className="small muted">
-            Need cash? You can still sell, but after the throw only at the <b>lowest board price</b>:
+            Sell after the throw, at the <b>lowest board price</b>:
           </div>
           {held.map((id) => (
             <SellRow
@@ -545,6 +519,73 @@ function BuyBox({
             />
           ))}
         </div>
+      )}
+
+      <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
+        End turn
+      </button>
+    </div>
+  );
+}
+
+function BuyControls({
+  offer,
+  qty,
+  setQty,
+  disabled,
+  onBuy,
+}: {
+  offer: BuyOffer;
+  qty: number;
+  setQty: (n: number) => void;
+  disabled: boolean;
+  onBuy: (n: number) => void;
+}) {
+  const stock = STOCKS[offer.stock];
+  const set = (n: number) => setQty(Math.max(0, Math.min(offer.max, Math.floor(n) || 0)));
+  // Limit squares buy exactly one share once it's affordable.
+  const n = offer.limited ? offer.max : Math.min(qty, offer.max);
+  let note: string;
+  if (offer.limited && offer.bought > 0) note = " — you've bought your 1 share.";
+  else if (offer.max === 0) note = " — you can't afford a share right now.";
+  else if (offer.limited) note = " — limit 1 share here.";
+  else note = ` — up to ${fmt(offer.max)}.`;
+
+  return (
+    <div className="buy-box">
+      <p className="hint">
+        Buy <b>{stock.name}</b> at <b>${offer.price}</b>/share{note}
+        {offer.bought > 0 && !offer.limited && <> (bought {fmt(offer.bought)} so far)</>}
+      </p>
+      {!offer.limited && offer.max > 0 && (
+        <div className="qty">
+          <button className="btn btn-sq" disabled={disabled} onClick={() => set(qty - 1)} aria-label="One fewer">
+            −
+          </button>
+          <input
+            type="number"
+            min={0}
+            max={offer.max}
+            value={Math.min(qty, offer.max)}
+            disabled={disabled}
+            onChange={(e) => set(Number(e.target.value))}
+            aria-label="Shares to buy"
+          />
+          <button className="btn btn-sq" disabled={disabled} onClick={() => set(qty + 1)} aria-label="One more">
+            +
+          </button>
+          <button className="link small" disabled={disabled} onClick={() => set(Math.floor(offer.max / 2))}>
+            Half
+          </button>
+          <button className="link small" disabled={disabled} onClick={() => set(offer.max)}>
+            Max
+          </button>
+        </div>
+      )}
+      {offer.max > 0 && (
+        <button className="btn" disabled={disabled || n === 0} onClick={() => onBuy(n)}>
+          Buy {n} for ${fmt(n * offer.price)}
+        </button>
       )}
     </div>
   );

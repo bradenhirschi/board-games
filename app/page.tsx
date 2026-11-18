@@ -158,7 +158,7 @@ export default function Home() {
             <li>
               <b>Sell</b> at the board price just before your throw. After the throw you can still sell (for example
               to afford the stock you landed on), but only at the lowest price on the board, as with fees and SELL ALL
-              squares.
+              squares. Your turn lasts until you press <b>End turn</b>.
             </li>
             <li>
               <b>Fees:</b> $100 for landing on START, $10 per share you own on a broker fee corner.

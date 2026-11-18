@@ -1388,3 +1388,9 @@ button.link {
   padding-top: 10px;
   border-top: 1px dashed var(--rule);
 }
+
+.buy-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
