@@ -32,8 +32,7 @@ the start screen for a summary of the rules. Everything in the rulebook is in:
 
 Games save automatically in the browser, so a refresh doesn't lose them.
 
-The quotation board prices in `lib/stocks.ts` were read from the playtest photo where legible and
-interpolated between. Replace them with the real rows when you have them.
+The quotation board prices in `lib/stocks.ts` are copied row for row from the playtest board.
 
 ```bash
 npm test      # rules engine tests + simulated bot games

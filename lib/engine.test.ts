@@ -36,10 +36,25 @@ describe("quotation board", () => {
     expect(moveMarket(3, -5)).toBe(2);
     expect(moveMarket(25, 20)).toBe(45);
   });
-  it("prices rise with the slider", () => {
-    expect(priceAt("GRAIN", 0)).toBe(18);
-    expect(priceAt("GRAIN", 50)).toBe(43);
+  it("matches the printed quotation board", () => {
+    // Ends and middle of each row (DOWN end, START, UP end).
+    const rows: [Parameters<typeof priceAt>[0], number, number, number][] = [
+      ["ALUM", 30, 130, 230],
+      ["AMMO", 10, 60, 110],
+      ["CRATE", 15, 45, 75],
+      ["GRAIN", 18, 30, 42],
+      ["WOOL", 230, 130, 30],
+      ["PRESS", 110, 60, 10],
+      ["SPIN", 75, 45, 15],
+      ["SOLE", 42, 30, 18],
+    ];
+    for (const [id, down, start, up] of rows) {
+      expect([priceAt(id, 0), priceAt(id, 25), priceAt(id, 50)]).toEqual([down, start, up]);
+    }
+    // J.I. Case climbs $2 a space through the middle of the board.
+    expect([20, 21, 22, 30, 31].map((l) => priceAt("CRATE", l))).toEqual([35, 37, 39, 55, 56]);
     expect(lowestPrice("PRESS")).toBe(10);
+    expect(lowestPrice("WOOL")).toBe(30);
   });
 });
 
