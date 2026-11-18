@@ -11,11 +11,10 @@ import { Die } from "./Dice";
 export const SAVE_KEY = "stock-market:game:v3";
 
 const ROLL_MS = 550;
-const SPEEDS = {
-  // Bots pause for a random "thinking" time between `bot` and `bot + botJitter` ms before each decision.
-  normal: { step: 200, bot: 1000, botJitter: 900 },
-  fast: { step: 70, bot: 180, botJitter: 0 },
-};
+/** Delay between each square a token steps through. */
+const STEP_MS = 200;
+/** Bots "think" for a random time in this range (ms) before each decision. */
+const BOT_THINK_MS = [1000, 1900] as const;
 
 const rollDie = () => 1 + Math.floor(Math.random() * 6);
 
@@ -23,7 +22,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   const [state, dispatch] = useReducer(reducer, initial);
   const [rolling, setRolling] = useState<[number, number] | null>(null);
   const [pickingStart, setPickingStart] = useState(false);
-  const [speed, setSpeed] = useState<keyof typeof SPEEDS>("normal");
   const rollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = state.players[state.current];
@@ -42,9 +40,9 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Walk the token one square at a time.
   useEffect(() => {
     if (ph.t !== "moving") return;
-    const t = setTimeout(() => dispatch({ type: "step" }), SPEEDS[speed].step);
+    const t = setTimeout(() => dispatch({ type: "step" }), STEP_MS);
     return () => clearTimeout(t);
-  }, [ph, speed]);
+  }, [ph]);
 
   useEffect(
     () => () => {
@@ -73,7 +71,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Computer players.
   useEffect(() => {
     if (!botTurn || rolling || ph.t === "moving") return;
-    const { bot, botJitter } = SPEEDS[speed];
     const t = setTimeout(
       () => {
         const move = botMove(state);
@@ -81,10 +78,10 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
         if (move.type === "rollDice") roll();
         else dispatch(move);
       },
-      bot + Math.random() * botJitter,
+      BOT_THINK_MS[0] + Math.random() * (BOT_THINK_MS[1] - BOT_THINK_MS[0]),
     );
     return () => clearTimeout(t);
-  }, [botTurn, rolling, ph, state, speed, roll]);
+  }, [botTurn, rolling, ph, state, roll]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -119,9 +116,6 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
         <div className="topbar-info">
           First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
         </div>
-        <button className="link topbar-speed" onClick={() => setSpeed(speed === "normal" ? "fast" : "normal")}>
-          {speed === "normal" ? "Speed: normal" : "Speed: fast"}
-        </button>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
         </button>

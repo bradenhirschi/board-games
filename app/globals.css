@@ -1231,7 +1231,7 @@ button.link {
 .topbar .link {
   color: var(--accent);
 }
-.topbar-speed {
+.topbar-menu {
   margin-left: auto;
 }
 .token {
@@ -1242,18 +1242,13 @@ button.link {
     margin: 0;
     padding: 0 4px;
   }
-  /* Line 1: title + menu. Line 2: target and round. Line 3: speed. */
+  /* Line 1: title + menu. Line 2: target and round. */
   .topbar-menu {
     order: 2;
-    margin-left: auto;
   }
   .topbar-info {
     order: 3;
     width: 100%;
-  }
-  .topbar-speed {
-    order: 4;
-    margin-left: 0;
   }
 }
 
