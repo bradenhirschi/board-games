@@ -55,7 +55,7 @@ const corner = (move: number): Square => ({ kind: "corner", move, dir: "ccw" });
 const BOTTOM: Square[] = [
   sellAll("GMILLS", -5, "ccw"),
   stock("CASE", 4, "ccw"),
-  stock("ISHOE", -1, "ccw", { entry: true, limitOne: true }),
+  stock("ISHOE", -3, "ccw", { entry: true, limitOne: true }),
   stock("WOOL", 2, "cw"),
   stock("WPUB", -1, "cw"),
   { kind: "start", side: "bottom" },
