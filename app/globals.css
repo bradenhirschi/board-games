@@ -1311,49 +1311,74 @@ button.link {
   z-index: 2;
 }
 
-/* Shareholders' meeting entrances: a flat black triangle pointing into the meeting. */
+/* Shareholders' meeting entrances: a black "house" (pentagon) whose roof points into the meeting. */
 .entry-arrow {
   position: absolute;
-  background: var(--frame);
   z-index: 1;
+  display: flex;
+  justify-content: center;
+  background: var(--frame);
+  color: #f6f4ea;
+  font-size: 0.4cqw;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1;
 }
 .entry-arrow-bottom,
 .entry-arrow-top {
   left: 0;
   right: 0;
-  height: 0.85cqw;
+  height: 1.35cqw;
 }
 .entry-arrow-left,
 .entry-arrow-right {
   top: 0;
   bottom: 0;
-  width: 0.85cqw;
+  width: 1.35cqw;
+  align-items: center;
 }
+.entry-arrow-left span {
+  writing-mode: vertical-rl;
+}
+.entry-arrow-right span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+/* Roof on the meeting side; the label sits in the rectangular half. */
 .entry-arrow-bottom {
   top: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  align-items: flex-end;
+  padding-bottom: 0.18cqw;
+  clip-path: polygon(50% 0, 100% 48%, 100% 100%, 0 100%, 0 48%);
 }
 .entry-arrow-top {
   bottom: 0;
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  align-items: flex-start;
+  padding-top: 0.18cqw;
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 50% 100%, 0 52%);
 }
 .entry-arrow-left {
   right: 0;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  justify-content: flex-start;
+  padding-left: 0.18cqw;
+  clip-path: polygon(0 0, 52% 0, 100% 50%, 52% 100%, 0 100%);
 }
 .entry-arrow-right {
   left: 0;
-  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  justify-content: flex-end;
+  padding-right: 0.18cqw;
+  clip-path: polygon(48% 0, 100% 0, 100% 100%, 48% 100%, 0 50%);
 }
 .sq-entry-bottom {
-  padding-top: 0.9cqw;
+  padding-top: 1.45cqw;
 }
 .sq-entry-top {
-  padding-bottom: 0.9cqw;
+  padding-bottom: 1.45cqw;
 }
 .sq-entry-left {
-  padding-right: 0.9cqw;
+  padding-right: 1.45cqw;
 }
 .sq-entry-right {
-  padding-left: 0.9cqw;
+  padding-left: 1.45cqw;
 }
