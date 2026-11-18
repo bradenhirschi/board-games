@@ -12,12 +12,13 @@ npm run dev   # http://localhost:3000
 Pass-and-play for 2–8 players on one screen, with optional computer players. Click **How to play** on
 the start screen for a summary of the rules. Everything in the rulebook is in:
 
-- **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. At $1,000
-  you must start playing the market.
+- **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. You can't
+  play the market until you've earned $1,000; then you must.
 - **Moving.** Start on any START square (no fee). Each throw, follow the arrow on the square you're leaving;
   START sends odd throws one way and even throws the other.
 - **The quotation board.** Landing moves the single market slider. If it hits the top or bottom it bounces
-  back. All eight stock prices follow it.
+  back. The eight stocks are four pairs sharing one price ladder, flipped: as the slider moves, one of each
+  pair rises and the other falls.
 - **Buying and selling.** Buy only right after landing (1 share on LIMIT squares). Sell only right before your
   throw, at the board price. Owning the stock you land on pays its dividend first.
 - **Fees and forced sales.** START costs $100 to land on, and broker fee corners cost $10 per share. SELL ALL

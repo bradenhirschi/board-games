@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: only light;
   --page: #f4f4f0;
   --paper: #fafaf7;
   --paper-2: #f2f2ee;
@@ -67,7 +68,7 @@ button.link:hover {
 
 .board-wrap {
   container-type: inline-size;
-  width: min(100%, calc(100vh - 32px));
+  width: min(100%, calc(100vh - 96px));
   justify-self: center;
 }
 
@@ -1039,4 +1040,63 @@ button.link:disabled {
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--paper-2);
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 4px 4px 0;
+}
+.topbar h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+.topbar-info {
+  font-size: 13px;
+  color: var(--muted);
+}
+.topbar-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .topbar {
+    gap: 4px 12px;
+    padding: 0 4px;
+  }
+  .topbar h1 {
+    font-size: 20px;
+  }
+  .topbar-info {
+    order: 3;
+    width: 100%;
+  }
+}
+
+/* ---------- Inner board ---------- */
+.board-inner {
+  display: grid;
+  gap: 0.15cqw;
+  min-width: 0;
+  min-height: 0;
+}
+.lane-cell {
+  font-size: 0.75cqw;
+}
+.lane-cell-v .lane-text {
+  writing-mode: vertical-rl;
+}
+.lane-label {
+  padding: 0 0.4cqw;
+}
+.lane-title {
+  font-size: 0.95cqw;
 }
