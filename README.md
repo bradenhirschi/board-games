@@ -7,20 +7,36 @@ npm install
 npm run dev   # http://localhost:3000
 ```
 
-## What works so far
+## The game
 
-- **The board**: a 48-square outer track with four START squares, four broker-fee corners, eight placeholder
-  companies, the shareholders' meeting lanes, and the four salary careers.
-- **Rolling and moving**: two dice. Players start on the four START squares and take turns rolling (button,
-  Space or Enter). The square you **start your turn on** decides your direction:
-  - stock, sell-all and corner squares move you the way their arrow points;
-  - START sends **odd** rolls one way and **even** rolls the other.
-- **Price tracker**: one market slider covers every stock. The square you land on moves it (`UP 4`,
-  `DOWN 20`, …), and the strip of prices slides under the slider so each company's current price sits in
-  the highlighted column. Sell-all squares show the live price.
+Pass-and-play for 2–8 players on one screen, with optional computer players. Click **How to play** on
+the start screen for a summary of the rules. Everything in the rulebook is in:
 
-Not built yet: money, buying/selling, dividends, salaries, broker fees, and entering the shareholders'
-meetings. The career for a roll is only highlighted for now.
+- **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. At $1,000
+  you must start playing the market.
+- **Moving.** Start on any START square (no fee). Each throw, follow the arrow on the square you're leaving;
+  START sends odd throws one way and even throws the other.
+- **The quotation board.** Landing moves the single market slider. If it hits the top or bottom it bounces
+  back. All eight stock prices follow it.
+- **Buying and selling.** Buy only right after landing (1 share on LIMIT squares). Sell only right before your
+  throw, at the board price. Owning the stock you land on pays its dividend first.
+- **Fees and forced sales.** START costs $100 to land on, and broker fee corners cost $10 per share. SELL ALL
+  squares, and selling to cover a fee, pay the lowest price on the board. If you can't pay, you go broke and
+  back to work.
+- **Shareholders' meetings.** Owners can detour in at their stock's entrance. Landing on a space pays that
+  many new shares per share owned. You walk through and leave by the far entrance. The slider doesn't move in
+  a meeting.
+- **Winning.** Be worth the target ($100,000 by default, adjustable) at your turn to roll, or end the game
+  early and the richest player wins.
+
+Games save automatically in the browser, so a refresh doesn't lose them.
+
+The quotation board prices in `lib/stocks.ts` were read from the playtest photo where legible and
+interpolated between. Replace them with the real rows when you have them.
+
+```bash
+npm test      # rules engine tests + simulated bot games
+```
 
 ## Where things live
 
@@ -28,7 +44,8 @@ meetings. The career for a roll is only highlighted for now.
 | --- | --- |
 | `lib/stocks.ts` | Placeholder companies (names, colors) and the price formula for each market level |
 | `lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
-| `lib/game.ts` | Game state and the turn reducer (roll → step → land → move market → next player) |
+| `lib/engine.ts` | All game rules: state, turn phases and actions |
+| `lib/bot.ts` | Computer player strategy |
 | `components/` | Board, price tracker, dice and the game screen |
 
 To rename companies or tweak a square, edit `lib/stocks.ts` or `lib/board.ts`. The board redraws from that data.

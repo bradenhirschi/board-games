@@ -1,0 +1,423 @@
+import {
+  CAREERS,
+  LANES,
+  LANE_LENGTH,
+  START_SQUARES,
+  TRACK,
+  directionFor,
+  entranceStock,
+  exitDirection,
+  laneAtEntrance,
+  laneSplit,
+  step as stepIndex,
+  type Dir,
+} from "./board";
+import { MARKET_START, STOCKS, STOCK_ORDER, lowestPrice, moveMarket, priceAt, type StockId } from "./stocks";
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+export type Pos = { kind: "track"; index: number } | { kind: "lane"; lane: number; from: 0 | 1; p: number };
+
+export type Holdings = Record<StockId, number>;
+
+export interface Player {
+  id: number;
+  name: string;
+  color: string;
+  isBot: boolean;
+  /** Index into CAREERS, or null until chosen. */
+  career: number | null;
+  status: "work" | "market";
+  /** Board position while playing the market. */
+  pos: Pos | null;
+  cash: number;
+  shares: Holdings;
+}
+
+export type Phase =
+  /** Before the throw: pick/change occupation, go to market, or sell at board price. */
+  | { t: "preRoll" }
+  | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null }
+  /** Passing (or leaving) an entrance for a stock the player owns. */
+  | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
+  | { t: "buy"; stock: StockId; price: number; max: number; limited: boolean }
+  /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
+  | { t: "raiseCash"; owed: number; reason: string }
+  | { t: "gameOver"; winnerId: number; reason: "target" | "time" };
+
+export interface LogEntry {
+  id: number;
+  playerId: number | null;
+  text: string;
+  tone?: "up" | "down" | "money" | "bad";
+}
+
+export interface GameState {
+  version: 2;
+  players: Player[];
+  current: number;
+  market: number;
+  target: number;
+  dice: [number, number] | null;
+  phase: Phase;
+  turn: number;
+  lastLanding: Pos | null;
+  lastMarketDelta: number;
+  log: LogEntry[];
+  nextLogId: number;
+}
+
+export interface PlayerSetup {
+  name: string;
+  isBot: boolean;
+}
+
+export const PLAYER_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#334155"];
+export const MAX_PLAYERS = 8;
+export const MIN_PLAYERS = 2;
+export const START_FEE = 100;
+export const BROKER_FEE_PER_SHARE = 10;
+/** Once a worker has this much they must start playing the market on their next turn. */
+export const WORK_CAP = 1000;
+export const DEFAULT_TARGET = 100_000;
+
+export const emptyHoldings = (): Holdings =>
+  Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
+
+export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
+  return {
+    version: 2,
+    players: setup.map((p, i) => ({
+      id: i,
+      name: p.name,
+      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+      isBot: p.isBot,
+      career: null,
+      status: "work",
+      pos: null,
+      cash: 0,
+      shares: emptyHoldings(),
+    })),
+    current: 0,
+    market: MARKET_START,
+    target,
+    dice: null,
+    phase: { t: "preRoll" },
+    turn: 1,
+    lastLanding: null,
+    lastMarketDelta: 0,
+    log: [],
+    nextLogId: 1,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
+
+export const totalShares = (p: Player) => STOCK_ORDER.reduce((n, id) => n + p.shares[id], 0);
+
+export const stockValue = (p: Player, market: number) =>
+  STOCK_ORDER.reduce((v, id) => v + p.shares[id] * priceAt(id, market), 0);
+
+export const netWorth = (p: Player, market: number) => p.cash + stockValue(p, market);
+
+/** A worker with $1,000 or more must go to the market at their turn. */
+export const mustGoToMarket = (p: Player) => p.status === "work" && p.cash >= WORK_CAP;
+
+export function canRoll(state: GameState): boolean {
+  if (state.phase.t !== "preRoll") return false;
+  const p = state.players[state.current];
+  if (p.status === "work") return p.career !== null && !mustGoToMarket(p);
+  return p.pos !== null;
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+export type Action =
+  | { type: "setCareer"; career: number }
+  | { type: "goToMarket"; start: number }
+  | { type: "sell"; stock: StockId; qty: number }
+  | { type: "roll"; dice: [number, number] }
+  | { type: "step" }
+  | { type: "detour"; enter: boolean }
+  | { type: "buy"; qty: number }
+  | { type: "forcedSell"; stock: StockId; qty: number }
+  | { type: "goBroke" }
+  | { type: "endGame" };
+
+export function reducer(state: GameState, action: Action): GameState {
+  const s: GameState = structuredClone(state);
+  const changed = apply(s, action);
+  return changed ? s : state;
+}
+
+/** Mutates `s`; returns false when the action isn't allowed right now. */
+function apply(s: GameState, a: Action): boolean {
+  const ph = s.phase;
+  const p = s.players[s.current];
+  if (ph.t === "gameOver") return false;
+
+  switch (a.type) {
+    case "setCareer": {
+      if (ph.t !== "preRoll" || p.status !== "work" || !CAREERS[a.career]) return false;
+      if (p.career === a.career) return false;
+      p.career = a.career;
+      log(s, p.id, `goes to work as a ${CAREERS[a.career].name}`);
+      return true;
+    }
+
+    case "goToMarket": {
+      if (ph.t !== "preRoll" || p.status !== "work" || !START_SQUARES.includes(a.start)) return false;
+      p.status = "market";
+      p.pos = { kind: "track", index: a.start };
+      log(s, p.id, `starts playing the market with $${fmt(p.cash)}`, "money");
+      return true;
+    }
+
+    case "sell": {
+      if (ph.t !== "preRoll" || p.status !== "market") return false;
+      const qty = Math.min(Math.floor(a.qty), p.shares[a.stock]);
+      if (qty <= 0) return false;
+      const price = priceAt(a.stock, s.market);
+      p.shares[a.stock] -= qty;
+      p.cash += qty * price;
+      log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} at $${price} for $${fmt(qty * price)}`, "money");
+      return true;
+    }
+
+    case "roll": {
+      if (!canRoll(s)) return false;
+      const [d1, d2] = a.dice;
+      const total = d1 + d2;
+      s.dice = [d1, d2];
+      s.lastLanding = null;
+      s.lastMarketDelta = 0;
+      log(s, p.id, `rolls ${d1} + ${d2} = ${total}`);
+      paySalaries(s, total);
+      if (p.status === "work") {
+        endTurn(s);
+        return true;
+      }
+      const pos = p.pos!;
+      const dir: Dir = pos.kind === "track" ? directionFor(pos.index, total) : "cw";
+      s.phase = { t: "moving", remaining: total, dir, skipDetourAt: null };
+      return true;
+    }
+
+    case "step": {
+      if (ph.t !== "moving") return false;
+      const pos = p.pos!;
+      if (pos.kind === "track") {
+        const stock = entranceStock(pos.index);
+        if (stock && p.shares[stock] > 0 && ph.skipDetourAt !== pos.index) {
+          s.phase = { t: "detour", remaining: ph.remaining, dir: ph.dir, stock, at: pos.index };
+          return true;
+        }
+        p.pos = { kind: "track", index: stepIndex(pos.index, ph.dir) };
+      } else if (pos.p < LANE_LENGTH - 1) {
+        p.pos = { ...pos, p: pos.p + 1 };
+      } else {
+        // Leave the meeting by the far entrance and keep going the same way.
+        ph.dir = exitDirection(pos.lane, pos.from);
+        p.pos = { kind: "track", index: LANES[pos.lane].entries[1 - pos.from] };
+      }
+      ph.skipDetourAt = null;
+      ph.remaining -= 1;
+      if (ph.remaining === 0) land(s);
+      return true;
+    }
+
+    case "detour": {
+      if (ph.t !== "detour") return false;
+      if (!a.enter) {
+        s.phase = { t: "moving", remaining: ph.remaining, dir: ph.dir, skipDetourAt: ph.at };
+        return true;
+      }
+      const entry = laneAtEntrance(ph.at)!;
+      p.pos = { kind: "lane", lane: entry.lane, from: entry.from, p: 0 };
+      log(s, p.id, `detours into the ${STOCKS[ph.stock].name} shareholders' meeting`);
+      s.phase = { t: "moving", remaining: ph.remaining - 1, dir: ph.dir, skipDetourAt: null };
+      if (ph.remaining - 1 === 0) land(s);
+      return true;
+    }
+
+    case "buy": {
+      if (ph.t !== "buy") return false;
+      const qty = Math.floor(a.qty);
+      if (qty < 0 || qty > ph.max) return false;
+      if (qty > 0) {
+        p.shares[ph.stock] += qty;
+        p.cash -= qty * ph.price;
+        log(s, p.id, `buys ${qty} ${STOCKS[ph.stock].name} at $${ph.price} for $${fmt(qty * ph.price)}`, "money");
+      }
+      endTurn(s);
+      return true;
+    }
+
+    case "forcedSell": {
+      if (ph.t !== "raiseCash") return false;
+      const qty = Math.min(Math.floor(a.qty), p.shares[a.stock]);
+      if (qty <= 0) return false;
+      const price = lowestPrice(a.stock);
+      p.shares[a.stock] -= qty;
+      p.cash += qty * price;
+      log(s, p.id, `must sell ${qty} ${STOCKS[a.stock].name} at the lowest price, $${price}`, "bad");
+      if (p.cash >= ph.owed) payFee(s, ph.owed, ph.reason);
+      return true;
+    }
+
+    case "goBroke": {
+      if (ph.t !== "raiseCash") return false;
+      p.cash = 0;
+      p.shares = emptyHoldings();
+      p.status = "work";
+      p.pos = null;
+      log(s, p.id, `can't pay the ${ph.reason} and goes back to work`, "bad");
+      endTurn(s);
+      return true;
+    }
+
+    case "endGame": {
+      const ranked = [...s.players].sort((x, y) => netWorth(y, s.market) - netWorth(x, s.market));
+      s.phase = { t: "gameOver", winnerId: ranked[0].id, reason: "time" };
+      log(s, ranked[0].id, `wins with the most money: $${fmt(netWorth(ranked[0], s.market))}`, "money");
+      return true;
+    }
+  }
+}
+
+function paySalaries(s: GameState, total: number) {
+  for (const w of s.players) {
+    if (w.status !== "work" || w.career === null) continue;
+    const career = CAREERS[w.career];
+    if (!career.rolls.includes(total)) continue;
+    w.cash += career.salary;
+    log(s, w.id, `earns a $${career.salary} ${career.name} salary`, "money");
+  }
+}
+
+function land(s: GameState) {
+  const p = s.players[s.current];
+  const pos = p.pos!;
+  s.lastLanding = { ...pos };
+
+  if (pos.kind === "lane") {
+    // In a meeting: the slider doesn't move; collect a stock dividend.
+    const stock = TRACK[LANES[pos.lane].entries[pos.from]];
+    const id = stock.kind === "stock" ? stock.stock : null;
+    const n = laneSplit(pos.lane, pos.from, pos.p);
+    if (id && p.shares[id] > 0) {
+      const gained = p.shares[id] * n;
+      p.shares[id] += gained;
+      log(s, p.id, `lands on ${n} FOR 1 and receives ${gained} ${STOCKS[id].name} shares (now ${p.shares[id]})`, "up");
+    }
+    endTurn(s);
+    return;
+  }
+
+  const sq = TRACK[pos.index];
+  const before = s.market;
+  if (sq.kind !== "start") s.market = moveMarket(s.market, sq.move);
+  s.lastMarketDelta = s.market - before;
+  if (sq.kind !== "start") {
+    const word = sq.move > 0 ? "UP" : "DOWN";
+    log(s, p.id, `lands on ${squareName(pos.index)}: market ${word} ${Math.abs(sq.move)} (${before} → ${s.market})`, sq.move > 0 ? "up" : "down");
+  } else {
+    log(s, p.id, `lands on START`);
+  }
+
+  switch (sq.kind) {
+    case "start":
+      return charge(s, START_FEE, "$100 START fee");
+    case "corner":
+      return charge(s, BROKER_FEE_PER_SHARE * totalShares(p), "broker fee");
+    case "sellAll": {
+      const qty = p.shares[sq.stock];
+      if (qty > 0) {
+        const price = lowestPrice(sq.stock);
+        p.shares[sq.stock] = 0;
+        p.cash += qty * price;
+        log(s, p.id, `must sell all ${qty} ${STOCKS[sq.stock].name} at the lowest price, $${price}`, "bad");
+      }
+      return endTurn(s);
+    }
+    case "stock": {
+      const owned = p.shares[sq.stock];
+      if (owned > 0) {
+        p.cash += owned * sq.dividend;
+        log(s, p.id, `collects a $${fmt(owned * sq.dividend)} dividend on ${owned} ${STOCKS[sq.stock].name}`, "money");
+      }
+      const price = priceAt(sq.stock, s.market);
+      const limited = !!sq.limitOne;
+      const affordable = Math.floor(p.cash / price);
+      const max = limited ? Math.min(1, affordable) : affordable;
+      if (max === 0) {
+        log(s, p.id, `can't afford ${STOCKS[sq.stock].name} at $${price}`);
+        return endTurn(s);
+      }
+      s.phase = { t: "buy", stock: sq.stock, price, max, limited };
+      return;
+    }
+  }
+}
+
+function charge(s: GameState, amount: number, reason: string) {
+  const p = s.players[s.current];
+  if (amount <= 0) return endTurn(s);
+  if (p.cash >= amount) return payFee(s, amount, reason);
+  s.phase = { t: "raiseCash", owed: amount, reason };
+}
+
+function payFee(s: GameState, amount: number, reason: string) {
+  const p = s.players[s.current];
+  p.cash -= amount;
+  log(s, p.id, `pays a $${fmt(amount)} ${reason.replace(/^\$100 /, "")}`, "bad");
+  endTurn(s);
+}
+
+function endTurn(s: GameState) {
+  s.current = (s.current + 1) % s.players.length;
+  s.turn += 1;
+  s.phase = { t: "preRoll" };
+  // A player wins if they're worth the target at their turn to roll.
+  const next = s.players[s.current];
+  if (netWorth(next, s.market) >= s.target) {
+    s.phase = { t: "gameOver", winnerId: next.id, reason: "target" };
+    log(s, next.id, `reaches $${fmt(netWorth(next, s.market))} and wins!`, "money");
+  }
+}
+
+function log(s: GameState, playerId: number | null, text: string, tone?: LogEntry["tone"]) {
+  s.log.unshift({ id: s.nextLogId++, playerId, text, tone });
+  if (s.log.length > 200) s.log.length = 200;
+}
+
+export function fmt(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+export function squareName(index: number): string {
+  const sq = TRACK[index];
+  switch (sq.kind) {
+    case "start":
+      return "START";
+    case "corner":
+      return "Broker Fee";
+    case "stock":
+      return STOCKS[sq.stock].name;
+    case "sellAll":
+      return `Sell All ${STOCKS[sq.stock].name}`;
+  }
+}
+
+export function posName(pos: Pos | null): string {
+  if (!pos) return "—";
+  if (pos.kind === "track") return squareName(pos.index);
+  const entry = TRACK[LANES[pos.lane].entries[pos.from]];
+  return entry.kind === "stock" ? `${STOCKS[entry.stock].name} meeting` : "Meeting";
+}

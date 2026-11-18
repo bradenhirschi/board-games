@@ -1,21 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import Game from "@/components/Game";
-import { PLAYER_COLORS } from "@/lib/game";
+import { useEffect, useState } from "react";
+import Game, { SAVE_KEY } from "@/components/Game";
+import { DEFAULT_TARGET, MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, fmt, newGame, type GameState, type PlayerSetup } from "@/lib/engine";
 
-const MAX_PLAYERS = 4;
+const TARGETS = [25_000, 50_000, 100_000, 250_000];
+
+function loadSaved(): GameState | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    const s = raw ? (JSON.parse(raw) as GameState) : null;
+    return s && s.version === 2 && s.phase.t !== "gameOver" ? s : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Home() {
-  const [names, setNames] = useState<string[]>(["Player 1", "Player 2"]);
-  const [started, setStarted] = useState<string[] | null>(null);
-  const [gameKey, setGameKey] = useState(0);
+  const [players, setPlayers] = useState<PlayerSetup[]>([
+    { name: "Player 1", isBot: false },
+    { name: "Bot 1", isBot: true },
+  ]);
+  const [target, setTarget] = useState(DEFAULT_TARGET);
+  const [game, setGame] = useState<{ key: number; state: GameState } | null>(null);
+  const [saved, setSaved] = useState<GameState | null>(null);
 
-  if (started) {
-    return <Game key={gameKey} names={started} onQuit={() => setStarted(null)} />;
+  useEffect(() => {
+    // Reading storage must wait until we're in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSaved(loadSaved());
+  }, [game]);
+
+  if (game) {
+    return <Game key={game.key} initial={game.state} onQuit={() => setGame(null)} />;
   }
 
-  const clean = names.map((n, i) => n.trim() || `Player ${i + 1}`);
+  const update = (i: number, patch: Partial<PlayerSetup>) =>
+    setPlayers(players.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+
+  const start = () => {
+    const clean = players.map((p, i) => ({ ...p, name: p.name.trim() || `Player ${i + 1}` }));
+    setGame({ key: Date.now(), state: newGame(clean, target) });
+  };
 
   return (
     <main className="setup">
@@ -23,42 +49,124 @@ export default function Home() {
         <h1 className="setup-logo">
           STONKS <span className="logo-arrow">↗</span>
         </h1>
-        <p className="muted">Roll, move, and watch the market swing.</p>
+        <p className="muted">Buy low, sell high, and be first to ${fmt(target)}. For 2–8 players.</p>
+
+        {saved && (
+          <div className="saved">
+            <span>
+              Game in progress · {saved.players.map((p) => p.name).join(", ")}
+            </span>
+            <button className="btn btn-primary" onClick={() => setGame({ key: Date.now(), state: saved })}>
+              Continue
+            </button>
+          </div>
+        )}
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setGameKey((k) => k + 1);
-            setStarted(clean);
+            start();
           }}
         >
-          {names.map((name, i) => (
+          {players.map((p, i) => (
             <div key={i} className="setup-row">
               <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
-                {(name.trim() || `P`).slice(0, 1).toUpperCase()}
+                {(p.name.trim() || "P").slice(0, 1).toUpperCase()}
               </span>
               <input
-                value={name}
+                value={p.name}
                 maxLength={16}
                 aria-label={`Player ${i + 1} name`}
-                onChange={(e) => setNames(names.map((n, j) => (j === i ? e.target.value : n)))}
+                onChange={(e) => update(i, { name: e.target.value })}
               />
-              {names.length > 2 && (
-                <button type="button" className="link" onClick={() => setNames(names.filter((_, j) => j !== i))}>
-                  Remove
+              <div className="seg" role="group" aria-label={`Player ${i + 1} type`}>
+                <button type="button" className={!p.isBot ? "on" : ""} onClick={() => update(i, { isBot: false })}>
+                  Human
                 </button>
-              )}
+                <button type="button" className={p.isBot ? "on" : ""} onClick={() => update(i, { isBot: true })}>
+                  Bot
+                </button>
+              </div>
+              <button
+                type="button"
+                className="link small"
+                disabled={players.length <= MIN_PLAYERS}
+                onClick={() => setPlayers(players.filter((_, j) => j !== i))}
+                aria-label={`Remove player ${i + 1}`}
+              >
+                ✕
+              </button>
             </div>
           ))}
-          {names.length < MAX_PLAYERS && (
-            <button type="button" className="link" onClick={() => setNames([...names, `Player ${names.length + 1}`])}>
-              + Add player
-            </button>
+          {players.length < MAX_PLAYERS && (
+            <div className="btn-row">
+              <button
+                type="button"
+                className="link"
+                onClick={() => setPlayers([...players, { name: `Player ${players.length + 1}`, isBot: false }])}
+              >
+                + Add player
+              </button>
+              <button
+                type="button"
+                className="link"
+                onClick={() =>
+                  setPlayers([...players, { name: `Bot ${players.filter((p) => p.isBot).length + 1}`, isBot: true }])
+                }
+              >
+                + Add bot
+              </button>
+            </div>
           )}
-          <button type="submit" className="roll">
-            Start game
+
+          <label className="setup-target">
+            <span>Winning amount</span>
+            <select value={target} onChange={(e) => setTarget(Number(e.target.value))}>
+              {TARGETS.map((t) => (
+                <option key={t} value={t}>
+                  ${fmt(t)}
+                  {t === DEFAULT_TARGET ? " (standard)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button type="submit" className="btn btn-primary btn-big">
+            New game
           </button>
         </form>
-        <p className="muted small">Each player starts on one of the four START squares.</p>
+
+        <details className="rules">
+          <summary>How to play</summary>
+          <ul>
+            <li>
+              <b>Go to work.</b> Pick an occupation. Whenever <i>anyone</i> throws your numbers you&apos;re paid. Once you
+              have $1,000 you must start playing the market at your next turn.
+            </li>
+            <li>
+              <b>Play the market.</b> Start on any START square (no fee). Each throw, move the way the arrow on the square
+              you&apos;re leaving points. START: odd one way, even the other.
+            </li>
+            <li>
+              <b>Land</b> and the market slider moves up or down. Then buy as many shares of that stock as you like at
+              the new price (1 on limit squares). Own it already? Collect the dividend first.
+            </li>
+            <li>
+              <b>Sell</b> only just before your throw, at the board price. Forced sales (fees, SELL ALL squares) are at
+              the lowest price on the board.
+            </li>
+            <li>
+              <b>Fees:</b> $100 for landing on START, $10 per share you own on a broker fee corner.
+            </li>
+            <li>
+              <b>Shareholders&apos; meetings:</b> own the stock and you may detour in as you pass its entrance. Land on a
+              space to get that many new shares for each share you own. Walk through and out the far end.
+            </li>
+            <li>
+              <b>Win</b> by being worth the target (cash + stock at board price) at your turn to roll.
+            </li>
+          </ul>
+        </details>
       </div>
     </main>
   );

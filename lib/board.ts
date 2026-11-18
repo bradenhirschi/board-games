@@ -185,9 +185,9 @@ export function marketMove(index: number): number {
 
 export interface Lane {
   side: Side;
-  /** The two outer-track squares that act as entrances. */
+  /** The two outer-track squares that act as entrances, in screen order (left→right / top→bottom). */
   entries: [number, number];
-  /** Split multipliers along the inner row, in screen order (left→right / top→bottom). */
+  /** Split multipliers along the inner row, in screen order. */
   splits: number[];
 }
 
@@ -197,6 +197,54 @@ export const LANES: Lane[] = [
   { side: "top", entries: [27, 33], splits: [3, 2, 3, 2, 3, 2, 3] },
   { side: "right", entries: [39, 45], splits: [2, 3, 2, 1, 2, 3, 2] },
 ];
+
+/**
+ * A meeting is walked "through and out": from the entrance you came in by,
+ * across the 1 FOR 1 square at that end, along the row of split squares, to
+ * the 1 FOR 1 at the far end, then out onto the far entrance.
+ */
+export const LANE_LENGTH = 9;
+
+/** Screen cell id within a lane: "end0", "end1" or "in0".."in6". */
+export type LaneCell = "end0" | "end1" | `in${number}`;
+
+export function laneCell(from: 0 | 1, p: number): LaneCell {
+  const k = from === 0 ? p : LANE_LENGTH - 1 - p;
+  if (k === 0) return "end0";
+  if (k === LANE_LENGTH - 1) return "end1";
+  return `in${k - 1}`;
+}
+
+/** Shares received per share owned when landing on lane position `p`. */
+export function laneSplit(laneIndex: number, from: 0 | 1, p: number): number {
+  const cell = laneCell(from, p);
+  if (cell === "end0" || cell === "end1") return 1;
+  return LANES[laneIndex].splits[Number(cell.slice(2))];
+}
+
+/** The lane (and which end) whose entrance is track square `index`. */
+export function laneAtEntrance(index: number): { lane: number; from: 0 | 1 } | null {
+  for (let l = 0; l < LANES.length; l++) {
+    const k = LANES[l].entries.indexOf(index);
+    if (k !== -1) return { lane: l, from: k as 0 | 1 };
+  }
+  return null;
+}
+
+/** Direction to keep moving after leaving a lane by its far entrance. */
+export function exitDirection(laneIndex: number, from: 0 | 1): Dir {
+  const lane = LANES[laneIndex];
+  const entry = lane.entries[from];
+  const exit = lane.entries[1 - from];
+  // Keep travelling away from the entrance we came in by.
+  return (exit - entry + TRACK_LENGTH) % TRACK_LENGTH < TRACK_LENGTH / 2 ? "cw" : "ccw";
+}
+
+/** The stock whose shareholders' meeting starts at this entrance square. */
+export function entranceStock(index: number): StockId | null {
+  const sq = TRACK[index];
+  return sq.kind === "stock" && sq.entry ? sq.stock : null;
+}
 
 export interface Career {
   name: string;
