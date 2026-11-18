@@ -1319,14 +1319,14 @@ button.link {
 }
 .entry-arrow-bottom,
 .entry-arrow-top {
-  left: 12%;
-  right: 12%;
+  left: 0;
+  right: 0;
   height: 0.85cqw;
 }
 .entry-arrow-left,
 .entry-arrow-right {
-  top: 12%;
-  bottom: 12%;
+  top: 0;
+  bottom: 0;
   width: 0.85cqw;
 }
 .entry-arrow-bottom {
