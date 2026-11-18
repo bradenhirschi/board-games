@@ -12,8 +12,9 @@ export const SAVE_KEY = "stonks:game:v2";
 
 const ROLL_MS = 550;
 const SPEEDS = {
-  normal: { step: 200, bot: 750 },
-  fast: { step: 70, bot: 180 },
+  // Bots pause for a random "thinking" time between `bot` and `bot + botJitter` ms before each decision.
+  normal: { step: 200, bot: 1000, botJitter: 900 },
+  fast: { step: 70, bot: 180, botJitter: 0 },
 };
 
 const rollDie = () => 1 + Math.floor(Math.random() * 6);
@@ -72,12 +73,16 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   // Computer players.
   useEffect(() => {
     if (!botTurn || rolling || ph.t === "moving") return;
-    const t = setTimeout(() => {
-      const move = botMove(state);
-      if (!move) return;
-      if (move.type === "rollDice") roll();
-      else dispatch(move);
-    }, SPEEDS[speed].bot);
+    const { bot, botJitter } = SPEEDS[speed];
+    const t = setTimeout(
+      () => {
+        const move = botMove(state);
+        if (!move) return;
+        if (move.type === "rollDice") roll();
+        else dispatch(move);
+      },
+      bot + Math.random() * botJitter,
+    );
     return () => clearTimeout(t);
   }, [botTurn, rolling, ph, state, speed, roll]);
 
@@ -178,15 +183,22 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               )}
             </div>
 
-            <TurnControls
-              state={state}
-              player={current}
-              disabled={botTurn || !!rolling}
-              dispatch={dispatch}
-              roll={roll}
-              pickingStart={pickingStart}
-              setPickingStart={setPickingStart}
-            />
+            {botTurn ? (
+              <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
+            ) : (
+              <>
+              <SinceLastTurn state={state} />
+              <TurnControls
+                state={state}
+                player={current}
+                disabled={!!rolling}
+                dispatch={dispatch}
+                roll={roll}
+                pickingStart={pickingStart}
+                setPickingStart={setPickingStart}
+              />
+              </>
+            )}
           </section>
         )}
 
@@ -225,6 +237,58 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
           </button>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** On a human's turn, recap what the computer players did since that human last played. */
+function SinceLastTurn({ state }: { state: GameState }) {
+  const me = state.players[state.current];
+  if (!state.players.some((p) => p.isBot)) return null;
+  const start = state.turnLogStart ?? 0;
+  const lastMine = state.log.find((e) => e.id < start && e.playerId === me.id)?.id ?? 0;
+  const others = state.log
+    .filter((e) => e.id > lastMine && e.id < start && e.playerId !== me.id && state.players[e.playerId ?? 0]?.isBot)
+    .filter((e) => !/^rolls /.test(e.text))
+    .reverse()
+    .slice(-6);
+  if (others.length === 0) return null;
+  return (
+    <div className="recap">
+      <div className="small muted">Since your last turn</div>
+      <ul className="bot-actions">
+        {others.map((e) => {
+          const p = state.players[e.playerId!];
+          return (
+            <li key={e.id} className={e.tone ? `log-${e.tone}` : ""}>
+              <b style={{ color: p.color }}>{p.name}</b> {e.text}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** What a computer player is doing this turn, without showing it the human controls. */
+function BotTurn({ state, busy }: { state: GameState; busy: boolean }) {
+  const p = state.players[state.current];
+  const start = state.turnLogStart ?? 0;
+  const done = state.log.filter((e) => e.id >= start && e.playerId === p.id).reverse();
+  return (
+    <div className="bot-turn">
+      {done.length > 0 && (
+        <ul className="bot-actions">
+          {done.slice(-5).map((e) => (
+            <li key={e.id} className={e.tone ? `log-${e.tone}` : ""}>
+              {e.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="bot-status">
+        🤖 <b>{p.name}</b> {busy ? <span>is moving…</span> : <span className="thinking">is thinking</span>}
+      </p>
     </div>
   );
 }

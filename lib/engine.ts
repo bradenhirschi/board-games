@@ -39,7 +39,8 @@ export interface Player {
 export type Phase =
   /** Before the throw: pick/change occupation, go to market, or sell at board price. */
   | { t: "preRoll" }
-  | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null }
+  /** `noDetour`: the player has just left a meeting and can't enter another until a later turn. */
+  | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null; noDetour: boolean }
   /** Passing (or leaving) an entrance for a stock the player owns. */
   | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
   | { t: "buy"; stock: StockId; price: number; max: number; limited: boolean }
@@ -67,6 +68,8 @@ export interface GameState {
   lastMarketDelta: number;
   log: LogEntry[];
   nextLogId: number;
+  /** First log id of the current turn (for showing what this turn's player did). */
+  turnLogStart?: number;
 }
 
 export interface PlayerSetup {
@@ -110,6 +113,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
     lastMarketDelta: 0,
     log: [],
     nextLogId: 1,
+    turnLogStart: 1,
   };
 }
 
@@ -205,7 +209,7 @@ function apply(s: GameState, a: Action): boolean {
       }
       const pos = p.pos!;
       const dir: Dir = pos.kind === "track" ? directionFor(pos.index, total) : "cw";
-      s.phase = { t: "moving", remaining: total, dir, skipDetourAt: null };
+      s.phase = { t: "moving", remaining: total, dir, skipDetourAt: null, noDetour: false };
       return true;
     }
 
@@ -214,7 +218,7 @@ function apply(s: GameState, a: Action): boolean {
       const pos = p.pos!;
       if (pos.kind === "track") {
         const stock = entranceStock(pos.index);
-        if (stock && p.shares[stock] > 0 && ph.skipDetourAt !== pos.index) {
+        if (stock && p.shares[stock] > 0 && !ph.noDetour && ph.skipDetourAt !== pos.index) {
           s.phase = { t: "detour", remaining: ph.remaining, dir: ph.dir, stock, at: pos.index };
           return true;
         }
@@ -223,7 +227,9 @@ function apply(s: GameState, a: Action): boolean {
         p.pos = { ...pos, p: pos.p + 1 };
       } else {
         // Leave the meeting by the far entrance and keep going the same way.
+        // No re-entering any meeting until the player has landed.
         ph.dir = exitDirection(pos.lane, pos.from);
+        ph.noDetour = true;
         p.pos = { kind: "track", index: LANES[pos.lane].entries[1 - pos.from] };
       }
       ph.skipDetourAt = null;
@@ -235,13 +241,13 @@ function apply(s: GameState, a: Action): boolean {
     case "detour": {
       if (ph.t !== "detour") return false;
       if (!a.enter) {
-        s.phase = { t: "moving", remaining: ph.remaining, dir: ph.dir, skipDetourAt: ph.at };
+        s.phase = { t: "moving", remaining: ph.remaining, dir: ph.dir, skipDetourAt: ph.at, noDetour: false };
         return true;
       }
       const entry = laneAtEntrance(ph.at)!;
       p.pos = { kind: "lane", lane: entry.lane, from: entry.from, p: 0 };
       log(s, p.id, `detours into the ${STOCKS[ph.stock].name} shareholders' meeting`);
-      s.phase = { t: "moving", remaining: ph.remaining - 1, dir: ph.dir, skipDetourAt: null };
+      s.phase = { t: "moving", remaining: ph.remaining - 1, dir: ph.dir, skipDetourAt: null, noDetour: false };
       if (ph.remaining - 1 === 0) land(s);
       return true;
     }
@@ -383,6 +389,7 @@ function payFee(s: GameState, amount: number, reason: string) {
 function endTurn(s: GameState) {
   s.current = (s.current + 1) % s.players.length;
   s.turn += 1;
+  s.turnLogStart = s.nextLogId;
   s.phase = { t: "preRoll" };
   // A player wins if they're worth the target at their turn to roll.
   const next = s.players[s.current];

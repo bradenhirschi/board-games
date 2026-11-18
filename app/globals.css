@@ -1,17 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --felt: #12352a;
-  --felt-2: #0c261e;
-  --paper: #f6f3ea;
-  --paper-2: #ebe6d6;
-  --ink: #1d1b16;
-  --muted: #6b6658;
-  --line: #2a2720;
+  --page: #f4f4f0;
+  --paper: #fafaf7;
+  --paper-2: #f2f2ee;
+  --ink: #1c1c1f;
+  --muted: #6b6b66;
+  --line: #26262a;
   --accent: #19a463;
   --up: #15803d;
   --down: #c2410c;
-  --panel: #fffdf7;
+  --panel: #fdfdfb;
 }
 
 * {
@@ -21,7 +20,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(ellipse at 30% 20%, var(--felt), var(--felt-2));
+  background: var(--page);
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -91,7 +90,7 @@ button.link:hover {
   background: var(--paper);
   border: 0.5cqw solid var(--line);
   border-radius: 0.6cqw;
-  box-shadow: 0 2cqw 5cqw rgb(0 0 0 / 0.45);
+  box-shadow: 0 0.6cqw 2.5cqw rgb(0 0 0 / 0.12);
   padding: 0.6cqw;
   gap: 0.15cqw;
   overflow: hidden;
@@ -184,7 +183,7 @@ button.link:hover {
 
 .entry-banner {
   position: absolute;
-  background: #1d1b16;
+  background: #1c1c1f;
 }
 .entry-bottom {
   top: 0;
@@ -262,9 +261,9 @@ button.link:hover {
   display: grid;
   place-items: center;
   font-size: 0.85cqw;
-  border: 0.1cqw solid #b8b2a0;
+  border: 0.1cqw solid #d4d4cf;
   background: #fff;
-  color: #3a372f;
+  color: #3a3a3f;
   white-space: nowrap;
 }
 .lane-split {
@@ -276,7 +275,7 @@ button.link:hover {
   justify-content: space-between;
   gap: 0.5cqw;
   padding: 0 0.6cqw;
-  border: 0.1cqw solid #b8b2a0;
+  border: 0.1cqw solid #d4d4cf;
   background: #fff;
   min-width: 0;
   overflow: hidden;
@@ -310,7 +309,7 @@ button.link:hover {
   justify-content: center;
   text-align: center;
   gap: 0.3cqw;
-  border: 0.12cqw solid #b8b2a0;
+  border: 0.12cqw solid #d4d4cf;
   background: #fff;
   transition: background 0.2s;
 }
@@ -398,7 +397,7 @@ button.link:hover {
 }
 .tracker-levels {
   background: var(--line);
-  color: #cfc9b8;
+  color: #c8c8cc;
   font-size: 0.65cqw;
 }
 .tracker-cell {
@@ -451,7 +450,7 @@ button.link:hover {
   flex: 1;
   height: 0.5cqw;
   border-radius: 1cqw;
-  background: linear-gradient(90deg, var(--down), #d6d0bf 50%, var(--up));
+  background: linear-gradient(90deg, var(--down), #dadad5 50%, var(--up));
 }
 .gauge-fill {
   position: absolute;
@@ -474,7 +473,8 @@ button.link:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.08);
+  border: 1px solid #e2e2dc;
   position: sticky;
   top: 16px;
   max-height: calc(100vh - 32px);
@@ -511,7 +511,7 @@ button.link:hover {
   letter-spacing: 0.08em;
   padding: 1px 5px;
   border-radius: 4px;
-  background: #e7e2d3;
+  background: #ececE8;
   color: var(--muted);
   vertical-align: 2px;
 }
@@ -595,7 +595,7 @@ button.link:hover {
 /* Buttons */
 .btn {
   appearance: none;
-  border: 1.5px solid #cfc8b4;
+  border: 1.5px solid #d4d4cf;
   border-radius: 9px;
   padding: 8px 12px;
   background: #fff;
@@ -669,7 +669,7 @@ button.link:disabled {
   gap: 2px;
   padding: 7px 9px;
   border-radius: 8px;
-  border: 1.5px solid #ddd6c3;
+  border: 1.5px solid #dcdcd6;
   background: #fff;
   font-weight: 700;
   font-size: 13px;
@@ -706,7 +706,7 @@ button.link:disabled {
   width: 100%;
   min-width: 0;
   padding: 4px 6px;
-  border: 1.5px solid #d6d0bf;
+  border: 1.5px solid #dadad5;
   border-radius: 6px;
   font-size: 13px;
   background: #fff;
@@ -797,7 +797,7 @@ button.link:disabled {
 }
 .log li {
   padding-left: 8px;
-  border-left: 3px solid #e3ddcc;
+  border-left: 3px solid #e4e4df;
 }
 .log-up {
   border-left-color: var(--up) !important;
@@ -830,7 +830,8 @@ button.link:disabled {
   border-radius: 16px;
   padding: 28px;
   width: min(520px, 100%);
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.4);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.08);
+  border: 1px solid #e2e2dc;
 }
 .setup-logo {
   margin: 0;
@@ -854,7 +855,7 @@ button.link:disabled {
   flex: 1;
   min-width: 0;
   padding: 9px 11px;
-  border: 1.5px solid #d6d0bf;
+  border: 1.5px solid #dadad5;
   border-radius: 8px;
   font-size: 15px;
   background: #fff;
@@ -879,7 +880,7 @@ button.link:disabled {
 }
 .seg {
   display: flex;
-  border: 1.5px solid #d6d0bf;
+  border: 1.5px solid #dadad5;
   border-radius: 8px;
   overflow: hidden;
   flex: none;
@@ -970,4 +971,72 @@ button.link:disabled {
   .seg button {
     padding: 8px 7px;
   }
+}
+
+/* SELL ALL squares: muted caution stripes so they read differently from buy squares. */
+.sq-sellall {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(0 0 0 / 0.13) 0 0.45cqw,
+    transparent 0.45cqw 1.1cqw
+  );
+}
+.sq-sellall .sq-title,
+.sq-sellall .sq-small.strong {
+  text-shadow: 0 0 0.4cqw rgb(255 255 255 / 0.35);
+}
+
+.thinking::after {
+  content: "";
+  animation: dots 1.2s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75% {
+    content: "...";
+  }
+}
+
+/* Bot turn card */
+.bot-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bot-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+}
+.bot-actions li {
+  padding-left: 8px;
+  border-left: 3px solid #e4e4df;
+}
+.bot-turn .bot-actions li::first-letter {
+  text-transform: uppercase;
+}
+.bot-status {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.recap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper-2);
 }

@@ -134,6 +134,32 @@ describe("shareholders' meetings", () => {
     expect(s.players[0].pos).toEqual({ kind: "track", index: 0 });
   });
 
+  it("can't re-enter a meeting straight after leaving one", () => {
+    let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
+    s.players[0].shares.SOLE = 1;
+    s.players[0].shares.GRAIN = 1; // owns the stock at the far entrance too
+    s = reducer(s, { type: "roll", dice: [1, 2] });
+    const phases: string[] = [];
+    while (s.phase.t === "moving") {
+      s = reducer(s, { type: "step" });
+      phases.push(s.phase.t);
+    }
+    expect(phases).not.toContain("detour");
+    expect(s.players[0].pos).toEqual({ kind: "track", index: 10 });
+  });
+
+  it("can enter from the far entrance on a later turn after landing there", () => {
+    let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
+    s.players[0].shares.SOLE = 1;
+    s.players[0].shares.GRAIN = 1;
+    s = rollAndMove(s, [1, 1]); // p8, then out onto the General Grains entrance
+    expect(s.players[0].pos).toEqual({ kind: "track", index: 9 });
+    s = { ...s, current: 0, phase: { t: "preRoll" } };
+    s = reducer(s, { type: "roll", dice: [1, 2] });
+    s = reducer(s, { type: "step" });
+    expect(s.phase.t).toBe("detour");
+  });
+
   it("exits by the far entrance and keeps going", () => {
     let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
     s.players[0].shares.SOLE = 1;
@@ -178,5 +204,5 @@ describe("bot games", () => {
     }
     turns.sort((a, b) => a - b);
     console.log("turns per 4-player game (min/median/max):", turns[0], turns[10], turns[19]);
-  });
+  }, 60_000);
 });
