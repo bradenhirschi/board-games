@@ -2431,3 +2431,68 @@ button.link {
     z-index: 20;
   }
 }
+
+/* ---------- Phones: your chip shows cash and holdings; others are compact ---------- */
+@media (max-width: 900px) {
+  .m-players {
+    align-items: stretch;
+  }
+  .m-chip.m-me {
+    flex: 1 1 auto;
+    min-width: 0;
+    border-radius: 14px;
+    padding: 4px 8px 4px 4px;
+    align-items: center;
+  }
+  .m-me-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+  .m-me-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .m-me-money {
+    font-family: var(--mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .m-holdings {
+    display: flex;
+    flex-wrap: nowrap; /* one line; scrolls sideways when you own many stocks */
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 3px;
+    font-size: 10px;
+    line-height: 1;
+  }
+  .m-pill {
+    flex: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .m-chip.m-other {
+    flex: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 6px;
+    border-radius: 14px;
+  }
+  .m-other-money {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+}
