@@ -2233,3 +2233,7 @@ button.link {
   font-size: 15px;
   line-height: 1.2;
 }
+/* Rolls and salary sit on the bottom edge of every card, level across the row. */
+.career-pick small {
+  margin-top: auto;
+}
