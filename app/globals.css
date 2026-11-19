@@ -1888,3 +1888,10 @@ button.link {
 .lane-label.lane-label-v {
   padding: 0.6cqw 0;
 }
+
+/* A landing in a meeting lane mustn't lift the square above the board's frame line
+   (it would paint over half of it); the token itself still sits on top. */
+.lane-cell.sq-landing {
+  z-index: auto;
+  animation: none;
+}
