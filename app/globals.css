@@ -1805,33 +1805,24 @@ button.link {
   color: var(--muted);
 }
 
-/* ---------- Zoomable board ---------- */
+/* ---------- Zoomable board (react-zoom-pan-pinch) ---------- */
 .board-zoom {
   position: relative;
   width: 100%;
   min-width: 0;
 }
 .board-viewport {
-  width: 100%;
-  aspect-ratio: 1;
-  overflow: hidden;
-  /* One finger pans natively; two-finger pinch is handled by ZoomableBoard. */
-  touch-action: pan-x pan-y;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  display: block;
 }
 .board-viewport.zoomed {
-  overflow: auto;
   cursor: grab;
 }
-.board-viewport.dragging {
+.board-viewport.zoomed:active {
   cursor: grabbing;
-  user-select: none;
 }
 .board-zoom .board-wrap {
+  width: 100%;
   max-width: none;
-  /* Grow to the right/down from the top-left so every part stays reachable by scrolling
-     (centering an over-wide block would push its left edge out of reach). */
   justify-self: start;
   margin: 0;
 }
