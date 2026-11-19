@@ -11,6 +11,9 @@ import {
   type Action,
   type GameState,
   type Player,
+  BOT_LEVELS,
+  BOT_LEVEL_NAMES,
+  type BotLevel,
 } from "@/lib/engine";
 import { ensureUser } from "@/lib/firebase";
 import { botDecision, isBotTurn, resolve, type Decision } from "@/lib/online";
@@ -212,6 +215,22 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
                 ))}
               </select>
             </label>
+            {bots > 0 && (
+              <label className="setup-target">
+                <span>Bots</span>
+                <select
+                  value={room.botLevel}
+                  disabled={busy}
+                  onChange={(e) => run(() => editLobby(room.code, () => ({ botLevel: e.target.value as BotLevel })))}
+                >
+                  {BOT_LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {BOT_LEVEL_NAMES[l]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               className="btn btn-primary btn-big"
               disabled={busy || room.seats.length < MIN_PLAYERS}

@@ -91,7 +91,13 @@ export interface GameState {
   nextLogId: number;
   /** First log id of the current turn (for showing what this turn's player did). */
   turnLogStart?: number;
+  /** How well the computer players play (older saves: normal). */
+  botLevel?: BotLevel;
 }
+
+export type BotLevel = "easy" | "normal";
+export const BOT_LEVELS: BotLevel[] = ["easy", "normal"];
+export const BOT_LEVEL_NAMES: Record<BotLevel, string> = { easy: "Easy", normal: "Normal" };
 
 export interface PlayerSetup {
   name: string;
@@ -112,8 +118,12 @@ export const DEFAULT_TARGET = 100_000;
 export const emptyHoldings = (): Holdings => Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
 
 const BOT_CAREERS = [2, 3];
+/** Policeman (5/9) and Prospector (2/12): the occupations that pay least per throw. */
+const EASY_BOT_CAREERS = [0, 1];
 
-export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
+export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel: BotLevel = "normal"): GameState {
+  // Easy bots take the lower-paying occupations; the others the best-paying ones.
+  const botCareers = botLevel === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS;
   return {
     version: 3,
     players: setup.map((p, i) => ({
@@ -122,7 +132,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
-      career: p.isBot ? BOT_CAREERS[i % BOT_CAREERS.length] : null,
+      career: p.isBot ? botCareers[i % botCareers.length] : null,
       status: "work",
       pos: null,
       cash: 0,
@@ -139,6 +149,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
     log: [],
     nextLogId: 1,
     turnLogStart: 1,
+    botLevel,
   };
 }
 

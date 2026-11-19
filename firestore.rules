@@ -43,7 +43,7 @@ service cloud.firestore {
           request.auth.uid == resource.data.hostUid
           || (
             request.resource.data.status == 'lobby'
-            && unchanged(['target', 'version', 'stateJson', 'replayJson', 'currentUid'])
+            && unchanged(['target', 'botLevel', 'version', 'stateJson', 'replayJson', 'currentUid'])
             && onlySelfJoinsOrLeaves()
           )
         );
@@ -53,7 +53,7 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid in resource.data.memberUids
-        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target'])
+        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel'])
         && request.resource.data.version == resource.data.version + 1
         && (
           resource.data.currentUid == request.auth.uid
