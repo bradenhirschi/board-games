@@ -759,26 +759,28 @@ function TurnControls({
         <p className="hint">
           On <b>{posName(pos)}</b>: {dirHint}
         </p>
-        {held.length > 0 && (
-          <Fold label="Sell">
-            <div className="sell-box">
-              <div className="small muted">Sell now at the board price (only before you roll):</div>
-              {held.map((id) => (
-                <SellRow
-                  key={id}
-                  stock={id}
-                  owned={player.shares[id]}
-                  price={priceAt(id, state.market)}
-                  disabled={disabled}
-                  onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
-                />
-              ))}
-            </div>
-          </Fold>
-        )}
-        <button className="btn btn-primary btn-big" disabled={disabled} onClick={roll}>
-          Roll dice
-        </button>
+        <div className="turn-actions">
+          {held.length > 0 && (
+            <Fold label="Sell">
+              <div className="sell-box">
+                <div className="small muted">Sell now at the board price (only before you roll):</div>
+                {held.map((id) => (
+                  <SellRow
+                    key={id}
+                    stock={id}
+                    owned={player.shares[id]}
+                    price={priceAt(id, state.market)}
+                    disabled={disabled}
+                    onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
+                  />
+                ))}
+              </div>
+            </Fold>
+          )}
+          <button className="btn btn-primary btn-big" disabled={disabled} onClick={roll}>
+            Roll dice
+          </button>
+        </div>
         {!disabled && <div className="muted small">Space / Enter also rolls</div>}
       </div>
     );
@@ -882,29 +884,31 @@ function AfterRollBox({
         />
       )}
 
-      {held.length > 0 && (
-        <Fold label="Sell">
-          <div className="sell-box sell-low">
-            <div className="small muted">
-              Sell after the throw, at the <b>lowest board price</b>:
+      <div className="turn-actions">
+        {held.length > 0 && (
+          <Fold label="Sell">
+            <div className="sell-box sell-low">
+              <div className="small muted">
+                Sell after the throw, at the <b>lowest board price</b>:
+              </div>
+              {held.map((id) => (
+                <SellRow
+                  key={`${id}-${player.shares[id]}`}
+                  stock={id}
+                  owned={player.shares[id]}
+                  price={lowestPrice(id)}
+                  disabled={disabled}
+                  onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
+                />
+              ))}
             </div>
-            {held.map((id) => (
-              <SellRow
-                key={`${id}-${player.shares[id]}`}
-                stock={id}
-                owned={player.shares[id]}
-                price={lowestPrice(id)}
-                disabled={disabled}
-                onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
-              />
-            ))}
-          </div>
-        </Fold>
-      )}
+          </Fold>
+        )}
 
-      <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
-        End turn
-      </button>
+        <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
+          End turn
+        </button>
+      </div>
     </div>
   );
 }

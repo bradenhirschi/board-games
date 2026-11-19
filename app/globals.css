@@ -2792,3 +2792,50 @@ button.link {
     padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 }
+
+/* ---------- Turn card: the main action always sits at the bottom ---------- */
+.turn-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 900px) {
+  .game > .action-col > .turn {
+    display: flex;
+    flex-direction: column;
+  }
+  .action-col .turn > .controls {
+    flex: 1 1 auto;
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  /* Push the action row (or a lone main button) to the bottom of the card. */
+  .action-col .controls > .turn-actions,
+  .action-col .controls > .btn-big,
+  .action-col .controls > .btn-danger,
+  .action-col .controls > .btn-row:last-child {
+    margin-top: auto;
+  }
+  .action-col .turn-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .action-col .turn-actions > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .action-col .turn-actions > .fold:not(.fold-open) {
+    flex: 0 0 auto;
+  }
+  .action-col .turn-actions > .fold:not(.fold-open) + .btn-big {
+    flex: 1 1 0;
+  }
+}
+@media (max-width: 900px) {
+  /* Items keep their natural height; only the gap above the actions grows. */
+  .action-col .turn > .controls > * {
+    flex: none;
+  }
+}
