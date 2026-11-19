@@ -2558,3 +2558,94 @@ button.link {
     overflow: hidden;
   }
 }
+
+/* ---------- Game menu: an info block (goal, round) above the options ---------- */
+.menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--muted);
+}
+.menu-info b {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.menu-info + .menu-item {
+  border-top: 0;
+}
+
+/* ---------- Phones (layout v3): no title bar; ticker + menu on top, then all players ---------- */
+@media (max-width: 900px) {
+  .game > .topbar {
+    display: none;
+  }
+  .game > .m-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ticker menu"
+      "players players";
+    align-items: stretch;
+  }
+  .m-top .m-ticker {
+    grid-area: ticker;
+    min-height: 36px;
+  }
+  .m-top .game-menu {
+    grid-area: menu;
+    margin-left: 0;
+  }
+  .m-top .menu-button {
+    height: 100%;
+    min-height: 36px;
+  }
+  .m-top .m-players {
+    grid-area: players;
+    align-items: stretch;
+  }
+  /* You: cash, worth and every stock you own. */
+  .m-chip.m-me {
+    flex: 0 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 60%;
+    max-width: 100%;
+    padding: 6px 8px;
+    border-radius: 12px;
+  }
+  .m-me-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .m-me .m-me-money {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .m-me .m-holdings {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  /* Everyone else: just token, name and net worth. */
+  .m-top .m-chip:not(.m-me) {
+    flex: none;
+    border-radius: 12px;
+  }
+}
+@media (max-width: 900px) {
+  /* The turn panel fills whatever is left under the board. */
+  .game > .action-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .game > .action-col > .turn {
+    flex: 1 1 0;
+  }
+  /* No title bar any more, so the board can be a little bigger. */
+  .game > .board-zoom {
+    width: min(100%, calc(100dvh - 310px));
+  }
+}

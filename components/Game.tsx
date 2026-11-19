@@ -233,7 +233,7 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <GameMenu onQuit={onQuit} />
+        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       {/* Phones: the latest ticker line (tap for the whole log) beside the other players. */}
@@ -245,7 +245,38 @@ export function GameView({
             <span className="muted">Nothing has happened yet.</span>
           )}
         </button>
+        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
         <div className="m-players" role="list">
+          <button
+            role="listitem"
+            className={`m-chip m-me ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
+            onClick={() => setSheet(viewer.id)}
+            aria-label="Your money and stocks"
+          >
+            <span className="m-me-head">
+              <span className="token token-static" style={{ background: viewer.color }}>
+                {viewer.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="m-me-money">
+                <span>
+                  <small>Cash</small> <b>${fmt(viewer.cash)}</b>
+                </span>
+                <span>
+                  <small>Worth</small> <b>${fmt(netWorth(viewer, state.market))}</b>
+                </span>
+              </span>
+            </span>
+            <span className="m-holdings">
+              {STOCK_ORDER.filter((id) => viewer.shares[id] > 0)
+                .sort((a, b) => viewer.shares[b] - viewer.shares[a]) // most shares first
+                .map((id) => (
+                  <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+                    {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
+                  </span>
+                ))}
+              {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
+            </span>
+          </button>
           {state.players
             .filter((p) => p.id !== viewer.id)
             .map((p) => (
@@ -297,28 +328,6 @@ export function GameView({
             <Die value={dice[1]} rolling={!!rolling} />
           </div>
         )}
-
-        {/* Phones: your cash and holdings; tap for the full breakdown. */}
-        <button className="m-me-bar" onClick={() => setSheet(viewer.id)} aria-label="Your money and stocks">
-          <span className="m-me-money">
-            <span>
-              <small>Cash</small> <b>${fmt(viewer.cash)}</b>
-            </span>
-            <span>
-              <small>Worth</small> <b>${fmt(netWorth(viewer, state.market))}</b>
-            </span>
-          </span>
-          <span className="m-holdings">
-            {STOCK_ORDER.filter((id) => viewer.shares[id] > 0)
-              .sort((a, b) => viewer.shares[b] - viewer.shares[a]) // most shares first
-              .map((id) => (
-                <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
-                  {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
-                </span>
-              ))}
-            {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
-          </span>
-        </button>
 
         {winner ? (
           <section className="turn turn-over">
@@ -445,7 +454,18 @@ function shortMoney(n: number): string {
 }
 
 /** The ☰ button in the top bar: a small panel to turn sound on/off or quit the game. */
-function GameMenu({ onQuit }: { onQuit: () => void }) {
+function GameMenu({
+  onQuit,
+  target,
+  round,
+  extra,
+}: {
+  onQuit: () => void;
+  target: number;
+  round: number;
+  /** Extra game info (e.g. the online room code). */
+  extra?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const soundOn = useSoundOn();
 
@@ -473,6 +493,15 @@ function GameMenu({ onQuit }: { onQuit: () => void }) {
         <>
           <div className="menu-backdrop" onClick={() => setOpen(false)} />
           <div className="menu-panel" role="menu">
+            <div className="menu-info">
+              <span>
+                First to <b>${fmt(target)}</b>
+              </span>
+              <span>
+                Round <b>{round}</b>
+              </span>
+              {extra}
+            </div>
             <button
               role="menuitemcheckbox"
               aria-checked={soundOn}
