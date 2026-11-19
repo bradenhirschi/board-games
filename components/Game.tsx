@@ -15,6 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
+import { playBell, playCash, playDice, playLoss } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -117,6 +118,7 @@ export function animateRoll(
   done: () => void,
 ): ReturnType<typeof setInterval> {
   const started = Date.now();
+  playDice();
   setRolling([rollDie(), rollDie()]);
   const timer = setInterval(() => {
     if (Date.now() - started < ROLL_MS) {
@@ -188,6 +190,28 @@ export function GameView({
   const dice = rolling ?? state.dice;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
+
+  // Sounds tied to new log entries (not on load): ca-ching for trades, "womp womp" for costly squares.
+  const lastLogId = useRef(state.log[0]?.id ?? -1);
+  const newestLogId = state.log[0]?.id ?? -1;
+  useEffect(() => {
+    const seen = lastLogId.current;
+    if (newestLogId === seen) return;
+    lastLogId.current = newestLogId;
+    if (newestLogId < seen) return; // a different or reloaded game
+    const fresh = state.log.filter((e) => e.id > seen);
+    if (fresh.some((e) => e.sound === "loss")) playLoss();
+    if (fresh.some((e) => e.sound === "cash")) playCash();
+  }, [newestLogId, state.log]);
+
+  // Ring a bell once when a turn becomes this player's.
+  const rungForTurn = useRef<number | null>(null);
+  const myTurnStarts = isTurn && !viewer.isBot && current.id === viewer.id && ph.t === "preRoll";
+  useEffect(() => {
+    if (!myTurnStarts || rungForTurn.current === state.turn) return;
+    rungForTurn.current = state.turn;
+    playBell();
+  }, [myTurnStarts, state.turn]);
   const round = Math.floor((state.turn - 1) / state.players.length) + 1;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
@@ -435,26 +459,54 @@ function CareerChoice({
         )}
       </p>
       <div className="career-picks">
-        {CAREERS.map((c, i) => (
-          <button
-            key={c.name}
-            className={`career-pick ${viewer.career === i ? "career-pick-on" : ""}`}
-            disabled={disabled}
-            onClick={() => dispatch({ type: "chooseCareer", playerId: viewer.id, career: i })}
-          >
-            <span>
-              {c.icon} {c.name}
-            </span>
-            <small>
-              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
-            </small>
-          </button>
-        ))}
+        <CareerPicks
+          selected={viewer.career}
+          disabled={disabled}
+          onPick={(career) => dispatch({ type: "chooseCareer", playerId: viewer.id, career })}
+        />
       </div>
       {waitingFor.length > 0 && (
         <p className="hint muted">Waiting for {waitingFor.map((p) => p.name).join(", ")} to choose…</p>
       )}
     </div>
+  );
+}
+
+/** Occupation indices, cheapest salary first (the index itself is what the game stores). */
+const CAREERS_BY_SALARY = CAREERS.map((_, i) => i).sort((a, b) => CAREERS[a].salary - CAREERS[b].salary);
+
+/** The occupation buttons, $100 to $400. */
+function CareerPicks({
+  selected,
+  disabled,
+  onPick,
+}: {
+  selected: number | null;
+  disabled: boolean;
+  onPick: (career: number) => void;
+}) {
+  return (
+    <>
+      {CAREERS_BY_SALARY.map((i) => {
+        const c = CAREERS[i];
+        return (
+          <button
+            key={c.name}
+            className={`career-pick ${selected === i ? "career-pick-on" : ""}`}
+            disabled={disabled}
+            onClick={() => onPick(i)}
+          >
+            <span className="pick-name">
+              <span className="pick-icon">{c.icon}</span>
+              {c.name}
+            </span>
+            <small>
+              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
+            </small>
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -522,36 +574,18 @@ function TurnControls({
     const must = mustGoToMarket(player);
     return (
       <div className="controls">
-        <p className="hint">
-          {must ? (
-            <>
-              You&apos;ve earned <b>${fmt(player.cash)}</b>. Time to play the market!
-            </>
-          ) : (
-            <>
-              At work. You&apos;re paid whenever <i>anyone</i> throws your number. Earn $1,000 to start playing the
-              market ($
-              {fmt(1000 - player.cash)} to go).
-            </>
-          )}
-        </p>
+        {must && (
+          <p className="hint">
+            You&apos;ve earned <b>${fmt(player.cash)}</b>. Time to play the market!
+          </p>
+        )}
         {!must && (
           <div className="career-picks">
-            {CAREERS.map((c, i) => (
-              <button
-                key={c.name}
-                className={`career-pick ${player.career === i ? "career-pick-on" : ""}`}
-                disabled={disabled}
-                onClick={() => dispatch({ type: "setCareer", career: i })}
-              >
-                <span>
-                  {c.icon} {c.name}
-                </span>
-                <small>
-                  {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
-                </small>
-              </button>
-            ))}
+            <CareerPicks
+              selected={player.career}
+              disabled={disabled}
+              onPick={(career) => dispatch({ type: "setCareer", career })}
+            />
           </div>
         )}
         {pickingStart ? (

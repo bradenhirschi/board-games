@@ -31,6 +31,9 @@
 body {
   margin: 0;
   min-height: 100vh;
+  /* The visible screen: on phones 100vh includes the hidden browser toolbars, which made
+     the page taller than the screen (and scrollable) under the one-screen game layout. */
+  min-height: 100dvh;
   background: var(--page);
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -2194,4 +2197,46 @@ button.link {
   .game > .topbar .topbar-info {
     font-size: 12px;
   }
+}
+
+@media (max-width: 900px) {
+  /* Menu hugs the right edge. */
+  .game > .topbar .topbar-menu {
+    margin-left: auto;
+  }
+  /* The four occupations on one row, so the button below stays in view. */
+  .action-col .career-picks {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .action-col .career-pick {
+    align-items: center;
+    text-align: center;
+    padding: 5px 3px;
+    gap: 1px;
+    font-size: 11.5px;
+    line-height: 1.15;
+  }
+  .action-col .career-pick small {
+    font-size: 10px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 900px) {
+  /* Full-width rows (the desktop grid aligns items to the start). */
+  .game > .topbar,
+  .game > .m-players,
+  .game > .action-col {
+    align-self: stretch;
+  }
+}
+/* Every occupation card: icon on its own line, then the name, then rolls and salary. */
+.pick-icon {
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+}
+/* Rolls and salary sit on the bottom edge of every card, level across the row. */
+.career-pick small {
+  margin-top: auto;
 }

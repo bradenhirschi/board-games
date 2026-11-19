@@ -69,6 +69,8 @@ export interface LogEntry {
   playerId: number | null;
   text: string;
   tone?: "up" | "down" | "money" | "bad";
+  /** A sound to play when this entry appears: a trade ("cash") or a costly square ("loss"). */
+  sound?: "cash" | "loss";
 }
 
 export interface GameState {
@@ -104,8 +106,7 @@ export const BROKER_FEE_PER_SHARE = 10;
 export const WORK_CAP = 1000;
 export const DEFAULT_TARGET = 100_000;
 
-export const emptyHoldings = (): Holdings =>
-  Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
+export const emptyHoldings = (): Holdings => Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
 
 const BOT_CAREERS = [2, 3];
 
@@ -175,8 +176,7 @@ export type Action =
   | { type: "buy"; qty: number }
   | { type: "endTurn" }
   | { type: "forcedSell"; stock: StockId; qty: number }
-  | { type: "goBroke" }
-
+  | { type: "goBroke" };
 
 export function reducer(state: GameState, action: Action): GameState {
   const s: GameState = structuredClone(state);
@@ -229,7 +229,7 @@ function apply(s: GameState, a: Action): boolean {
       const price = priceAt(a.stock, s.market);
       p.shares[a.stock] -= qty;
       p.cash += qty * price;
-      log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} at $${price} for $${fmt(qty * price)}`, "money");
+      log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} at $${price} for $${fmt(qty * price)}`, "money", "cash");
       return true;
     }
 
@@ -300,7 +300,13 @@ function apply(s: GameState, a: Action): boolean {
       p.cash -= qty * offer.price;
       offer.bought += qty;
       offer.max = buyable(p.cash, offer);
-      log(s, p.id, `buys ${qty} ${STOCKS[offer.stock].name} at $${offer.price} for $${fmt(qty * offer.price)}`, "money");
+      log(
+        s,
+        p.id,
+        `buys ${qty} ${STOCKS[offer.stock].name} at $${offer.price} for $${fmt(qty * offer.price)}`,
+        "money",
+        "cash",
+      );
       return true;
     }
 
@@ -320,11 +326,17 @@ function apply(s: GameState, a: Action): boolean {
       p.shares[a.stock] -= qty;
       p.cash += qty * price;
       if (ph.t === "afterRoll") {
-        log(s, p.id, `sells ${qty} ${STOCKS[a.stock].name} after the throw, at the lowest price ($${price})`, "bad");
+        log(
+          s,
+          p.id,
+          `sells ${qty} ${STOCKS[a.stock].name} after the throw, at the lowest price ($${price})`,
+          "bad",
+          "cash",
+        );
         if (ph.buy) ph.buy.max = buyable(p.cash, ph.buy);
         return true;
       }
-      log(s, p.id, `must sell ${qty} ${STOCKS[a.stock].name} at the lowest price, $${price}`, "bad");
+      log(s, p.id, `must sell ${qty} ${STOCKS[a.stock].name} at the lowest price, $${price}`, "bad", "cash");
       if (p.cash >= ph.owed) payFee(s, ph.owed, ph.reason);
       return true;
     }
@@ -339,7 +351,6 @@ function apply(s: GameState, a: Action): boolean {
       endTurn(s);
       return true;
     }
-
   }
 }
 
@@ -378,9 +389,15 @@ function land(s: GameState) {
   s.lastMarketDelta = s.market - before;
   if (sq.kind !== "start") {
     const word = sq.move > 0 ? "UP" : "DOWN";
-    log(s, p.id, `lands on ${squareName(pos.index)}: market ${word} ${Math.abs(sq.move)} (${before} → ${s.market})`, sq.move > 0 ? "up" : "down");
+    log(
+      s,
+      p.id,
+      `lands on ${squareName(pos.index)}: market ${word} ${Math.abs(sq.move)} (${before} → ${s.market})`,
+      sq.move > 0 ? "up" : "down",
+      sq.kind === "corner" || sq.kind === "sellAll" ? "loss" : undefined,
+    );
   } else {
-    log(s, p.id, `lands on START`);
+    log(s, p.id, `lands on START`, undefined, "loss");
   }
 
   switch (sq.kind) {
@@ -404,7 +421,13 @@ function land(s: GameState) {
         p.cash += owned * sq.dividend;
         log(s, p.id, `collects a $${fmt(owned * sq.dividend)} dividend on ${owned} ${STOCKS[sq.stock].name}`, "money");
       }
-      const offer: BuyOffer = { stock: sq.stock, price: priceAt(sq.stock, s.market), limited: !!sq.limitOne, max: 0, bought: 0 };
+      const offer: BuyOffer = {
+        stock: sq.stock,
+        price: priceAt(sq.stock, s.market),
+        limited: !!sq.limitOne,
+        max: 0,
+        bought: 0,
+      };
       offer.max = buyable(p.cash, offer);
       return afterRoll(s, offer);
     }
@@ -449,8 +472,8 @@ function endTurn(s: GameState) {
   }
 }
 
-function log(s: GameState, playerId: number | null, text: string, tone?: LogEntry["tone"]) {
-  s.log.unshift({ id: s.nextLogId++, playerId, text, tone });
+function log(s: GameState, playerId: number | null, text: string, tone?: LogEntry["tone"], sound?: LogEntry["sound"]) {
+  s.log.unshift({ id: s.nextLogId++, playerId, text, tone, ...(sound ? { sound } : {}) });
   if (s.log.length > 200) s.log.length = 200;
 }
 
