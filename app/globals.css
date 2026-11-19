@@ -2196,20 +2196,34 @@ button.link {
   }
 }
 
-/* Sound on/off, just left of Menu. */
-.topbar .sound-toggle {
-  margin-left: auto;
-  font-size: 16px;
-  line-height: 1;
-  text-decoration: none;
-}
-.topbar .sound-toggle + .topbar-menu {
-  margin-left: 0;
+@media (max-width: 900px) {
+  /* Menu hugs the right edge. */
+  .game > .topbar .topbar-menu {
+    margin-left: auto;
+  }
+  /* The four occupations on one row, so the button below stays in view. */
+  .action-col .career-picks {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .action-col .career-pick {
+    align-items: center;
+    text-align: center;
+    padding: 5px 3px;
+    gap: 1px;
+    font-size: 11.5px;
+    line-height: 1.15;
+  }
+  .action-col .career-pick small {
+    font-size: 10px;
+    white-space: nowrap;
+  }
 }
 @media (max-width: 900px) {
-  .game > .topbar .sound-toggle {
-    flex: none;
-    order: 1;
-    font-size: 15px;
+  /* Full-width rows (the desktop grid aligns items to the start). */
+  .game > .topbar,
+  .game > .m-players,
+  .game > .action-col {
+    align-self: stretch;
   }
 }

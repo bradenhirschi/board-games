@@ -1,7 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-
 /**
  * Game sounds, synthesized with the Web Audio API (no audio files to load).
  *
@@ -9,19 +7,7 @@ import { useSyncExternalStore } from "react";
  * context is created lazily and resumed on the first interaction.
  */
 
-const MUTE_KEY = "stock-market:muted";
-
 let ctx: AudioContext | null = null;
-let muted = readMuted();
-const listeners = new Set<() => void>();
-
-function readMuted(): boolean {
-  try {
-    return typeof localStorage !== "undefined" && localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 function audio(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -44,32 +30,6 @@ if (typeof window !== "undefined") {
   };
   window.addEventListener("pointerdown", unlock);
   window.addEventListener("keydown", unlock);
-}
-
-export function isMuted(): boolean {
-  return muted;
-}
-
-export function setMuted(value: boolean) {
-  muted = value;
-  try {
-    localStorage.setItem(MUTE_KEY, value ? "1" : "0");
-  } catch {
-    // Private mode etc.: the setting just won't be remembered.
-  }
-  listeners.forEach((l) => l());
-}
-
-/** The current mute setting, kept in sync across components. */
-export function useMuted(): boolean {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => muted,
-    () => false,
-  );
 }
 
 let noise: AudioBuffer | null = null;
@@ -110,7 +70,6 @@ function clack(ac: AudioContext, out: AudioNode, at: number, level: number) {
 
 /** Two dice rattling and settling: impacts that get quieter and closer together. */
 export function playDice() {
-  if (muted) return;
   const ac = audio();
   if (!ac) return;
   const out = ac.createGain();
@@ -133,7 +92,6 @@ export function playDice() {
 
 /** A single bright bell "ding" (a few inharmonic partials, like a desk bell). */
 export function playBell() {
-  if (muted) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;
@@ -163,7 +121,6 @@ export function playBell() {
 
 /** A cash register: a mechanical "ca" (drawer clack) then a bright "ching". */
 export function playCash() {
-  if (muted) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;
@@ -200,7 +157,6 @@ export function playCash() {
 
 /** A short "womp womp": two falling, slightly sagging horn notes. */
 export function playLoss() {
-  if (muted) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;

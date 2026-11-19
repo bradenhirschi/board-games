@@ -15,7 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
-import { playBell, playCash, playDice, playLoss, setMuted, useMuted } from "@/lib/sound";
+import { playBell, playCash, playDice, playLoss } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -190,7 +190,6 @@ export function GameView({
   const dice = rolling ?? state.dice;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
-  const muted = useMuted();
 
   // Sounds tied to new log entries (not on load): ca-ching for trades, "womp womp" for costly squares.
   const lastLogId = useRef(state.log[0]?.id ?? -1);
@@ -234,14 +233,6 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <button
-          className="link sound-toggle"
-          onClick={() => setMuted(!muted)}
-          aria-label={muted ? "Turn sound on" : "Mute sound"}
-          title={muted ? "Turn sound on" : "Mute sound"}
-        >
-          {muted ? "🔇" : "🔊"}
-        </button>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
         </button>
