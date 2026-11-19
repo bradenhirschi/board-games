@@ -1859,3 +1859,8 @@ button.link {
     justify-self: end;
   }
 }
+
+.zoom-controls button {
+  display: grid;
+  place-items: center;
+}
