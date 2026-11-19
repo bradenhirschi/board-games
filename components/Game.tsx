@@ -166,6 +166,8 @@ export function GameView({
   statusNote,
 }: GameViewProps) {
   const [pickingStart, setPickingStart] = useState(false);
+  /** Phones: the slide-up sheet showing the full ticker ("log") or one player's details. */
+  const [sheet, setSheet] = useState<"log" | number | null>(null);
   const current = state.players[state.current];
   const ph = state.phase;
 
@@ -186,6 +188,7 @@ export function GameView({
   const dice = rolling ?? state.dice;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
+  const round = Math.floor((state.turn - 1) / state.players.length) + 1;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
     setPickingStart(false);
@@ -197,13 +200,39 @@ export function GameView({
       <header className="topbar">
         <h1>STOCK MARKET</h1>
         <div className="topbar-info">
-          First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
+          {/* Phones get the short form, e.g. "$100k · R6". */}
+          <span className="t-long">
+            First to <b>${fmt(state.target)}</b> · Round {round}
+          </span>
+          <span className="t-short">
+            <b>{shortMoney(state.target)}</b> · R{round}
+          </span>
           {headerExtra}
         </div>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
         </button>
       </header>
+      {/* Phones: every player as a compact chip (you first); tap one for the details. */}
+      <div className="m-players" role="list">
+        {[viewer, ...state.players.filter((p) => p.id !== viewer.id)].map((p) => (
+          <button
+            key={p.id}
+            role="listitem"
+            className={`m-chip ${p.id === current.id && !winner ? "m-chip-current" : ""}`}
+            onClick={() => setSheet(p.id)}
+          >
+            <span className="token token-static" style={{ background: p.color }}>
+              {p.name.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="m-chip-text">
+              <b>{p.id === viewer.id ? "You" : p.name}</b>
+              <span>${fmt(netWorth(p, state.market))}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
       <ZoomableBoard>
         <Board
           players={state.players}
@@ -232,6 +261,18 @@ export function GameView({
             <Die value={dice[1]} rolling={!!rolling} />
           </div>
         )}
+
+        {/* Phones: the latest ticker line; tap for the whole log. */}
+        <button className="m-ticker" onClick={() => setSheet("log")} aria-label="Open the ticker">
+          {state.log[0] ? (
+            <LogText state={state} entry={state.log[0]} />
+          ) : (
+            <span className="muted">Nothing has happened yet.</span>
+          )}
+          <span className="m-ticker-more" aria-hidden>
+            ›
+          </span>
+        </button>
 
         {winner ? (
           <section className="turn turn-over">
@@ -285,7 +326,6 @@ export function GameView({
             )}
           </section>
         )}
-
       </div>
 
       {/* Sidebar: ticker on top, other players below, and this device's player at the bottom. */}
@@ -295,16 +335,7 @@ export function GameView({
           {state.log.length === 0 ? (
             <p className="muted small">Nothing has happened yet.</p>
           ) : (
-            <ol>
-              {state.log.map((e) => {
-                const p = e.playerId !== null ? state.players[e.playerId] : null;
-                return (
-                  <li key={e.id} className={e.tone ? `log-${e.tone}` : ""}>
-                    {p && <b style={{ color: p.color }}>{p.name}</b>} {e.text}
-                  </li>
-                );
-              })}
-            </ol>
+            <LogList state={state} />
           )}
         </section>
 
@@ -320,7 +351,59 @@ export function GameView({
 
         <MeCard p={viewer} market={state.market} active={viewer.id === current.id && !winner} />
       </aside>
+
+      {sheet !== null && (
+        <div className="m-sheet-backdrop" onClick={() => setSheet(null)}>
+          <div className="m-sheet" role="dialog" onClick={(e) => e.stopPropagation()}>
+            <button className="m-sheet-close" onClick={() => setSheet(null)} aria-label="Close">
+              ×
+            </button>
+            {sheet === "log" ? (
+              <section className="card log">
+                <h2>Ticker</h2>
+                <LogList state={state} />
+              </section>
+            ) : sheet === viewer.id ? (
+              <MeCard p={viewer} market={state.market} active={viewer.id === current.id && !winner} />
+            ) : (
+              <section className="card others">
+                <ul className="players">
+                  <PlayerRow p={state.players[sheet]} market={state.market} active={sheet === current.id && !winner} />
+                </ul>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** $100,000 → "$100k", $1,500,000 → "$1.5M". */
+function shortMoney(n: number): string {
+  if (n >= 1_000_000) return `$${+(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${+(n / 1_000).toFixed(1)}k`;
+  return `$${n}`;
+}
+
+function LogText({ state, entry }: { state: GameState; entry: GameState["log"][number] }) {
+  const p = entry.playerId !== null ? state.players[entry.playerId] : null;
+  return (
+    <span>
+      {p && <b style={{ color: p.color }}>{p.name}</b>} {entry.text}
+    </span>
+  );
+}
+
+function LogList({ state }: { state: GameState }) {
+  return (
+    <ol>
+      {state.log.map((e) => (
+        <li key={e.id} className={e.tone ? `log-${e.tone}` : ""}>
+          <LogText state={state} entry={e} />
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -342,8 +425,8 @@ function CareerChoice({
       <p className="hint">
         {viewer.career === null ? (
           <>
-            <b>Choose your occupation.</b> You&apos;re paid whenever <i>anyone</i> throws your numbers. The first
-            roll waits until everyone has picked.
+            <b>Choose your occupation.</b> You&apos;re paid whenever <i>anyone</i> throws your numbers. The first roll
+            waits until everyone has picked.
           </>
         ) : (
           <>
@@ -407,7 +490,12 @@ function BotTurn({ state, busy }: { state: GameState; busy: boolean }) {
   );
 }
 
-const SIDE_NAME = { bottom: "Bottom", left: "Left", top: "Top", right: "Right" } as const;
+const SIDE_NAME = {
+  bottom: "Bottom",
+  left: "Left",
+  top: "Top",
+  right: "Right",
+} as const;
 
 function TurnControls({
   state,
@@ -442,7 +530,8 @@ function TurnControls({
           ) : (
             <>
               At work. You&apos;re paid whenever <i>anyone</i> throws your number. Earn $1,000 to start playing the
-              market (${fmt(1000 - player.cash)} to go).
+              market ($
+              {fmt(1000 - player.cash)} to go).
             </>
           )}
         </p>
@@ -519,19 +608,21 @@ function TurnControls({
           On <b>{posName(pos)}</b>: {dirHint}
         </p>
         {held.length > 0 && (
-          <div className="sell-box">
-            <div className="small muted">Sell now at the board price (only before you roll):</div>
-            {held.map((id) => (
-              <SellRow
-                key={id}
-                stock={id}
-                owned={player.shares[id]}
-                price={priceAt(id, state.market)}
-                disabled={disabled}
-                onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
-              />
-            ))}
-          </div>
+          <Fold label="Sell stock">
+            <div className="sell-box">
+              <div className="small muted">Sell now at the board price (only before you roll):</div>
+              {held.map((id) => (
+                <SellRow
+                  key={id}
+                  stock={id}
+                  owned={player.shares[id]}
+                  price={priceAt(id, state.market)}
+                  disabled={disabled}
+                  onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
+                />
+              ))}
+            </div>
+          </Fold>
         )}
         <button className="btn btn-primary btn-big" disabled={disabled} onClick={roll}>
           Roll dice
@@ -545,11 +636,15 @@ function TurnControls({
     return (
       <div className="controls">
         <p className="hint">
-          Passing the <b>{STOCKS[ph.stock].name}</b> shareholders&apos; meeting. You own {player.shares[ph.stock]} shares —
-          detour in for stock dividends? ({ph.remaining} {ph.remaining === 1 ? "step" : "steps"} left)
+          Passing the <b>{STOCKS[ph.stock].name}</b> shareholders&apos; meeting. You own {player.shares[ph.stock]}{" "}
+          shares — detour in for stock dividends? ({ph.remaining} {ph.remaining === 1 ? "step" : "steps"} left)
         </p>
         <div className="btn-row">
-          <button className="btn btn-primary" disabled={disabled} onClick={() => dispatch({ type: "detour", enter: true })}>
+          <button
+            className="btn btn-primary"
+            disabled={disabled}
+            onClick={() => dispatch({ type: "detour", enter: true })}
+          >
             Enter meeting
           </button>
           <button className="btn" disabled={disabled} onClick={() => dispatch({ type: "detour", enter: false })}>
@@ -569,8 +664,8 @@ function TurnControls({
     return (
       <div className="controls">
         <p className="hint bad">
-          You owe <b>${fmt(ph.owed)}</b> for the {ph.reason} but have ${fmt(player.cash)}. Sell stock at the lowest board
-          price, or go broke.
+          You owe <b>${fmt(ph.owed)}</b> for the {ph.reason} but have ${fmt(player.cash)}. Sell stock at the lowest
+          board price, or go broke.
         </p>
         <div className="sell-box">
           {held.map((id) => (
@@ -617,8 +712,8 @@ function AfterRollBox({
   return (
     <div className="controls">
       <p className="hint">
-        Landed on <b>{posName(player.pos)}</b>.
-        {offer ? "" : " Nothing to buy here."} You can still sell (at the lowest board price) before you end your turn.
+        Landed on <b>{posName(player.pos)}</b>.{offer ? "" : " Nothing to buy here."}{" "}
+        <span className="m-hide">You can still sell (at the lowest board price) before you end your turn.</span>
       </p>
 
       {offer && (
@@ -635,21 +730,23 @@ function AfterRollBox({
       )}
 
       {held.length > 0 && (
-        <div className="sell-box sell-low">
-          <div className="small muted">
-            Sell after the throw, at the <b>lowest board price</b>:
+        <Fold label="Sell at the lowest price">
+          <div className="sell-box sell-low">
+            <div className="small muted">
+              Sell after the throw, at the <b>lowest board price</b>:
+            </div>
+            {held.map((id) => (
+              <SellRow
+                key={`${id}-${player.shares[id]}`}
+                stock={id}
+                owned={player.shares[id]}
+                price={lowestPrice(id)}
+                disabled={disabled}
+                onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
+              />
+            ))}
           </div>
-          {held.map((id) => (
-            <SellRow
-              key={`${id}-${player.shares[id]}`}
-              stock={id}
-              owned={player.shares[id]}
-              price={lowestPrice(id)}
-              disabled={disabled}
-              onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
-            />
-          ))}
-        </div>
+        </Fold>
       )}
 
       <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
@@ -763,6 +860,19 @@ function SellRow({
 }
 
 /** This device's player: a larger box with their money, whereabouts and holdings. */
+/** On phones, tucks optional controls behind a toggle; on desktop, shows them as they are. */
+function Fold({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`fold ${open ? "fold-open" : ""}`}>
+      <button className="btn fold-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {label} {open ? "▴" : "▾"}
+      </button>
+      {children}
+    </div>
+  );
+}
+
 function MeCard({ p, market, active }: { p: Player; market: number; active: boolean }) {
   const held = STOCK_ORDER.filter((id) => p.shares[id] > 0);
   const where =
@@ -795,7 +905,13 @@ function MeCard({ p, market, active }: { p: Player; market: number; active: bool
             {held.map((id) => (
               <tr key={id}>
                 <td>
-                  <span className="chip" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+                  <span
+                    className="chip"
+                    style={{
+                      background: STOCKS[id].color,
+                      color: STOCKS[id].ink,
+                    }}
+                  >
                     {STOCKS[id].name}
                   </span>
                 </td>
@@ -826,7 +942,11 @@ function PlayerRow({ p, market, active }: { p: Player; market: number; active: b
             {p.name} {p.isBot && <span className="tag">BOT</span>}
           </span>
           <span className="muted small players-where">
-            {p.status === "work" ? (p.career !== null ? `At work · ${CAREERS[p.career].name}` : "At work") : posName(p.pos)}
+            {p.status === "work"
+              ? p.career !== null
+                ? `At work · ${CAREERS[p.career].name}`
+                : "At work"
+              : posName(p.pos)}
           </span>
         </span>
         <span className="players-money">
