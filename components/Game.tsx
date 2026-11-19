@@ -16,7 +16,7 @@ import {
   type Player,
 } from "@/lib/engine";
 import { playBell, playCash, playDice, playLoss, setSoundOn, useSoundOn } from "@/lib/sound";
-import { STOCKS, STOCK_ORDER, lowestPrice, priceAt, type StockId } from "@/lib/stocks";
+import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
 import { Die } from "./Dice";
@@ -237,47 +237,22 @@ export function GameView({
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       <div className="m-players" role="list">
-        <button
-          role="listitem"
-          className={`m-chip m-me ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
-          onClick={() => setSheet(viewer.id)}
-        >
-          <span className="token token-static" style={{ background: viewer.color }}>
-            {viewer.name.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="m-me-body">
-            <span className="m-me-line">
-              <b>You</b>
-              <span className="m-me-money">
-                ${fmt(netWorth(viewer, state.market))} <span className="muted">· ${fmt(viewer.cash)} cash</span>
-              </span>
+        {[viewer, ...state.players.filter((p) => p.id !== viewer.id)].map((p) => (
+          <button
+            key={p.id}
+            role="listitem"
+            className={`m-chip ${p.id === current.id && !winner ? "m-chip-current" : ""}`}
+            onClick={() => setSheet(p.id)}
+          >
+            <span className="token token-static" style={{ background: p.color }}>
+              {p.name.slice(0, 1).toUpperCase()}
             </span>
-            <span className="m-holdings">
-              {STOCK_ORDER.filter((id) => viewer.shares[id] > 0).map((id) => (
-                <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
-                  {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
-                </span>
-              ))}
-              {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
+            <span className="m-chip-text">
+              <b>{p.id === viewer.id ? "You" : p.name}</b>
+              <span>${fmt(netWorth(p, state.market))}</span>
             </span>
-          </span>
-        </button>
-        {state.players
-          .filter((p) => p.id !== viewer.id)
-          .map((p) => (
-            <button
-              key={p.id}
-              role="listitem"
-              className={`m-chip m-other ${p.id === current.id && !winner ? "m-chip-current" : ""}`}
-              onClick={() => setSheet(p.id)}
-              aria-label={`${p.name}: $${fmt(netWorth(p, state.market))}`}
-            >
-              <span className="token token-static" style={{ background: p.color }}>
-                {p.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="m-other-money">${shortMoney(netWorth(p, state.market)).slice(1)}</span>
-            </button>
-          ))}
+          </button>
+        ))}
       </div>
 
       <ZoomableBoard>
@@ -425,18 +400,6 @@ export function GameView({
     </div>
   );
 }
-
-/** Three-letter tags for the holdings pills on phones. */
-const STOCK_TAGS: Record<StockId, string> = {
-  ALCOA: "ALC",
-  WOOL: "WOOL",
-  AMMO: "AMC",
-  WPUB: "WPB",
-  CASE: "JIC",
-  MAYTAG: "MAY",
-  GMILLS: "GM",
-  ISHOE: "ISH",
-};
 
 /** $100,000 → "$100k", $1,500,000 → "$1.5M". */
 function shortMoney(n: number): string {
