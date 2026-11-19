@@ -7,11 +7,13 @@ const PIPS: Record<number, number[]> = {
   6: [0, 2, 3, 5, 6, 8],
 };
 
+/** A die; `value` 0 shows a blank face (before anyone has rolled). */
 export function Die({ value, rolling }: { value: number; rolling?: boolean }) {
+  const pips = PIPS[value] ?? [];
   return (
-    <div className={`die ${rolling ? "die-rolling" : ""}`} aria-label={`Die showing ${value}`}>
+    <div className={`die ${rolling ? "die-rolling" : ""}`} aria-label={value ? `Die showing ${value}` : "Die"}>
       {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} className={PIPS[value].includes(i) ? "pip" : ""} />
+        <span key={i} className={pips.includes(i) ? "pip" : ""} />
       ))}
     </div>
   );

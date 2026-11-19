@@ -29,8 +29,7 @@ the start screen for a summary of the rules. Everything in the rulebook is in:
 - **Shareholders' meetings.** Owners can detour in at their stock's entrance. Landing on a space pays that
   many new shares per share owned. You walk through and leave by the far entrance. The slider doesn't move in
   a meeting.
-- **Winning.** Be worth the target ($100,000 by default, adjustable) at your turn to roll, or end the game
-  early and the richest player wins.
+- **Winning.** Be worth the target ($100,000 by default, adjustable) at your turn to roll.
 
 Games save automatically in the browser, so a refresh doesn't lose them.
 
@@ -52,7 +51,7 @@ phones. It runs on Firebase's free Spark plan with no game server:
   replays those actions so moves animate the same everywhere. Bot turns are played by whichever seated
   player's phone is open (if two try at once, the first save wins).
 - **`firestore.rules`** limits who may write: only seated players, one version at a time, on their own turn or
-  a bot's turn (the host may also end the game early). Players' phones roll the dice, so a determined player
+  a bot's turn. Players' phones roll the dice, so a determined player
   could cheat; fine among friends.
 - The Firebase web config lives in `lib/firebase.ts` (public values).
 

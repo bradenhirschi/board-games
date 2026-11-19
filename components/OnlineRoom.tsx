@@ -366,8 +366,6 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
 
   const viewer: Player =
     mySeat >= 0 ? display.players[mySeat] : (display.players.find((p) => !p.isBot) ?? display.players[display.current]);
-  const isHost = room.hostUid === uid;
-
   return (
     <>
       <GameView
@@ -379,7 +377,6 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
-        onEndGame={isHost ? () => void send({ type: "endGame" }, uid) : undefined}
         headerExtra={<> · Room <b>{room.code}</b></>}
         waitingNote={mySeat < 0 ? "You're watching this game." : undefined}
       />

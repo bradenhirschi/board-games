@@ -1524,3 +1524,275 @@ button.link {
   flex-direction: row;
   margin: 0;
 }
+
+/* ---------- Desktop layout: board | dice + controls | sidebar ---------- */
+.turn-heading {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 17px;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.06);
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.action-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.action-col .turn {
+  background: var(--panel);
+}
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.sidebar .log ol {
+  max-height: none;
+}
+.me {
+  border-width: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.me-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.token-big {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  border-width: 3px;
+}
+.me-name {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.me-name b {
+  font-family: var(--serif);
+  font-size: 20px;
+}
+.me-turn {
+  background: var(--accent);
+  color: #fff;
+}
+.me-money {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.me-money div {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+}
+.me-money b {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.me-holdings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.me-holdings td {
+  padding: 3px 0;
+}
+.me-holdings .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 8px;
+}
+.me-empty {
+  margin: 0;
+}
+
+@media (min-width: 901px) {
+  .game {
+    grid-template-columns: minmax(0, 1fr) 270px 340px;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "top top top"
+      "board action side";
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  .game > .topbar {
+    grid-area: top;
+  }
+  .game > .board-wrap {
+    grid-area: board;
+    width: min(100%, calc(100vh - 90px));
+    align-self: center;
+  }
+  .game > .action-col {
+    grid-area: action;
+    justify-content: flex-end;
+    overflow: auto;
+  }
+  .game > .sidebar {
+    grid-area: side;
+    min-height: 0;
+  }
+  /* The ticker takes whatever height is left. */
+  .sidebar .log {
+    flex: 1;
+    min-height: 120px;
+    overflow: auto;
+  }
+  .sidebar .others {
+    flex: none;
+    max-height: 40vh;
+    overflow: auto;
+  }
+  .dice-panel {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+  }
+  .dice-panel .die {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    padding: 8px;
+  }
+  .dice-panel .die .pip::after {
+    width: 11px;
+    height: 11px;
+  }
+}
+@media (min-width: 901px) {
+  /* The controls column is narrow: put each company's name on its own line above its sell controls. */
+  .action-col .sell-row {
+    grid-template-columns: 1fr 64px auto;
+    row-gap: 4px;
+  }
+  .action-col .sell-row .chip {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+@media (min-width: 901px) {
+  /* Keep the board beside the dice column; any spare width goes to the left edge. */
+  .game > .board-wrap {
+    justify-self: end;
+  }
+}
+@media (max-width: 900px) {
+  /* Phones: your box first, then the other players, then the ticker. */
+  .sidebar .me {
+    order: 1;
+  }
+  .sidebar .others {
+    order: 2;
+  }
+  .sidebar .log {
+    order: 3;
+  }
+}
+
+/* Plain dice between the board and the sidebar. */
+.dice {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+@media (min-width: 901px) {
+  .dice .die {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    padding: 8px;
+  }
+  .dice .die .pip::after {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+/* ---------- One border style everywhere; the sidebar is a real sidebar ---------- */
+:root {
+  --border: 1px solid var(--rule);
+  --radius: 10px;
+}
+/* Boxes in the play area: same thin border, same corners, no colored outlines or shadows. */
+.turn,
+.action-col .turn,
+.card,
+.dice-panel,
+.panel,
+.setup-card,
+.saved,
+.recap {
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.me,
+.me-active {
+  border: var(--border);
+  border-width: 1px;
+}
+.players-current {
+  outline: none;
+}
+
+@media (min-width: 901px) {
+  /* The sidebar runs the full height of the right edge; the top bar spans the rest. */
+  .game {
+    grid-template-areas:
+      "top top side"
+      "board action side";
+    padding-right: 0;
+  }
+  .game > .sidebar {
+    grid-row: 1 / -1;
+    margin: -16px 0 -16px 0;
+    height: 100vh;
+    gap: 0;
+    background: var(--panel);
+    border-left: var(--border);
+  }
+  /* Sections, not cards: flat, divided by the same thin line. */
+  .sidebar .card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 14px 16px;
+  }
+  .sidebar .card + .card {
+    border-top: var(--border);
+  }
+  .sidebar .others {
+    max-height: 42vh;
+  }
+  .sidebar .me {
+    background: var(--card);
+  }
+}

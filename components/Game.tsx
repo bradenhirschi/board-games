@@ -103,7 +103,6 @@ export default function LocalGame({ initial, onQuit }: { initial: GameState; onQ
       dispatch={dispatch}
       roll={roll}
       onQuit={onQuit}
-      onEndGame={() => dispatch({ type: "endGame" })}
     />
   );
 }
@@ -143,8 +142,6 @@ export interface GameViewProps {
   dispatch: (a: Action) => void;
   roll: () => void;
   onQuit: () => void;
-  /** End the game early (most money wins). Omit to hide the option. */
-  onEndGame?: () => void;
   /** Extra items for the top bar (e.g. the room code). */
   headerExtra?: ReactNode;
   /** Shown in the player box instead of "Waiting for your turn…". */
@@ -161,7 +158,6 @@ export function GameView({
   dispatch,
   roll,
   onQuit,
-  onEndGame,
   headerExtra,
   waitingNote,
 }: GameViewProps) {
@@ -184,9 +180,6 @@ export function GameView({
   }, [roll, canAct]);
 
   const dice = rolling ?? state.dice;
-  // Who threw the dice on show: the current player while rolling, otherwise the last thrower.
-  const lastRollId = state.log.find((e) => e.text.startsWith("rolls "))?.playerId ?? null;
-  const roller = rolling ? current : lastRollId !== null ? state.players[lastRollId] : null;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
@@ -226,34 +219,16 @@ export function GameView({
         />
       </div>
 
-      <aside className="panel">
-        {/* The shared dice sit above the player's box, labelled with who threw them. */}
-        <section className="dice-panel">
-          <div className="dice-row">
-            {dice ? (
-              <>
-                <Die value={dice[0]} rolling={!!rolling} />
-                <Die value={dice[1]} rolling={!!rolling} />
-                {!rolling && <span className="dice-total">= {dice[0] + dice[1]}</span>}
-              </>
-            ) : (
-              <span className="muted small">No one has rolled yet.</span>
-            )}
-          </div>
-          {roller && (
-            <div className="dice-who">
-              <span className="token token-static token-tiny" style={{ background: roller.color }}>
-                {roller.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span>
-                {roller.id === viewer.id ? "You" : roller.name} {rolling ? "rolling…" : "rolled"}
-              </span>
-            </div>
-          )}
-        </section>
+      {/* Between the board and the sidebar: the dice and the viewer's turn controls. */}
+      <div className="action-col">
+        {/* Just the two dice (blank until the first roll). */}
+        <div className="dice">
+          <Die value={dice?.[0] ?? 0} rolling={!!rolling} />
+          <Die value={dice?.[1] ?? 0} rolling={!!rolling} />
+        </div>
 
         {winner ? (
-          <section className="turn turn-over" style={{ borderColor: winner.color }}>
+          <section className="turn turn-over">
             <div className="turn-label">
               🏆 <b style={{ color: winner.color }}>{winner.name}</b> wins!
             </div>
@@ -269,16 +244,16 @@ export function GameView({
             </button>
           </section>
         ) : (
-          <section className="turn" style={{ borderColor: viewer.color }}>
-            <div className="turn-label">
-              <span className="token token-static" style={{ background: viewer.color }}>
-                {viewer.name.slice(0, 1).toUpperCase()}
-              </span>
-              <b>{viewer.name}</b>
-              {viewer.isBot && <span className="tag">BOT</span>}
-              <span className="turn-cash">${fmt(viewer.cash)}</span>
+          <section className="turn">
+            <div className="turn-heading">
+              {ph.t === "chooseCareers"
+                ? "Choose an occupation"
+                : isTurn
+                  ? "Your turn"
+                  : current.isBot
+                    ? `${current.name} is playing`
+                    : `${current.name}'s turn`}
             </div>
-
             {ph.t === "chooseCareers" ? (
               <CareerChoice state={state} viewer={viewer} disabled={!canAct} dispatch={dispatch} />
             ) : isTurn ? (
@@ -304,16 +279,11 @@ export function GameView({
           </section>
         )}
 
-        <section>
-          <h2>Players</h2>
-          <ul className="players">
-            {state.players.map((p) => (
-              <PlayerRow key={p.id} p={p} market={state.market} active={p.id === current.id && !winner} />
-            ))}
-          </ul>
-        </section>
+      </div>
 
-        <section className="log">
+      {/* Sidebar: ticker on top, other players below, and this device's player at the bottom. */}
+      <aside className="sidebar">
+        <section className="card log">
           <h2>Ticker</h2>
           {state.log.length === 0 ? (
             <p className="muted small">Nothing has happened yet.</p>
@@ -330,14 +300,18 @@ export function GameView({
             </ol>
           )}
         </section>
-        {!winner && onEndGame && (
-          <button
-            className="link small end-game"
-            onClick={() => confirm("End the game now? The player worth the most wins.") && onEndGame()}
-          >
-            End game now (most money wins)
-          </button>
-        )}
+
+        <section className="card others">
+          <ul className="players">
+            {state.players
+              .filter((p) => p.id !== viewer.id)
+              .map((p) => (
+                <PlayerRow key={p.id} p={p} market={state.market} active={p.id === current.id && !winner} />
+              ))}
+          </ul>
+        </section>
+
+        <MeCard p={viewer} market={state.market} active={viewer.id === current.id && !winner} />
       </aside>
     </div>
   );
@@ -778,6 +752,57 @@ function SellRow({
         Sell ${fmt(n * price)}
       </button>
     </div>
+  );
+}
+
+/** This device's player: a larger box with their money, whereabouts and holdings. */
+function MeCard({ p, market, active }: { p: Player; market: number; active: boolean }) {
+  const held = STOCK_ORDER.filter((id) => p.shares[id] > 0);
+  const where =
+    p.status === "work" ? (p.career !== null ? `At work · ${CAREERS[p.career].name}` : "At work") : posName(p.pos);
+  return (
+    <section className={`card me ${active ? "me-active" : ""}`}>
+      <div className="me-top">
+        <span className="token token-static token-big" style={{ background: p.color }}>
+          {p.name.slice(0, 1).toUpperCase()}
+        </span>
+        <div className="me-name">
+          <b>{p.name}</b>
+          <span className="muted small">{where}</span>
+        </div>
+        {active && <span className="tag me-turn">YOUR TURN</span>}
+      </div>
+      <div className="me-money">
+        <div>
+          <span className="muted small">Cash</span>
+          <b>${fmt(p.cash)}</b>
+        </div>
+        <div>
+          <span className="muted small">Net worth</span>
+          <b>${fmt(netWorth(p, market))}</b>
+        </div>
+      </div>
+      {held.length > 0 ? (
+        <table className="me-holdings">
+          <tbody>
+            {held.map((id) => (
+              <tr key={id}>
+                <td>
+                  <span className="chip" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+                    {STOCKS[id].name}
+                  </span>
+                </td>
+                <td className="num">×{fmt(p.shares[id])}</td>
+                <td className="num muted">${priceAt(id, market)}</td>
+                <td className="num">${fmt(p.shares[id] * priceAt(id, market))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted small me-empty">No stock yet.</p>
+      )}
+    </section>
   );
 }
 

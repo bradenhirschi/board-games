@@ -122,8 +122,8 @@ describe("during a game", () => {
     await assertSucceeds(room("amy").update({ version: 6 }));
     await assertFails(room("stranger").update({ version: 7 }));
   });
-  it("lets the host write at any time (to end the game early)", async () => {
-    await assertSucceeds(room("host").update({ version: 6 }));
+  it("gives the host no special right to write on someone else's turn", async () => {
+    await assertFails(room("host").update({ version: 6 }));
   });
   it("never lets seats or membership change", async () => {
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));

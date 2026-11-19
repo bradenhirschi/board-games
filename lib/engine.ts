@@ -52,7 +52,7 @@ export type Phase =
   | { t: "afterRoll"; buy: BuyOffer | null }
   /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
   | { t: "raiseCash"; owed: number; reason: string }
-  | { t: "gameOver"; winnerId: number; reason: "target" | "time" };
+  | { t: "gameOver"; winnerId: number; reason: "target" };
 
 export interface BuyOffer {
   stock: StockId;
@@ -176,7 +176,7 @@ export type Action =
   | { type: "endTurn" }
   | { type: "forcedSell"; stock: StockId; qty: number }
   | { type: "goBroke" }
-  | { type: "endGame" };
+
 
 export function reducer(state: GameState, action: Action): GameState {
   const s: GameState = structuredClone(state);
@@ -340,12 +340,6 @@ function apply(s: GameState, a: Action): boolean {
       return true;
     }
 
-    case "endGame": {
-      const ranked = [...s.players].sort((x, y) => netWorth(y, s.market) - netWorth(x, s.market));
-      s.phase = { t: "gameOver", winnerId: ranked[0].id, reason: "time" };
-      log(s, ranked[0].id, `wins with the most money: $${fmt(netWorth(ranked[0], s.market))}`, "money");
-      return true;
-    }
   }
 }
 
