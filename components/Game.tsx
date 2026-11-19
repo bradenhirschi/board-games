@@ -17,6 +17,7 @@ import {
 } from "@/lib/engine";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
+import ZoomableBoard from "./ZoomableBoard";
 import { Die } from "./Dice";
 
 export const SAVE_KEY = "stock-market:game:v3";
@@ -146,6 +147,8 @@ export interface GameViewProps {
   headerExtra?: ReactNode;
   /** Shown in the player box instead of "Waiting for your turn…". */
   waitingNote?: string;
+  /** A short status shown under the turn heading (e.g. "Saving…"). */
+  statusNote?: string;
 }
 
 /** The game screen: board, dice, the viewer's box, players and ticker. Holds no game logic. */
@@ -160,6 +163,7 @@ export function GameView({
   onQuit,
   headerExtra,
   waitingNote,
+  statusNote,
 }: GameViewProps) {
   const [pickingStart, setPickingStart] = useState(false);
   const current = state.players[state.current];
@@ -200,7 +204,7 @@ export function GameView({
           Menu
         </button>
       </header>
-      <div className="board-wrap">
+      <ZoomableBoard>
         <Board
           players={state.players}
           currentId={current.id}
@@ -217,15 +221,17 @@ export function GameView({
               : undefined
           }
         />
-      </div>
+      </ZoomableBoard>
 
       {/* Between the board and the sidebar: the dice and the viewer's turn controls. */}
       <div className="action-col">
-        {/* Just the two dice (blank until the first roll). */}
-        <div className="dice">
-          <Die value={dice?.[0] ?? 0} rolling={!!rolling} />
-          <Die value={dice?.[1] ?? 0} rolling={!!rolling} />
-        </div>
+        {/* Just the two dice; nothing until the first roll. */}
+        {dice && (
+          <div className="dice">
+            <Die value={dice[0]} rolling={!!rolling} />
+            <Die value={dice[1]} rolling={!!rolling} />
+          </div>
+        )}
 
         {winner ? (
           <section className="turn turn-over">
@@ -253,6 +259,7 @@ export function GameView({
                   : current.isBot
                     ? `${current.name} is playing`
                     : `${current.name}'s turn`}
+              {statusNote && <span className="status-note">{statusNote}</span>}
             </div>
             {ph.t === "chooseCareers" ? (
               <CareerChoice state={state} viewer={viewer} disabled={!canAct} dispatch={dispatch} />

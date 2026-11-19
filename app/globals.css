@@ -1144,7 +1144,6 @@ button.link:disabled {
 .topbar h1 {
   font-weight: 700;
   letter-spacing: 0.08em;
-  font-variant: small-caps;
 }
 .topbar-info {
   color: rgb(246 244 234 / 0.75);
@@ -1795,4 +1794,104 @@ button.link {
   .sidebar .me {
     background: var(--card);
   }
+}
+
+.status-note {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ---------- Zoomable board (react-zoom-pan-pinch) ---------- */
+.board-zoom {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.board-viewport {
+  display: block;
+}
+.board-viewport.zoomed {
+  cursor: grab;
+}
+.board-viewport.zoomed:active {
+  cursor: grabbing;
+}
+.board-zoom .board-wrap {
+  width: 100%;
+  max-width: none;
+  justify-self: start;
+  margin: 0;
+}
+.zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+.zoom-controls button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+.zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (min-width: 901px) {
+  .game > .board-zoom {
+    grid-area: board;
+    width: min(100%, calc(100vh - 90px));
+    align-self: center;
+    justify-self: end;
+  }
+}
+
+.zoom-controls button {
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- One display font: the board's heavy "STOCK MARKET" sans-serif ---------- */
+:root {
+  --display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Former serif headings now use the display font too. */
+  --serif: var(--display);
+}
+.topbar h1,
+.setup-logo {
+  font-family: var(--display);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.turn-heading,
+.me-name b,
+.turn-label b {
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+/* Sideways shareholders' meeting labels: keep their top/bottom padding (a later rule reset it). */
+.lane-label.lane-label-v {
+  padding: 0.6cqw 0;
+}
+
+/* A landing in a meeting lane mustn't lift the square above the board's frame line
+   (it would paint over half of it); the token itself still sits on top. */
+.lane-cell.sq-landing {
+  z-index: auto;
+  animation: none;
 }

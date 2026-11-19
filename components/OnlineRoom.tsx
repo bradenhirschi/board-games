@@ -243,7 +243,12 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
   // Mirror of shownVersion for rendering (refs can't be read during render).
   const [shownV, setShownV] = useState(room.version);
   const displayRef = useRef<GameState>(room.state!);
+  // The newest room state this phone knows: from the live listener, or from its own save
+  // (which arrives first, so the mover never waits on the listener to see their own move).
   const latest = useRef(room);
+  const [known, setKnown] = useState(room);
+  const savedAt = useRef<{ version: number; at: number } | null>(null);
+  const [slowSave, setSlowSave] = useState(false);
   const pumping = useRef(false);
   const alive = useRef(true);
   const rollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -305,13 +310,38 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
     displayRef.current = display;
   }, [display]);
 
-  useEffect(() => {
-    latest.current = room;
-    void pump();
-  }, [room, pump]);
+  /** Take a newer room state (never step back to an older one) and animate up to it. */
+  const adopt = useCallback(
+    (r: Room) => {
+      if (r.version < latest.current.version) return;
+      latest.current = r;
+      setKnown(r);
+      void pump();
+    },
+    [pump],
+  );
 
-  const caughtUp = !animating && shownV === room.version;
-  const authoritative = room.state!;
+  useEffect(() => {
+    const s = savedAt.current;
+    if (s && room.version >= s.version) {
+      console.info(`[stock-market] live update for move ${s.version} arrived ${Math.round(performance.now() - s.at)}ms after it saved`);
+      savedAt.current = null;
+    }
+    adopt(room);
+  }, [room, adopt]);
+
+  // If a save takes a while, say so rather than looking frozen.
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setSlowSave(true), 1000);
+    return () => {
+      clearTimeout(t);
+      setSlowSave(false);
+    };
+  }, [pending]);
+
+  const caughtUp = !animating && shownV === known.version;
+  const authoritative = known.state!;
   const mySeat = room.seats.findIndex((s) => s.uid === uid);
   // Based on what the board shows, so the panel doesn't flicker to "waiting" while your
   // own move is saving and replaying.
@@ -329,14 +359,22 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         // Occupations are picked by everyone at once, so apply those to the latest state;
         // every other move must be made on the version this phone is showing.
         const anyTime = decision.type === "chooseCareer";
-        await submitMove(base.code, anyTime ? null : base.version, by, (state) => resolve(state, decision));
+        const started = performance.now();
+        const saved = await submitMove(base.code, anyTime ? null : base.version, by, (state) =>
+          resolve(state, decision),
+        );
+        console.info(`[stock-market] saving took ${Math.round(performance.now() - started)}ms`);
+        if (saved && alive.current) {
+          savedAt.current = { version: saved.version, at: performance.now() };
+          adopt(saved);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save your move.");
       } finally {
         if (alive.current) setPending(false);
       }
     },
-    [],
+    [adopt],
   );
 
   const dispatch = useCallback((action: Action) => void send(action, uid), [send, uid]);
@@ -351,7 +389,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
   // the first save wins and the other is rejected harmlessly.
   useEffect(() => {
     if (!caughtUp || pending || mySeat < 0 || !isBotTurn(authoritative)) return;
-    const version = room.version;
+    const version = known.version;
     const t = setTimeout(
       () => {
         const r = latest.current;
@@ -362,7 +400,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
       BOT_THINK_MS[0] + Math.random() * (BOT_THINK_MS[1] - BOT_THINK_MS[0]),
     );
     return () => clearTimeout(t);
-  }, [caughtUp, pending, mySeat, authoritative, room.version, send]);
+  }, [caughtUp, pending, mySeat, authoritative, known.version, send]);
 
   const viewer: Player =
     mySeat >= 0 ? display.players[mySeat] : (display.players.find((p) => !p.isBot) ?? display.players[display.current]);
@@ -379,6 +417,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         onQuit={onQuit}
         headerExtra={<> · Room <b>{room.code}</b></>}
         waitingNote={mySeat < 0 ? "You're watching this game." : undefined}
+        statusNote={slowSave ? "Saving…" : undefined}
       />
       {error && <div className="toast bad">{error}</div>}
     </>
