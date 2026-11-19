@@ -2431,3 +2431,130 @@ button.link {
     z-index: 20;
   }
 }
+
+/* ---------- Phones (layout v2): ticker beside the players, dice on the board, your money below ---------- */
+.m-top,
+.m-me-bar,
+.board-dice {
+  display: none;
+}
+@media (max-width: 900px) {
+  .game > .m-top {
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 6px;
+    align-self: stretch;
+  }
+  .m-top .m-ticker {
+    display: block;
+    min-width: 0;
+    padding: 4px 8px;
+    border: var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: left;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .m-top .m-players {
+    min-width: 0;
+  }
+  /* The old dice/ticker row: dice now live on the board. */
+  .action-col > .dice {
+    display: none;
+  }
+  /* The same dice as before, just moved onto the board. */
+  .board-dice {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .board-dice .die {
+    width: 34px;
+    height: 34px;
+    padding: 4px;
+    border-radius: 7px;
+  }
+  .action-col .m-me-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 10px;
+    border: var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+  }
+  .m-me-money {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .m-me-money small {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .m-me-money b {
+    font-family: var(--mono);
+  }
+  .m-holdings {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: nowrap; /* one row; swipe sideways when you own lots of stocks */
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    gap: 3px;
+    font-size: 11px;
+  }
+  .m-holdings::-webkit-scrollbar {
+    display: none;
+  }
+  .m-pill {
+    flex: none;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 900px) {
+  .m-top .m-ticker {
+    grid-column: auto;
+  }
+  .m-top .m-ticker > span:first-child {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+@media (max-width: 900px) {
+  /* Clamp the ticker text itself (the padding was letting a third line peek through). */
+  .m-top .m-ticker {
+    display: flex;
+    align-items: center;
+  }
+  .m-top .m-ticker > span:first-child {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
