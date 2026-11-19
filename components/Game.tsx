@@ -237,46 +237,10 @@ export function GameView({
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       {/* Phones: the latest ticker line (tap for the whole log) beside the other players. */}
+      {/* Phones: ☰, the other players and the ticker on top; your money and stocks below. */}
       <div className="m-top">
-        <button className="m-ticker" onClick={() => setSheet("log")} aria-label="Open the ticker">
-          {state.log[0] ? (
-            <LogText state={state} entry={state.log[0]} />
-          ) : (
-            <span className="muted">Nothing has happened yet.</span>
-          )}
-        </button>
         <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
         <div className="m-players" role="list">
-          <button
-            role="listitem"
-            className={`m-chip m-me ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
-            onClick={() => setSheet(viewer.id)}
-            aria-label="Your money and stocks"
-          >
-            <span className="m-me-head">
-              <span className="token token-static" style={{ background: viewer.color }}>
-                {viewer.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="m-me-money">
-                <span>
-                  <small>Cash</small> <b>${fmt(viewer.cash)}</b>
-                </span>
-                <span>
-                  <small>Worth</small> <b>${fmt(netWorth(viewer, state.market))}</b>
-                </span>
-              </span>
-            </span>
-            <span className="m-holdings">
-              {STOCK_ORDER.filter((id) => viewer.shares[id] > 0)
-                .sort((a, b) => viewer.shares[b] - viewer.shares[a]) // most shares first
-                .map((id) => (
-                  <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
-                    {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
-                  </span>
-                ))}
-              {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
-            </span>
-          </button>
           {state.players
             .filter((p) => p.id !== viewer.id)
             .map((p) => (
@@ -296,6 +260,40 @@ export function GameView({
               </button>
             ))}
         </div>
+        <button className="m-ticker" onClick={() => setSheet("log")} aria-label="Open the ticker">
+          {state.log[0] ? (
+            <LogText state={state} entry={state.log[0]} />
+          ) : (
+            <span className="muted">Nothing has happened yet.</span>
+          )}
+        </button>
+        <button
+          className={`m-me-strip ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
+          onClick={() => setSheet(viewer.id)}
+          aria-label="Your money and stocks"
+        >
+          <span className="token token-static" style={{ background: viewer.color }}>
+            {viewer.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="m-stat">
+            <small>Cash</small>
+            <b>${fmt(viewer.cash)}</b>
+          </span>
+          <span className="m-stat">
+            <small>Worth</small>
+            <b>${fmt(netWorth(viewer, state.market))}</b>
+          </span>
+          <span className="m-holdings">
+            {STOCK_ORDER.filter((id) => viewer.shares[id] > 0)
+              .sort((a, b) => viewer.shares[b] - viewer.shares[a]) // most shares first
+              .map((id) => (
+                <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+                  {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
+                </span>
+              ))}
+            {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
+          </span>
+        </button>
       </div>
 
       <ZoomableBoard>

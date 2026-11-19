@@ -2474,14 +2474,14 @@ button.link {
   .board-dice {
     display: flex;
     justify-content: center;
-    gap: 4px;
-    margin-top: 4px;
+    gap: 5px;
+    margin-top: 12px;
   }
   .board-dice .die {
-    width: 34px;
-    height: 34px;
-    padding: 4px;
-    border-radius: 7px;
+    width: 40px;
+    height: 40px;
+    padding: 5px;
+    border-radius: 8px;
   }
   .action-col .m-me-bar {
     grid-column: 1 / -1;
@@ -2647,5 +2647,119 @@ button.link {
   /* No title bar any more, so the board can be a little bigger. */
   .game > .board-zoom {
     width: min(100%, calc(100dvh - 310px));
+  }
+}
+
+/* ---------- Phones (layout v4): one tidy header, every box the same height ---------- */
+.m-me-strip {
+  display: none;
+}
+@media (max-width: 900px) {
+  .game > .m-top {
+    --m-h: 42px;
+    grid-template-columns: var(--m-h) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "menu players ticker"
+      "me me me";
+    gap: 6px;
+  }
+  .m-top .game-menu {
+    grid-area: menu;
+  }
+  .m-top .menu-button {
+    width: var(--m-h);
+    height: var(--m-h);
+    min-height: 0;
+    border-radius: 10px;
+  }
+  .m-top .menu-panel {
+    left: 0;
+    right: auto;
+  }
+  .m-top .m-players {
+    grid-area: players;
+    gap: 4px;
+  }
+  .m-top .m-chip:not(.m-me) {
+    flex: 1 0 auto;
+    height: var(--m-h);
+    padding: 0 8px 0 5px;
+    gap: 5px;
+    border-radius: 10px;
+  }
+  .m-top .m-chip .token-static {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+  .m-top .m-chip-text b {
+    font-size: 11px;
+  }
+  .m-top .m-chip-text span {
+    font-size: 10px;
+  }
+  .m-top .m-ticker {
+    grid-area: ticker;
+    height: var(--m-h);
+    min-height: 0;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .m-me-strip {
+    grid-area: me;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--m-h);
+    min-width: 0;
+    padding: 0 8px 0 6px;
+    border: var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+  }
+  .m-me-strip .token-static {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+  .m-stat {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .m-stat small {
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .m-stat b {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .m-me-strip .m-holdings {
+    flex: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-left: 10px;
+    border-left: 1px solid var(--rule);
+    align-items: center;
+  }
+  .m-me-strip.m-chip-current {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+}
+@media (max-width: 900px) {
+  /* The shorter header leaves room for a bigger board. */
+  .game > .board-zoom {
+    width: min(100%, calc(100dvh - 292px));
   }
 }
