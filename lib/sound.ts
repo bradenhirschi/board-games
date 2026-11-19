@@ -1,5 +1,7 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+
 /**
  * Game sounds, synthesized with the Web Audio API (no audio files to load).
  *
@@ -8,6 +10,41 @@
  */
 
 let ctx: AudioContext | null = null;
+
+const SOUND_OFF_KEY = "stock-market:sound-off";
+let soundOn = readSoundOn();
+const listeners = new Set<() => void>();
+
+function readSoundOn(): boolean {
+  try {
+    return typeof localStorage === "undefined" || localStorage.getItem(SOUND_OFF_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+/** Turn game sounds on or off on this device (remembered). */
+export function setSoundOn(on: boolean) {
+  soundOn = on;
+  try {
+    localStorage.setItem(SOUND_OFF_KEY, on ? "0" : "1");
+  } catch {
+    // Private mode etc.: the setting just won't be remembered.
+  }
+  listeners.forEach((l) => l());
+}
+
+/** Whether game sounds are on, kept in sync across components. */
+export function useSoundOn(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => soundOn,
+    () => true,
+  );
+}
 
 function audio(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -70,6 +107,7 @@ function clack(ac: AudioContext, out: AudioNode, at: number, level: number) {
 
 /** Two dice rattling and settling: impacts that get quieter and closer together. */
 export function playDice() {
+  if (!soundOn) return;
   const ac = audio();
   if (!ac) return;
   const out = ac.createGain();
@@ -92,6 +130,7 @@ export function playDice() {
 
 /** A single bright bell "ding" (a few inharmonic partials, like a desk bell). */
 export function playBell() {
+  if (!soundOn) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;
@@ -121,6 +160,7 @@ export function playBell() {
 
 /** A cash register: a mechanical "ca" (drawer clack) then a bright "ching". */
 export function playCash() {
+  if (!soundOn) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;
@@ -157,6 +197,7 @@ export function playCash() {
 
 /** A short "womp womp": two falling, slightly sagging horn notes. */
 export function playLoss() {
+  if (!soundOn) return;
   const ac = audio();
   if (!ac) return;
   const at = ac.currentTime + 0.01;
