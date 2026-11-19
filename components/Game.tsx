@@ -82,15 +82,23 @@ export default function LocalGame({ initial, onQuit }: { initial: GameState; onQ
     return () => clearTimeout(t);
   }, [botTurn, rolling, ph, state, roll]);
 
-  // The panel always shows a human's box (never a bot's): the current player on a
-  // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
-  const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
+  // The panel always shows a human's box (never a bot's): while occupations are chosen,
+  // the next human still to pick; then the current player on a human turn, otherwise the
+  // next human due to play. Only an all-bot game shows a bot.
+  const choosing = ph.t === "chooseCareers";
+  const viewer = choosing
+    ? (state.players.find((p) => !p.isBot && p.career === null) ?? current)
+    : current.isBot
+      ? (nextHuman(state) ?? current)
+      : current;
+  const myTurn = choosing || (viewer.id === current.id && !botTurn);
 
   return (
     <GameView
       state={state}
       viewer={viewer}
-      canAct={viewer.id === current.id && !botTurn}
+      isTurn={myTurn}
+      canAct={myTurn}
       rolling={rolling}
       dispatch={dispatch}
       roll={roll}
@@ -126,7 +134,9 @@ export interface GameViewProps {
   state: GameState;
   /** The human whose box the panel shows. */
   viewer: Player;
-  /** Whether `viewer` may act right now (their turn, nothing in flight). */
+  /** Whether it's `viewer`'s turn: show their controls (perhaps disabled) rather than "waiting". */
+  isTurn: boolean;
+  /** Whether `viewer` may act right now (nothing saving or animating). */
   canAct: boolean;
   /** Dice faces while tumbling, or null. */
   rolling: [number, number] | null;
@@ -145,6 +155,7 @@ export interface GameViewProps {
 export function GameView({
   state,
   viewer,
+  isTurn,
   canAct,
   rolling,
   dispatch,
@@ -268,11 +279,13 @@ export function GameView({
               <span className="turn-cash">${fmt(viewer.cash)}</span>
             </div>
 
-            {canAct ? (
+            {ph.t === "chooseCareers" ? (
+              <CareerChoice state={state} viewer={viewer} disabled={!canAct} dispatch={dispatch} />
+            ) : isTurn ? (
               <TurnControls
                 state={state}
                 player={current}
-                disabled={!!rolling}
+                disabled={!!rolling || !canAct}
                 dispatch={dispatch}
                 roll={rollAndClose}
                 pickingStart={pickingStart}
@@ -326,6 +339,57 @@ export function GameView({
           </button>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Game start: the viewer picks an occupation; the first roll waits for everyone. */
+function CareerChoice({
+  state,
+  viewer,
+  disabled,
+  dispatch,
+}: {
+  state: GameState;
+  viewer: Player;
+  disabled: boolean;
+  dispatch: (a: Action) => void;
+}) {
+  const waitingFor = state.players.filter((p) => p.career === null && p.id !== viewer.id);
+  return (
+    <div className="controls">
+      <p className="hint">
+        {viewer.career === null ? (
+          <>
+            <b>Choose your occupation.</b> You&apos;re paid whenever <i>anyone</i> throws your numbers. The first
+            roll waits until everyone has picked.
+          </>
+        ) : (
+          <>
+            You&apos;re a <b>{CAREERS[viewer.career].name}</b>. You can still change before the first roll.
+          </>
+        )}
+      </p>
+      <div className="career-picks">
+        {CAREERS.map((c, i) => (
+          <button
+            key={c.name}
+            className={`career-pick ${viewer.career === i ? "career-pick-on" : ""}`}
+            disabled={disabled}
+            onClick={() => dispatch({ type: "chooseCareer", playerId: viewer.id, career: i })}
+          >
+            <span>
+              {c.icon} {c.name}
+            </span>
+            <small>
+              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
+            </small>
+          </button>
+        ))}
+      </div>
+      {waitingFor.length > 0 && (
+        <p className="hint muted">Waiting for {waitingFor.map((p) => p.name).join(", ")} to choose…</p>
+      )}
     </div>
   );
 }

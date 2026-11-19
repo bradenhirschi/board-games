@@ -38,6 +38,8 @@ export interface Player {
 
 export type Phase =
   /** Before the throw: pick/change occupation, go to market, or sell at board price. */
+  /** Game start: every human picks an occupation (any order) before the first roll. */
+  | { t: "chooseCareers" }
   | { t: "preRoll" }
   /** `noDetour`: the player has just left a meeting and can't enter another until a later turn. */
   | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null; noDetour: boolean }
@@ -105,6 +107,8 @@ export const DEFAULT_TARGET = 100_000;
 export const emptyHoldings = (): Holdings =>
   Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
 
+const BOT_CAREERS = [2, 3];
+
 export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
   return {
     version: 3,
@@ -113,7 +117,8 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
       name: p.name,
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
-      career: null,
+      // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
+      career: p.isBot ? BOT_CAREERS[i % BOT_CAREERS.length] : null,
       status: "work",
       pos: null,
       cash: 0,
@@ -123,7 +128,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
     market: MARKET_START,
     target,
     dice: null,
-    phase: { t: "preRoll" },
+    phase: setup.some((p) => !p.isBot) ? { t: "chooseCareers" } : { t: "preRoll" },
     turn: 1,
     lastLanding: null,
     lastMarketDelta: 0,
@@ -160,6 +165,8 @@ export function canRoll(state: GameState): boolean {
 
 export type Action =
   | { type: "setCareer"; career: number }
+  /** During `chooseCareers`: any human (not just the current player) picks their occupation. */
+  | { type: "chooseCareer"; playerId: number; career: number }
   | { type: "goToMarket"; start: number }
   | { type: "sell"; stock: StockId; qty: number }
   | { type: "roll"; dice: [number, number] }
@@ -184,6 +191,19 @@ function apply(s: GameState, a: Action): boolean {
   if (ph.t === "gameOver") return false;
 
   switch (a.type) {
+    case "chooseCareer": {
+      if (ph.t !== "chooseCareers") return false;
+      const chooser = s.players[a.playerId];
+      if (!chooser || chooser.isBot || !CAREERS[a.career] || chooser.career === a.career) return false;
+      chooser.career = a.career;
+      log(s, chooser.id, `goes to work as a ${CAREERS[a.career].name}`);
+      if (s.players.every((pl) => pl.career !== null)) {
+        s.phase = { t: "preRoll" };
+        log(s, null, `Everyone has a job. ${s.players[s.current].name} rolls first.`);
+      }
+      return true;
+    }
+
     case "setCareer": {
       if (ph.t !== "preRoll" || p.status !== "work" || !CAREERS[a.career]) return false;
       if (p.career === a.career) return false;

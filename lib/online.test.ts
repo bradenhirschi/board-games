@@ -8,6 +8,7 @@ function market(): GameState {
     { name: "B", isBot: true },
   ]);
   s.players[0] = { ...s.players[0], status: "market", career: 2, pos: { kind: "track", index: 6 }, cash: 1000 };
+  s.phase = { t: "preRoll" };
   return s;
 }
 
