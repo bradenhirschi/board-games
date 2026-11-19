@@ -15,6 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
+import { playBell, playDice, setMuted, useMuted } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -117,6 +118,7 @@ export function animateRoll(
   done: () => void,
 ): ReturnType<typeof setInterval> {
   const started = Date.now();
+  playDice();
   setRolling([rollDie(), rollDie()]);
   const timer = setInterval(() => {
     if (Date.now() - started < ROLL_MS) {
@@ -188,6 +190,16 @@ export function GameView({
   const dice = rolling ?? state.dice;
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
+  const muted = useMuted();
+
+  // Ring a bell once when a turn becomes this player's.
+  const rungForTurn = useRef<number | null>(null);
+  const myTurnStarts = isTurn && !viewer.isBot && current.id === viewer.id && ph.t === "preRoll";
+  useEffect(() => {
+    if (!myTurnStarts || rungForTurn.current === state.turn) return;
+    rungForTurn.current = state.turn;
+    playBell();
+  }, [myTurnStarts, state.turn]);
   const round = Math.floor((state.turn - 1) / state.players.length) + 1;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
@@ -209,6 +221,14 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
+        <button
+          className="link sound-toggle"
+          onClick={() => setMuted(!muted)}
+          aria-label={muted ? "Turn sound on" : "Mute sound"}
+          title={muted ? "Turn sound on" : "Mute sound"}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
         </button>

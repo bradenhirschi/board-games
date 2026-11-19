@@ -2195,3 +2195,21 @@ button.link {
     font-size: 12px;
   }
 }
+
+/* Sound on/off, just left of Menu. */
+.topbar .sound-toggle {
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1;
+  text-decoration: none;
+}
+.topbar .sound-toggle + .topbar-menu {
+  margin-left: 0;
+}
+@media (max-width: 900px) {
+  .game > .topbar .sound-toggle {
+    flex: none;
+    order: 1;
+    font-size: 15px;
+  }
+}
