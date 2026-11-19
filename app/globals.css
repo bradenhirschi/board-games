@@ -2763,3 +2763,25 @@ button.link {
     width: min(100%, calc(100dvh - 292px));
   }
 }
+@media (max-width: 900px) {
+  /* Opponent cards: one fixed width, however many there are (extra ones scroll). */
+  .m-top .m-chip:not(.m-me) {
+    flex: none;
+    width: 84px;
+    min-width: 0;
+  }
+  .m-top .m-chip-text {
+    min-width: 0;
+  }
+  .m-top .m-chip-text b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 900px) {
+  /* A soft fade at the right edge hints that more players scroll into view. */
+  .m-top .m-players {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  }
+}
