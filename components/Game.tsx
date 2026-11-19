@@ -685,6 +685,7 @@ function TurnControls({
   setPickingStart: (v: boolean) => void;
 }) {
   const ph = state.phase;
+  const [confirmDialog, confirm] = useConfirm();
 
   if (ph.t === "moving") return <p className="hint">Moving…</p>;
 
@@ -829,13 +830,26 @@ function TurnControls({
               owned={player.shares[id]}
               price={lowestPrice(id)}
               disabled={disabled}
-              onSell={(qty) => dispatch({ type: "forcedSell", stock: id, qty })}
+              onSell={async (qty) => {
+                if (await confirmLowSale(confirm, state, id, qty)) dispatch({ type: "forcedSell", stock: id, qty });
+              }}
             />
           ))}
         </div>
-        <button className="btn btn-danger" disabled={disabled} onClick={() => dispatch({ type: "goBroke" })}>
+        <button
+          className="btn btn-danger"
+          disabled={disabled}
+          onClick={async () => {
+            const ok = await confirm(
+              "Go broke? You hand back all your cash and stock and go back to work.",
+              "Go broke",
+            );
+            if (ok) dispatch({ type: "goBroke" });
+          }}
+        >
           Go broke (return everything, back to work)
         </button>
+        {confirmDialog}
       </div>
     );
   }
@@ -858,6 +872,7 @@ function AfterRollBox({
 }) {
   const ph = state.phase;
   const [qty, setQty] = useState(0);
+  const [confirmDialog, confirm] = useConfirm();
   if (ph.t !== "afterRoll") return null;
   const offer = ph.buy;
   const player = state.players[state.current];
@@ -898,7 +913,10 @@ function AfterRollBox({
                   owned={player.shares[id]}
                   price={lowestPrice(id)}
                   disabled={disabled}
-                  onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
+                  onSell={async (q) => {
+                    if (await confirmLowSale(confirm, state, id, q))
+                      dispatch({ type: "forcedSell", stock: id, qty: q });
+                  }}
                 />
               ))}
             </div>
@@ -909,6 +927,7 @@ function AfterRollBox({
           End turn
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }
@@ -1041,6 +1060,54 @@ function Fold({ label, children }: { label: string; children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+/** Lowest-price sales losing at least this much against the board price ask first. */
+const CONFIRM_LOSS = 200;
+
+/** Ask before a sale at the lowest board price that throws away a lot of value. */
+async function confirmLowSale(
+  confirm: (text: string, yes: string) => Promise<boolean>,
+  state: GameState,
+  stock: StockId,
+  qty: number,
+): Promise<boolean> {
+  const low = lowestPrice(stock) * qty;
+  const board = priceAt(stock, state.market) * qty;
+  if (board - low < CONFIRM_LOSS) return true;
+  return confirm(
+    `Sell ${fmt(qty)} ${STOCKS[stock].name} for $${fmt(low)}? At the board price they're worth $${fmt(board)}, so you'd lose $${fmt(board - low)}.`,
+    `Sell for $${fmt(low)}`,
+  );
+}
+
+/** A small in-app "are you sure?" dialog: returns the dialog element and an ask() that resolves to the answer. */
+function useConfirm(): [ReactNode, (text: string, yes: string) => Promise<boolean>] {
+  const [req, setReq] = useState<{ text: string; yes: string; resolve: (ok: boolean) => void } | null>(null);
+  const ask = useCallback(
+    (text: string, yes: string) => new Promise<boolean>((resolve) => setReq({ text, yes, resolve })),
+    [],
+  );
+  const answer = (ok: boolean) => {
+    req?.resolve(ok);
+    setReq(null);
+  };
+  const dialog = req && (
+    <div className="confirm-backdrop" onClick={() => answer(false)}>
+      <div className="confirm" role="alertdialog" aria-modal onClick={(e) => e.stopPropagation()}>
+        <p>{req.text}</p>
+        <div className="confirm-buttons">
+          <button className="btn" onClick={() => answer(false)}>
+            Cancel
+          </button>
+          <button className="btn btn-danger" onClick={() => answer(true)} autoFocus>
+            {req.yes}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  return [dialog, ask];
 }
 
 function MeCard({ p, market, active }: { p: Player; market: number; active: boolean }) {
