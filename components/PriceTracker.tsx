@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { FALLERS, MARKET_MAX, MARKET_MIN, RISERS, STOCKS, priceAt, type StockId } from "@/lib/stocks";
 
 const LEVELS = Array.from({ length: MARKET_MAX - MARKET_MIN + 1 }, (_, i) => MARKET_MIN + i);
@@ -26,7 +27,10 @@ const priceRow = (id: StockId) => (
  * slider, like the physical tracker in the middle of the board.
  */
 export default function PriceTracker({ market, delta }: { market: number; delta: number | null }) {
-  const offset = { transform: `translateX(calc(${-(market - MARKET_MIN + 0.5)} * var(--col-w)))` };
+  // --pos: the current column's centre, in columns from the strip's left edge. The strip is
+  // centred on it but clamped to the window's edges (no empty space near level 0 or 50);
+  // the slider frame follows the column.
+  const offset = { "--pos": market - MARKET_MIN + 0.5, "--cols": LEVELS.length } as CSSProperties;
   return (
     <div className="tracker" aria-label={`Stock price tracker, market level ${market}`}>
       <div className="tracker-names">
@@ -34,8 +38,8 @@ export default function PriceTracker({ market, delta }: { market: number; delta:
         <div className="tracker-head">MARKET</div>
         {FALLERS.map(nameCell)}
       </div>
-      <div className="tracker-window">
-        <div className="tracker-strip" style={offset}>
+      <div className="tracker-window" style={offset}>
+        <div className="tracker-strip">
           {RISERS.map(priceRow)}
           <div className="tracker-row tracker-levels">
             {LEVELS.map((l) => (
@@ -58,7 +62,10 @@ export default function PriceTracker({ market, delta }: { market: number; delta:
           </span>
         )}
         <span className="gauge" aria-hidden>
-          <span className="gauge-fill" style={{ left: `${((market - MARKET_MIN) / (MARKET_MAX - MARKET_MIN)) * 100}%` }} />
+          <span
+            className="gauge-fill"
+            style={{ left: `${((market - MARKET_MIN) / (MARKET_MAX - MARKET_MIN)) * 100}%` }}
+          />
         </span>
       </div>
     </div>

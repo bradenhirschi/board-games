@@ -3084,3 +3084,17 @@ button.link {
     padding-bottom: 12px;
   }
 }
+
+/* ---------- Price tracker: strip clamped to the window; the slider frame moves at the ends ---------- */
+.tracker-window {
+  --strip-left: clamp(calc(100% - var(--cols) * var(--col-w)), calc(50% - var(--pos) * var(--col-w)), 0px);
+}
+.tracker-strip {
+  left: var(--strip-left);
+  transform: none;
+  transition: left 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tracker-slider {
+  left: calc(var(--strip-left) + var(--pos) * var(--col-w));
+  transition: left 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
