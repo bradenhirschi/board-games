@@ -1144,7 +1144,6 @@ button.link:disabled {
 .topbar h1 {
   font-weight: 700;
   letter-spacing: 0.08em;
-  font-variant: small-caps;
 }
 .topbar-info {
   color: rgb(246 244 234 / 0.75);
@@ -1863,4 +1862,29 @@ button.link {
 .zoom-controls button {
   display: grid;
   place-items: center;
+}
+
+/* ---------- One display font: the board's heavy "STOCK MARKET" sans-serif ---------- */
+:root {
+  --display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Former serif headings now use the display font too. */
+  --serif: var(--display);
+}
+.topbar h1,
+.setup-logo {
+  font-family: var(--display);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.turn-heading,
+.me-name b,
+.turn-label b {
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+/* Sideways shareholders' meeting labels: keep their top/bottom padding (a later rule reset it). */
+.lane-label.lane-label-v {
+  padding: 0.6cqw 0;
 }
