@@ -17,6 +17,7 @@ import {
 } from "@/lib/engine";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
+import ZoomableBoard from "./ZoomableBoard";
 import { Die } from "./Dice";
 
 export const SAVE_KEY = "stock-market:game:v3";
@@ -203,7 +204,7 @@ export function GameView({
           Menu
         </button>
       </header>
-      <div className="board-wrap">
+      <ZoomableBoard>
         <Board
           players={state.players}
           currentId={current.id}
@@ -220,7 +221,7 @@ export function GameView({
               : undefined
           }
         />
-      </div>
+      </ZoomableBoard>
 
       {/* Between the board and the sidebar: the dice and the viewer's turn controls. */}
       <div className="action-col">

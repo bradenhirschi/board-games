@@ -1804,3 +1804,67 @@ button.link {
   font-weight: 400;
   color: var(--muted);
 }
+
+/* ---------- Zoomable board ---------- */
+.board-zoom {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.board-viewport {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  /* One finger pans natively; two-finger pinch is handled by ZoomableBoard. */
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.board-viewport.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+.board-viewport.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.board-zoom .board-wrap {
+  max-width: none;
+  /* Grow to the right/down from the top-left so every part stays reachable by scrolling
+     (centering an over-wide block would push its left edge out of reach). */
+  justify-self: start;
+  margin: 0;
+}
+.zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+.zoom-controls button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+.zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (min-width: 901px) {
+  .game > .board-zoom {
+    grid-area: board;
+    width: min(100%, calc(100vh - 90px));
+    align-self: center;
+    justify-self: end;
+  }
+}
