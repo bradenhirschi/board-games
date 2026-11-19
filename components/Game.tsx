@@ -459,26 +459,54 @@ function CareerChoice({
         )}
       </p>
       <div className="career-picks">
-        {CAREERS.map((c, i) => (
-          <button
-            key={c.name}
-            className={`career-pick ${viewer.career === i ? "career-pick-on" : ""}`}
-            disabled={disabled}
-            onClick={() => dispatch({ type: "chooseCareer", playerId: viewer.id, career: i })}
-          >
-            <span>
-              {c.icon} {c.name}
-            </span>
-            <small>
-              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
-            </small>
-          </button>
-        ))}
+        <CareerPicks
+          selected={viewer.career}
+          disabled={disabled}
+          onPick={(career) => dispatch({ type: "chooseCareer", playerId: viewer.id, career })}
+        />
       </div>
       {waitingFor.length > 0 && (
         <p className="hint muted">Waiting for {waitingFor.map((p) => p.name).join(", ")} to choose…</p>
       )}
     </div>
+  );
+}
+
+/** Occupation indices, cheapest salary first (the index itself is what the game stores). */
+const CAREERS_BY_SALARY = CAREERS.map((_, i) => i).sort((a, b) => CAREERS[a].salary - CAREERS[b].salary);
+
+/** The occupation buttons, $100 to $400. */
+function CareerPicks({
+  selected,
+  disabled,
+  onPick,
+}: {
+  selected: number | null;
+  disabled: boolean;
+  onPick: (career: number) => void;
+}) {
+  return (
+    <>
+      {CAREERS_BY_SALARY.map((i) => {
+        const c = CAREERS[i];
+        return (
+          <button
+            key={c.name}
+            className={`career-pick ${selected === i ? "career-pick-on" : ""}`}
+            disabled={disabled}
+            onClick={() => onPick(i)}
+          >
+            <span className="pick-name">
+              <span className="pick-icon">{c.icon}</span>
+              {c.name}
+            </span>
+            <small>
+              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
+            </small>
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -553,21 +581,11 @@ function TurnControls({
         )}
         {!must && (
           <div className="career-picks">
-            {CAREERS.map((c, i) => (
-              <button
-                key={c.name}
-                className={`career-pick ${player.career === i ? "career-pick-on" : ""}`}
-                disabled={disabled}
-                onClick={() => dispatch({ type: "setCareer", career: i })}
-              >
-                <span>
-                  {c.icon} {c.name}
-                </span>
-                <small>
-                  {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
-                </small>
-              </button>
-            ))}
+            <CareerPicks
+              selected={player.career}
+              disabled={disabled}
+              onPick={(career) => dispatch({ type: "setCareer", career })}
+            />
           </div>
         )}
         {pickingStart ? (

@@ -2227,3 +2227,9 @@ button.link {
     align-self: stretch;
   }
 }
+/* Every occupation card: icon on its own line, then the name, then rolls and salary. */
+.pick-icon {
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+}
