@@ -1796,3 +1796,11 @@ button.link {
     background: var(--card);
   }
 }
+
+.status-note {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}

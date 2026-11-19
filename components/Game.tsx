@@ -146,6 +146,8 @@ export interface GameViewProps {
   headerExtra?: ReactNode;
   /** Shown in the player box instead of "Waiting for your turn…". */
   waitingNote?: string;
+  /** A short status shown under the turn heading (e.g. "Saving…"). */
+  statusNote?: string;
 }
 
 /** The game screen: board, dice, the viewer's box, players and ticker. Holds no game logic. */
@@ -160,6 +162,7 @@ export function GameView({
   onQuit,
   headerExtra,
   waitingNote,
+  statusNote,
 }: GameViewProps) {
   const [pickingStart, setPickingStart] = useState(false);
   const current = state.players[state.current];
@@ -253,6 +256,7 @@ export function GameView({
                   : current.isBot
                     ? `${current.name} is playing`
                     : `${current.name}'s turn`}
+              {statusNote && <span className="status-note">{statusNote}</span>}
             </div>
             {ph.t === "chooseCareers" ? (
               <CareerChoice state={state} viewer={viewer} disabled={!canAct} dispatch={dispatch} />

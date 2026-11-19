@@ -165,11 +165,11 @@ export async function startGame(code: string): Promise<void> {
 }
 
 /**
- * Save a move. `decide` works it out from the latest saved state, inside the transaction,
+ * Save a move, returning the room as saved (or null if it wasn't). `decide` works it out from the latest saved state, inside the transaction,
  * so if another phone saves at the same moment Firestore simply retries it.
  *
  * With `fromVersion`, the move only counts if nothing has changed since then (a turn move,
- * or two phones racing to play the same bot turn); otherwise it returns false and the
+ * or two phones racing to play the same bot turn); otherwise it returns null and the
  * caller just waits for the update. Without it (e.g. picking an occupation, which players
  * do at the same time), the move is applied to whatever the latest state is.
  */
@@ -178,24 +178,31 @@ export async function submitMove(
   fromVersion: number | null,
   by: string,
   decide: (state: GameState) => Resolved | null,
-): Promise<boolean> {
+): Promise<Room | null> {
   return runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
-    if (!snap.exists()) return false;
+    if (!snap.exists()) return null;
     const room = parseRoom(snap.data());
-    if (room.status !== "playing" || !room.state) return false;
-    if (fromVersion !== null && room.version !== fromVersion) return false;
+    if (room.status !== "playing" || !room.state) return null;
+    if (fromVersion !== null && room.version !== fromVersion) return null;
     const move = decide(room.state);
-    if (!move) return false;
+    if (!move) return null;
     const replay: Replay = { from: room.version, by, actions: move.actions };
-    tx.update(roomRef(code), {
+    const saved: Room = {
+      ...room,
       version: room.version + 1,
-      stateJson: JSON.stringify(move.state),
-      replayJson: JSON.stringify(replay),
+      state: move.state,
+      replay,
       currentUid: seatUid(move.state, room.seats),
+    };
+    tx.update(roomRef(code), {
+      version: saved.version,
+      stateJson: JSON.stringify(saved.state),
+      replayJson: JSON.stringify(replay),
+      currentUid: saved.currentUid,
       updatedAt: serverTimestamp(),
     });
-    return true;
+    return saved;
   });
 }
 
