@@ -522,19 +522,11 @@ function TurnControls({
     const must = mustGoToMarket(player);
     return (
       <div className="controls">
-        <p className="hint">
-          {must ? (
-            <>
-              You&apos;ve earned <b>${fmt(player.cash)}</b>. Time to play the market!
-            </>
-          ) : (
-            <>
-              At work. You&apos;re paid whenever <i>anyone</i> throws your number. Earn $1,000 to start playing the
-              market ($
-              {fmt(1000 - player.cash)} to go).
-            </>
-          )}
-        </p>
+        {must && (
+          <p className="hint">
+            You&apos;ve earned <b>${fmt(player.cash)}</b>. Time to play the market!
+          </p>
+        )}
         {!must && (
           <div className="career-picks">
             {CAREERS.map((c, i) => (
