@@ -15,7 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
-import { playBell, playCash, playDice, playLoss } from "@/lib/sound";
+import { playBell, playCash, playDice, playLoss, setSoundOn, useSoundOn } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -233,9 +233,7 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <button className="link topbar-menu" onClick={onQuit}>
-          Menu
-        </button>
+        <GameMenu onQuit={onQuit} />
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       <div className="m-players" role="list">
@@ -408,6 +406,63 @@ function shortMoney(n: number): string {
   if (n >= 1_000_000) return `$${+(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${+(n / 1_000).toFixed(1)}k`;
   return `$${n}`;
+}
+
+/** The ☰ button in the top bar: a small panel to turn sound on/off or quit the game. */
+function GameMenu({ onQuit }: { onQuit: () => void }) {
+  const [open, setOpen] = useState(false);
+  const soundOn = useSoundOn();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <div className="topbar-menu game-menu">
+      <button
+        className="menu-button"
+        onClick={() => setOpen(!open)}
+        aria-label="Menu"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden>
+          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="menu-panel" role="menu">
+            <button
+              role="menuitemcheckbox"
+              aria-checked={soundOn}
+              className="menu-item"
+              onClick={() => setSoundOn(!soundOn)}
+            >
+              <span>Sound</span>
+              <span className={`switch ${soundOn ? "switch-on" : ""}`} aria-hidden>
+                <span />
+              </span>
+            </button>
+            <button
+              role="menuitem"
+              className="menu-item menu-quit"
+              onClick={() => {
+                setOpen(false);
+                onQuit();
+              }}
+            >
+              Quit game
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function LogText({ state, entry }: { state: GameState; entry: GameState["log"][number] }) {
@@ -642,7 +697,7 @@ function TurnControls({
           On <b>{posName(pos)}</b>: {dirHint}
         </p>
         {held.length > 0 && (
-          <Fold label="Sell stock">
+          <Fold label="Sell">
             <div className="sell-box">
               <div className="small muted">Sell now at the board price (only before you roll):</div>
               {held.map((id) => (
@@ -745,7 +800,8 @@ function AfterRollBox({
 
   return (
     <div className="controls">
-      <p className="hint">
+      {/* Phones skip this line when there's an offer: the buy line already names the square. */}
+      <p className={`hint ${offer ? "m-hide" : ""}`}>
         Landed on <b>{posName(player.pos)}</b>.{offer ? "" : " Nothing to buy here."}{" "}
         <span className="m-hide">You can still sell (at the lowest board price) before you end your turn.</span>
       </p>
@@ -764,7 +820,7 @@ function AfterRollBox({
       )}
 
       {held.length > 0 && (
-        <Fold label="Sell at the lowest price">
+        <Fold label="Sell">
           <div className="sell-box sell-low">
             <div className="small muted">
               Sell after the throw, at the <b>lowest board price</b>:
