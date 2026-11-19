@@ -1,9 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { botMove } from "@/lib/bot";
 import { CAREERS, START_SQUARES, TRACK, arrowFor, sideOf } from "@/lib/board";
-import { canRoll, fmt, mustGoToMarket, netWorth, posName, reducer, type BuyOffer, type GameState, type Player } from "@/lib/engine";
+import {
+  canRoll,
+  fmt,
+  mustGoToMarket,
+  netWorth,
+  posName,
+  reducer,
+  type Action,
+  type BuyOffer,
+  type GameState,
+  type Player,
+} from "@/lib/engine";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import { Die } from "./Dice";
@@ -12,16 +23,16 @@ export const SAVE_KEY = "stock-market:game:v3";
 
 const ROLL_MS = 550;
 /** Delay between each square a token steps through. */
-const STEP_MS = 200;
+export const STEP_MS = 200;
 /** Bots "think" for a random time in this range (ms) before each decision. */
-const BOT_THINK_MS = [1000, 1900] as const;
+export const BOT_THINK_MS = [1000, 1900] as const;
 
 const rollDie = () => 1 + Math.floor(Math.random() * 6);
 
-export default function Game({ initial, onQuit }: { initial: GameState; onQuit: () => void }) {
+/** Pass-and-play on one device: the rules run here, bots included, and the game autosaves. */
+export default function LocalGame({ initial, onQuit }: { initial: GameState; onQuit: () => void }) {
   const [state, dispatch] = useReducer(reducer, initial);
   const [rolling, setRolling] = useState<[number, number] | null>(null);
-  const [pickingStart, setPickingStart] = useState(false);
   const rollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = state.players[state.current];
@@ -53,19 +64,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
 
   const roll = useCallback(() => {
     if (rolling || !canRoll(state)) return;
-    const started = Date.now();
-    setPickingStart(false);
-    setRolling([rollDie(), rollDie()]);
-    rollTimer.current = setInterval(() => {
-      if (Date.now() - started < ROLL_MS) {
-        setRolling([rollDie(), rollDie()]);
-        return;
-      }
-      clearInterval(rollTimer.current!);
-      rollTimer.current = null;
-      setRolling(null);
-      dispatch({ type: "roll", dice: [rollDie(), rollDie()] });
-    }, 70);
+    rollTimer.current = animateRoll(setRolling, () => dispatch({ type: "roll", dice: [rollDie(), rollDie()] }));
   }, [rolling, state]);
 
   // Computer players.
@@ -83,22 +82,96 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
     return () => clearTimeout(t);
   }, [botTurn, rolling, ph, state, roll]);
 
+  // The panel always shows a human's box (never a bot's): the current player on a
+  // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
+  const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
+
+  return (
+    <GameView
+      state={state}
+      viewer={viewer}
+      canAct={viewer.id === current.id && !botTurn}
+      rolling={rolling}
+      dispatch={dispatch}
+      roll={roll}
+      onQuit={onQuit}
+      onEndGame={() => dispatch({ type: "endGame" })}
+    />
+  );
+}
+
+/**
+ * Tumble the dice for ROLL_MS, then call `done` (which applies the real roll).
+ * Returns the interval so the caller can cancel it on unmount.
+ */
+export function animateRoll(
+  setRolling: (d: [number, number] | null) => void,
+  done: () => void,
+): ReturnType<typeof setInterval> {
+  const started = Date.now();
+  setRolling([rollDie(), rollDie()]);
+  const timer = setInterval(() => {
+    if (Date.now() - started < ROLL_MS) {
+      setRolling([rollDie(), rollDie()]);
+      return;
+    }
+    clearInterval(timer);
+    setRolling(null);
+    done();
+  }, 70);
+  return timer;
+}
+
+export interface GameViewProps {
+  state: GameState;
+  /** The human whose box the panel shows. */
+  viewer: Player;
+  /** Whether `viewer` may act right now (their turn, nothing in flight). */
+  canAct: boolean;
+  /** Dice faces while tumbling, or null. */
+  rolling: [number, number] | null;
+  dispatch: (a: Action) => void;
+  roll: () => void;
+  onQuit: () => void;
+  /** End the game early (most money wins). Omit to hide the option. */
+  onEndGame?: () => void;
+  /** Extra items for the top bar (e.g. the room code). */
+  headerExtra?: ReactNode;
+  /** Shown in the player box instead of "Waiting for your turn…". */
+  waitingNote?: string;
+}
+
+/** The game screen: board, dice, the viewer's box, players and ticker. Holds no game logic. */
+export function GameView({
+  state,
+  viewer,
+  canAct,
+  rolling,
+  dispatch,
+  roll,
+  onQuit,
+  onEndGame,
+  headerExtra,
+  waitingNote,
+}: GameViewProps) {
+  const [pickingStart, setPickingStart] = useState(false);
+  const current = state.players[state.current];
+  const ph = state.phase;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest("button, input, select, textarea")) return;
-      if ((e.key === " " || e.key === "Enter") && !current.isBot) {
+      if ((e.key === " " || e.key === "Enter") && canAct) {
         e.preventDefault();
+        setPickingStart(false);
         roll();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [roll, current.isBot]);
+  }, [roll, canAct]);
 
-  // The panel always shows a human's box (never a bot's): the current player on a
-  // human turn, otherwise the next human due to play. Only an all-bot game shows a bot.
-  const viewer = current.isBot ? (nextHuman(state) ?? current) : current;
   const dice = rolling ?? state.dice;
   // Who threw the dice on show: the current player while rolling, otherwise the last thrower.
   const lastRollId = state.log.find((e) => e.text.startsWith("rolls "))?.playerId ?? null;
@@ -106,15 +179,18 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
+  const rollAndClose = () => {
+    setPickingStart(false);
+    roll();
+  };
 
   return (
     <div className="game">
       <header className="topbar">
-        <h1>
-          STOCK MARKET
-        </h1>
+        <h1>STOCK MARKET</h1>
         <div className="topbar-info">
           First to <b>${fmt(state.target)}</b> · Round {Math.floor((state.turn - 1) / state.players.length) + 1}
+          {headerExtra}
         </div>
         <button className="link topbar-menu" onClick={onQuit}>
           Menu
@@ -129,7 +205,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
           lastLanding={ph.t === "moving" ? null : state.lastLanding}
           diceTotal={diceTotal}
           onPickStart={
-            pickingStart && !botTurn
+            pickingStart && canAct
               ? (start) => {
                   setPickingStart(false);
                   dispatch({ type: "goToMarket", start });
@@ -192,13 +268,13 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               <span className="turn-cash">${fmt(viewer.cash)}</span>
             </div>
 
-            {viewer.id === current.id && !botTurn ? (
+            {canAct ? (
               <TurnControls
                 state={state}
                 player={current}
                 disabled={!!rolling}
                 dispatch={dispatch}
-                roll={roll}
+                roll={rollAndClose}
                 pickingStart={pickingStart}
                 setPickingStart={setPickingStart}
               />
@@ -206,7 +282,7 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
               <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
             ) : (
               <div className="controls">
-                <p className="hint muted">Waiting for your turn…</p>
+                <p className="hint muted">{waitingNote ?? "Waiting for your turn…"}</p>
                 <button className="btn btn-primary btn-big" disabled>
                   Roll dice
                 </button>
@@ -241,10 +317,10 @@ export default function Game({ initial, onQuit }: { initial: GameState; onQuit: 
             </ol>
           )}
         </section>
-        {!winner && (
+        {!winner && onEndGame && (
           <button
             className="link small end-game"
-            onClick={() => confirm("End the game now? The player worth the most wins.") && dispatch({ type: "endGame" })}
+            onClick={() => confirm("End the game now? The player worth the most wins.") && onEndGame()}
           >
             End game now (most money wins)
           </button>

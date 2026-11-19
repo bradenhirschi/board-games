@@ -40,6 +40,29 @@ The quotation board prices in `lib/stocks.ts` are copied row for row from the pl
 npm test      # rules engine tests + simulated bot games
 ```
 
+## Online play
+
+Players can create a room and share its 5-letter code or invite link; friends join from their own
+phones. It runs on Firebase's free Spark plan with no game server:
+
+- **Accounts:** everyone gets a guest account automatically (Firebase anonymous sign-in), and can link it to
+  Google to keep the same account across devices.
+- **Rooms** are Firestore documents (`stockMarketRooms/{code}`). The player whose turn it is applies their move
+  with the same rules code, then saves the new state together with the actions it applied; every other phone
+  replays those actions so moves animate the same everywhere. Bot turns are played by whichever seated
+  player's phone is open (if two try at once, the first save wins).
+- **`firestore.rules`** limits who may write: only seated players, one version at a time, on their own turn or
+  a bot's turn (the host may also end the game early). Players' phones roll the dice, so a determined player
+  could cheat; fine among friends.
+- The Firebase web config lives in `lib/firebase.ts` (public values).
+
+```bash
+npm run test:rules   # security rules tests against the Firestore emulator
+# Run the app against local emulators:
+npx firebase emulators:start --project demo-stock-market --only auth,firestore
+NEXT_PUBLIC_FIREBASE_EMULATORS=1 npm run dev
+```
+
 ## Where things live
 
 | File | What it holds |
@@ -48,6 +71,8 @@ npm test      # rules engine tests + simulated bot games
 | `lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
 | `lib/engine.ts` | All game rules: state, turn phases and actions |
 | `lib/bot.ts` | Computer player strategy |
-| `components/` | Board, price tracker, dice and the game screen |
+| `lib/online.ts`, `lib/rooms.ts`, `lib/firebase.ts` | Online play: resolving moves, rooms in Firestore, sign-in |
+| `firestore.rules` | Who may read and write online rooms |
+| `components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
 
 To rename companies or tweak a square, edit `lib/stocks.ts` or `lib/board.ts`. The board redraws from that data.
