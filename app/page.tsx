@@ -1,8 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Game, { SAVE_KEY } from "@/components/Game";
+import LocalGame, { SAVE_KEY } from "@/components/Game";
+import OnlineRoom from "@/components/OnlineRoom";
 import { DEFAULT_TARGET, MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, fmt, newGame, type GameState, type PlayerSetup } from "@/lib/engine";
+import {
+  authErrorMessage,
+  ensureUser,
+  onlineAvailable,
+  signInWithGoogle,
+  signOutUser,
+  useFirebaseUser,
+} from "@/lib/firebase";
+import { createRoom, normalizeCode } from "@/lib/rooms";
+
+const NAME_KEY = "stock-market:name";
+const LAST_ROOM_KEY = "stock-market:last-room";
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Keep the room code in the address bar so the page can be refreshed or shared. */
+function setRoomInUrl(code: string | null) {
+  const url = new URL(window.location.href);
+  if (code) url.searchParams.set("room", code);
+  else url.searchParams.delete("room");
+  window.history.replaceState(null, "", url);
+}
 
 const TARGETS = [25_000, 50_000, 100_000, 250_000];
 
@@ -24,15 +60,44 @@ export default function Home() {
   const [target, setTarget] = useState(DEFAULT_TARGET);
   const [game, setGame] = useState<{ key: number; state: GameState } | null>(null);
   const [saved, setSaved] = useState<GameState | null>(null);
+  const [room, setRoom] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [lastRoom, setLastRoom] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reading storage must wait until we're in the browser.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // Reading storage and the URL must wait until we're in the browser.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setSaved(loadSaved());
+    setName(readStorage(NAME_KEY) ?? "");
+    setLastRoom(readStorage(LAST_ROOM_KEY));
+    const fromUrl = normalizeCode(new URLSearchParams(window.location.search).get("room") ?? "");
+    if (fromUrl && onlineAvailable) setRoom(fromUrl);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [game]);
 
+  const openRoom = (code: string) => {
+    writeStorage(LAST_ROOM_KEY, code);
+    setLastRoom(code);
+    setRoomInUrl(code);
+    setRoom(code);
+  };
+
+  if (room) {
+    return (
+      <OnlineRoom
+        key={room}
+        code={room}
+        name={name.trim() || "Player"}
+        onQuit={() => {
+          setRoomInUrl(null);
+          setRoom(null);
+        }}
+      />
+    );
+  }
+
   if (game) {
-    return <Game key={game.key} initial={game.state} onQuit={() => setGame(null)} />;
+    return <LocalGame key={game.key} initial={game.state} onQuit={() => setGame(null)} />;
   }
 
   const update = (i: number, patch: Partial<PlayerSetup>) =>
@@ -50,6 +115,20 @@ export default function Home() {
           Stock Market
         </h1>
         <p className="muted">Buy low, sell high, and be first to ${fmt(target)}. For 2–8 players.</p>
+
+        {onlineAvailable && (
+          <OnlineStart
+            name={name}
+            setName={(n) => {
+              setName(n);
+              writeStorage(NAME_KEY, n);
+            }}
+            lastRoom={lastRoom}
+            onOpenRoom={openRoom}
+          />
+        )}
+
+        <h2 className="home-heading">Pass and play on this device</h2>
 
         {saved && (
           <div className="saved">
@@ -174,5 +253,118 @@ export default function Home() {
         </details>
       </div>
     </main>
+  );
+}
+
+function OnlineStart({
+  name,
+  setName,
+  lastRoom,
+  onOpenRoom,
+}: {
+  name: string;
+  setName: (n: string) => void;
+  lastRoom: string | null;
+  onOpenRoom: (code: string) => void;
+}) {
+  const user = useFirebaseUser();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (task: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await task();
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const playerName = name.trim() || "Player";
+  const googleName = user && !user.isAnonymous ? (user.displayName ?? user.email ?? "your Google account") : null;
+
+  return (
+    <section className="online-start">
+      <h2 className="home-heading">Play online</h2>
+      <label className="setup-row">
+        <span className="home-label">Your name</span>
+        <input value={name} maxLength={16} placeholder="Player" onChange={(e) => setName(e.target.value)} />
+      </label>
+
+      <div className="btn-row">
+        <button
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const u = await ensureUser();
+              onOpenRoom(await createRoom(u.uid, playerName));
+            })
+          }
+        >
+          Create a room
+        </button>
+      </div>
+
+      <form
+        className="join-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const c = normalizeCode(code);
+          if (c.length === 5) onOpenRoom(c);
+          else setError("Room codes are 5 letters and numbers.");
+        }}
+      >
+        <input
+          value={code}
+          placeholder="Room code"
+          aria-label="Room code"
+          autoCapitalize="characters"
+          onChange={(e) => setCode(normalizeCode(e.target.value))}
+        />
+        <button className="btn" disabled={busy}>
+          Join
+        </button>
+      </form>
+
+      {lastRoom && (
+        <button className="link small" onClick={() => onOpenRoom(lastRoom)}>
+          Back to room {lastRoom}
+        </button>
+      )}
+
+      <p className="account small muted">
+        {googleName ? (
+          <>
+            Signed in as <b>{googleName}</b> ·{" "}
+            <button className="link small" disabled={busy} onClick={() => run(signOutUser)}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            Playing as a guest on this device ·{" "}
+            <button
+              className="link small"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  const u = await signInWithGoogle();
+                  if (!name.trim() && u.displayName) setName(u.displayName.split(" ")[0].slice(0, 16));
+                })
+              }
+            >
+              Sign in with Google
+            </button>
+          </>
+        )}
+      </p>
+
+      {error && <p className="hint bad">{error}</p>}
+    </section>
   );
 }

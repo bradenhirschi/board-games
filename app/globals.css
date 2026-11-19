@@ -1431,3 +1431,96 @@ button.link {
     padding: 12px;
   }
 }
+
+/* ---------- Online play ---------- */
+.home-heading,
+.lobby-heading {
+  margin: 22px 0 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.online-start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+.home-label {
+  flex: none;
+  font-weight: 700;
+  font-size: 14px;
+}
+.join-form {
+  display: flex;
+  gap: 8px;
+}
+.join-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--card);
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+}
+.account {
+  margin: 4px 0 0;
+}
+.room-code {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+.room-code b {
+  font-family: var(--mono);
+  font-size: 32px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+.lobby-seats {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lobby-seats li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lobby-name {
+  flex: 1;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+  z-index: 50;
+}
+.dice-total {
+  white-space: nowrap;
+}
+.setup .join-form {
+  flex-direction: row;
+  margin: 0;
+}
