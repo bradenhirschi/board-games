@@ -225,11 +225,13 @@ export function GameView({
 
       {/* Between the board and the sidebar: the dice and the viewer's turn controls. */}
       <div className="action-col">
-        {/* Just the two dice (blank until the first roll). */}
-        <div className="dice">
-          <Die value={dice?.[0] ?? 0} rolling={!!rolling} />
-          <Die value={dice?.[1] ?? 0} rolling={!!rolling} />
-        </div>
+        {/* Just the two dice; nothing until the first roll. */}
+        {dice && (
+          <div className="dice">
+            <Die value={dice[0]} rolling={!!rolling} />
+            <Die value={dice[1]} rolling={!!rolling} />
+          </div>
+        )}
 
         {winner ? (
           <section className="turn turn-over">
