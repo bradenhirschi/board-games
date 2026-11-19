@@ -2240,3 +2240,50 @@ button.link {
 .career-pick small {
   margin-top: auto;
 }
+
+/* Home screen: Online / On this device tabs. */
+.home-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 18px 0 16px;
+  padding: 3px;
+  border: var(--border);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.home-tabs button {
+  border: 0;
+  border-radius: 7px;
+  padding: 9px 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.home-tabs button.on {
+  background: var(--ink);
+  color: #fff;
+}
+.online-start {
+  border-bottom: 0;
+}
+.local-start {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.local-start .saved {
+  margin: 0;
+}
+.local-start .saved {
+  flex-wrap: nowrap;
+}
+.local-start .saved > span {
+  flex: 1;
+  min-width: 0;
+}
+.local-start .saved > .btn {
+  flex: none;
+}
