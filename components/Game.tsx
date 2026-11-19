@@ -15,7 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
-import { playBell, playDice, setMuted, useMuted } from "@/lib/sound";
+import { playBell, playCash, playDice, setMuted, useMuted } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -191,6 +191,17 @@ export function GameView({
   const diceTotal = !rolling && state.dice ? state.dice[0] + state.dice[1] : null;
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const muted = useMuted();
+
+  // Ca-ching whenever anyone buys or sells (new log entries only, not on load).
+  const lastLogId = useRef(state.log[0]?.id ?? -1);
+  const newestLogId = state.log[0]?.id ?? -1;
+  useEffect(() => {
+    const seen = lastLogId.current;
+    if (newestLogId === seen) return;
+    lastLogId.current = newestLogId;
+    if (newestLogId < seen) return; // a different or reloaded game
+    if (state.log.some((e) => e.id > seen && e.trade)) playCash();
+  }, [newestLogId, state.log]);
 
   // Ring a bell once when a turn becomes this player's.
   const rungForTurn = useRef<number | null>(null);
