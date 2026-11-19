@@ -3061,3 +3061,26 @@ button.link {
     flex: 1 1 0;
   }
 }
+
+/* ---------- Hint that a list scrolls: a soft fade at the edge it continues past ---------- */
+@media (max-width: 900px) {
+  /* Your stock pills (sideways). */
+  .m-me-strip .m-holdings {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+    padding-right: 14px;
+  }
+  /* The sell sheet (downwards). */
+  .action-col .fold.fold-open > .fold-body {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  }
+}
+@media (max-width: 900px) and (min-height: 900px) {
+  /* The inline sell list on very tall phones (downwards). */
+  .action-col .turn-actions > .fold {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+    padding-bottom: 12px;
+  }
+}
