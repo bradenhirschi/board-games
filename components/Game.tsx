@@ -642,7 +642,7 @@ function TurnControls({
           On <b>{posName(pos)}</b>: {dirHint}
         </p>
         {held.length > 0 && (
-          <Fold label="Sell stock">
+          <Fold label="Sell">
             <div className="sell-box">
               <div className="small muted">Sell now at the board price (only before you roll):</div>
               {held.map((id) => (
@@ -745,7 +745,8 @@ function AfterRollBox({
 
   return (
     <div className="controls">
-      <p className="hint">
+      {/* Phones skip this line when there's an offer: the buy line already names the square. */}
+      <p className={`hint ${offer ? "m-hide" : ""}`}>
         Landed on <b>{posName(player.pos)}</b>.{offer ? "" : " Nothing to buy here."}{" "}
         <span className="m-hide">You can still sell (at the lowest board price) before you end your turn.</span>
       </p>
@@ -764,7 +765,7 @@ function AfterRollBox({
       )}
 
       {held.length > 0 && (
-        <Fold label="Sell at the lowest price">
+        <Fold label="Sell">
           <div className="sell-box sell-low">
             <div className="small muted">
               Sell after the throw, at the <b>lowest board price</b>:

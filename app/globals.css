@@ -2287,3 +2287,37 @@ button.link {
 .local-start .saved > .btn {
   flex: none;
 }
+@media (max-width: 900px) {
+  /* The sticky main button: no fade shadow over the controls above it, and a clear gap. */
+  .action-col .controls .btn-big {
+    box-shadow: none;
+    margin-top: 4px;
+  }
+}
+@media (max-width: 900px) {
+  /* Phones: the Sell toggle and the main button share the last row; no sticky overlap. */
+  .action-col .controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .action-col .controls > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .action-col .controls .btn-big {
+    position: static;
+    margin-top: 0;
+  }
+  .action-col .controls > .fold:not(.fold-open) {
+    flex: 0 0 auto;
+  }
+  .action-col .controls > .fold:not(.fold-open) + .btn-big {
+    flex: 1 1 0;
+  }
+  .action-col .fold:not(.fold-open) > .fold-toggle {
+    height: 100%;
+    padding: 0 18px;
+  }
+}
