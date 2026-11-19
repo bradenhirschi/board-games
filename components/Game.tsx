@@ -1018,6 +1018,10 @@ function SellRow({
 
 /** This device's player: a larger box with their money, whereabouts and holdings. */
 /** On phones, tucks optional controls behind a toggle; on desktop, shows them as they are. */
+/**
+ * Optional controls (selling). Desktop and very tall phones show them inline; other phones
+ * show a toggle that opens them in a slide-up sheet, so the turn card never overflows.
+ */
 function Fold({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1025,7 +1029,16 @@ function Fold({ label, children }: { label: string; children: ReactNode }) {
       <button className="btn fold-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
         {label} {open ? "▴" : "▾"}
       </button>
-      {children}
+      {open && <div className="fold-backdrop" onClick={() => setOpen(false)} />}
+      <div className="fold-body">
+        <div className="fold-head">
+          <b>{label}</b>
+          <button className="btn btn-small" onClick={() => setOpen(false)}>
+            Done
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
