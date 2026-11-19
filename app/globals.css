@@ -2785,3 +2785,10 @@ button.link {
     mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
   }
 }
+
+/* Opened from the Home Screen: keep the turn panel clear of the iPhone's home bar. */
+@media (max-width: 900px) {
+  .game {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
