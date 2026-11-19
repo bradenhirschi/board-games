@@ -2839,3 +2839,93 @@ button.link {
     flex: none;
   }
 }
+
+/* ---------- Tall phones (e.g. opened from the Home Screen): use the extra height ---------- */
+@media (max-width: 900px) and (min-height: 740px) {
+  /* Selling is right there: no Sell toggle, the list sits above Roll dice / End turn. */
+  .action-col .fold-toggle {
+    display: none;
+  }
+  .action-col .fold > .sell-box,
+  .action-col .fold:not(.fold-open) > .sell-box {
+    display: flex;
+    margin-top: 0;
+  }
+  .action-col .turn-actions > .fold,
+  .action-col .turn-actions > .fold:not(.fold-open) {
+    flex: 1 1 100%;
+  }
+  .action-col .turn-actions > .fold:not(.fold-open) + .btn-big {
+    flex: 1 1 100%;
+  }
+
+  /* A little more breathing room everywhere. */
+  .game {
+    gap: 10px;
+    padding-top: 10px;
+  }
+  .game > .m-top {
+    --m-h: 48px;
+    gap: 8px;
+  }
+  .m-top .m-ticker {
+    font-size: 12px;
+  }
+  .m-top .m-chip-text b {
+    font-size: 12px;
+  }
+  .m-top .m-chip-text span {
+    font-size: 11px;
+  }
+  .m-stat b {
+    font-size: 14px;
+  }
+  .m-pill {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+  .game > .action-col > .turn {
+    padding: 14px 16px;
+  }
+  .action-col .turn-heading {
+    font-size: 17px;
+    margin-bottom: 6px;
+  }
+  .action-col .controls {
+    gap: 12px;
+  }
+  .action-col .controls .hint {
+    font-size: 15px;
+  }
+  .action-col .controls .btn-big {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .board-dice {
+    margin-top: 16px;
+  }
+}
+@media (max-width: 900px) and (min-height: 740px) {
+  /* When the sell list is long, it scrolls in the space above the main button,
+     which never leaves the card. */
+  .action-col .turn > .controls {
+    min-height: 0;
+  }
+  .action-col .turn > .controls > .turn-actions {
+    flex: 0 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  .action-col .turn-actions > .fold,
+  .action-col .turn-actions > .fold:not(.fold-open) {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .action-col .turn-actions > .btn-big,
+  .action-col .turn-actions > .fold:not(.fold-open) + .btn-big {
+    flex: none;
+  }
+}
