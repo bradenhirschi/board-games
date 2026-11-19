@@ -49,7 +49,7 @@ service cloud.firestore {
         );
 
       // Game: seated players only, one version at a time, and only on their own
-      // turn or a bot's turn. The host may also end the game early.
+      // turn or a bot's turn.
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid in resource.data.memberUids
@@ -58,7 +58,6 @@ service cloud.firestore {
         && (
           resource.data.currentUid == request.auth.uid
           || resource.data.currentUid == null
-          || request.auth.uid == resource.data.hostUid
         );
 
       allow delete: if signedIn() && request.auth.uid == resource.data.hostUid;

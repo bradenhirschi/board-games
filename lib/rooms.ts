@@ -71,7 +71,9 @@ function parseRoom(data: DocumentData): Room {
   };
 }
 
+/** Who may save the next move: the current player, or anyone seated (null) while occupations are chosen. */
 export function seatUid(state: GameState, seats: Seat[]): string | null {
+  if (state.phase.t === "chooseCareers") return null;
   return seats[state.current]?.uid ?? null;
 }
 
@@ -163,18 +165,31 @@ export async function startGame(code: string): Promise<void> {
 }
 
 /**
- * Save a move made on `fromVersion`. Returns false if someone else saved first
- * (e.g. two phones driving the same bot turn); the caller just waits for the update.
+ * Save a move. `decide` works it out from the latest saved state, inside the transaction,
+ * so if another phone saves at the same moment Firestore simply retries it.
+ *
+ * With `fromVersion`, the move only counts if nothing has changed since then (a turn move,
+ * or two phones racing to play the same bot turn); otherwise it returns false and the
+ * caller just waits for the update. Without it (e.g. picking an occupation, which players
+ * do at the same time), the move is applied to whatever the latest state is.
  */
-export async function submitMove(code: string, fromVersion: number, uid: string, move: Resolved): Promise<boolean> {
+export async function submitMove(
+  code: string,
+  fromVersion: number | null,
+  by: string,
+  decide: (state: GameState) => Resolved | null,
+): Promise<boolean> {
   return runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) return false;
     const room = parseRoom(snap.data());
-    if (room.version !== fromVersion || room.status !== "playing") return false;
-    const replay: Replay = { from: fromVersion, by: uid, actions: move.actions };
+    if (room.status !== "playing" || !room.state) return false;
+    if (fromVersion !== null && room.version !== fromVersion) return false;
+    const move = decide(room.state);
+    if (!move) return false;
+    const replay: Replay = { from: room.version, by, actions: move.actions };
     tx.update(roomRef(code), {
-      version: fromVersion + 1,
+      version: room.version + 1,
       stateJson: JSON.stringify(move.state),
       replayJson: JSON.stringify(replay),
       currentUid: seatUid(move.state, room.seats),

@@ -313,18 +313,23 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
   const caughtUp = !animating && shownV === room.version;
   const authoritative = room.state!;
   const mySeat = room.seats.findIndex((s) => s.uid === uid);
-  const myTurn = mySeat >= 0 && authoritative.current === mySeat && authoritative.phase.t !== "gameOver";
+  // Based on what the board shows, so the panel doesn't flicker to "waiting" while your
+  // own move is saving and replaying.
+  const choosing = display.phase.t === "chooseCareers";
+  const myTurn =
+    mySeat >= 0 && (choosing || (display.current === mySeat && display.phase.t !== "gameOver"));
 
   const send = useCallback(
     async (decision: Decision, by: string) => {
       const base = latest.current;
       if (!base.state) return;
-      const move = resolve(base.state, decision);
-      if (!move) return;
       setPending(true);
       setError(null);
       try {
-        await submitMove(base.code, base.version, by, move);
+        // Occupations are picked by everyone at once, so apply those to the latest state;
+        // every other move must be made on the version this phone is showing.
+        const anyTime = decision.type === "chooseCareer";
+        await submitMove(base.code, anyTime ? null : base.version, by, (state) => resolve(state, decision));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save your move.");
       } finally {
@@ -361,19 +366,17 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
 
   const viewer: Player =
     mySeat >= 0 ? display.players[mySeat] : (display.players.find((p) => !p.isBot) ?? display.players[display.current]);
-  const isHost = room.hostUid === uid;
-
   return (
     <>
       <GameView
         state={display}
         viewer={viewer}
+        isTurn={myTurn}
         canAct={myTurn && caughtUp && !pending}
         rolling={rolling}
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
-        onEndGame={isHost ? () => void send({ type: "endGame" }, uid) : undefined}
         headerExtra={<> · Room <b>{room.code}</b></>}
         waitingNote={mySeat < 0 ? "You're watching this game." : undefined}
       />

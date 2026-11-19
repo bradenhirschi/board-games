@@ -6,8 +6,13 @@ import { lowestPrice, moveMarket, priceAt } from "./stocks";
 
 const DOCTOR = CAREERS.findIndex((c) => c.name === "Doctor");
 
+/** A new game with everyone already at work as a Policeman. */
 function game(n = 2): GameState {
-  return newGame(Array.from({ length: n }, (_, i) => ({ name: `P${i + 1}`, isBot: false })));
+  const s = newGame(Array.from({ length: n }, (_, i) => ({ name: `P${i + 1}`, isBot: false })));
+  return Array.from({ length: n }, (_, i) => i).reduce(
+    (st, i) => reducer(st, { type: "chooseCareer", playerId: i, career: 0 }),
+    s,
+  );
 }
 
 function place(s: GameState, i: number, pos: Pos, cash = 1000): GameState {
@@ -55,6 +60,32 @@ describe("quotation board", () => {
     expect([20, 21, 22, 30, 31].map((l) => priceAt("CASE", l))).toEqual([35, 37, 39, 55, 56]);
     expect(lowestPrice("WPUB")).toBe(10);
     expect(lowestPrice("WOOL")).toBe(30);
+  });
+});
+
+describe("choosing occupations", () => {
+  it("everyone picks before the first roll, in any order", () => {
+    let s = newGame([
+      { name: "A", isBot: false },
+      { name: "B", isBot: false },
+      { name: "Bot", isBot: true },
+    ]);
+    expect(s.phase.t).toBe("chooseCareers");
+    expect(s.players[2].career).not.toBeNull(); // bots pick automatically
+    expect(reducer(s, { type: "roll", dice: [1, 1] })).toBe(s);
+    s = reducer(s, { type: "chooseCareer", playerId: 1, career: 3 }); // B picks first
+    expect(s.phase.t).toBe("chooseCareers");
+    s = reducer(s, { type: "chooseCareer", playerId: 0, career: 2 });
+    expect(s.phase).toEqual({ t: "preRoll" });
+    expect(s.current).toBe(0);
+  });
+  it("bots can't be given an occupation, and an all-bot game starts straight away", () => {
+    const s = newGame([
+      { name: "A", isBot: false },
+      { name: "Bot", isBot: true },
+    ]);
+    expect(reducer(s, { type: "chooseCareer", playerId: 1, career: 0 })).toBe(s);
+    expect(newGame([{ name: "X", isBot: true }, { name: "Y", isBot: true }]).phase.t).toBe("preRoll");
   });
 });
 

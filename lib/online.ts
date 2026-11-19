@@ -41,7 +41,8 @@ export function replay(state: GameState, actions: Action[]): GameState {
 }
 
 export function isBotTurn(state: GameState): boolean {
-  return state.phase.t !== "gameOver" && state.players[state.current].isBot;
+  const t = state.phase.t;
+  return t !== "gameOver" && t !== "chooseCareers" && state.players[state.current].isBot;
 }
 
 /** The bot whose turn it is decides; null when it isn't a bot's turn. */
