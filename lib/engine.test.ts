@@ -343,3 +343,21 @@ describe("bot games", () => {
     console.log("turns per 4-player game (min/median/max):", turns[0], turns[10], turns[19]);
   }, 60_000);
 });
+
+describe("sound cues", () => {
+  const landing = (from: number) => rollAndMove(place(game(), 0, { kind: "track", index: from }), [1, 1]);
+  const sounds = (s: GameState) => s.log.filter((e) => e.sound).map((e) => e.sound);
+
+  it("marks landing on START, a PAY corner or a SELL ALL square as a loss", () => {
+    expect(sounds(landing(4))).toEqual(["loss"]); // Woolworth → START (square 6)
+    expect(sounds(landing(2))).toEqual(["loss"]); // J.I. Case → PAY corner (square 0)
+    expect(sounds(landing(3))).toEqual(["loss"]); // Int. Shoe → SELL ALL General Mills (square 1)
+  });
+
+  it("marks trades as cash, but not the landing on an ordinary square", () => {
+    let s = rollAndMove(place(game(), 0, { kind: "track", index: 6 }, 5000), [1, 2]); // General Mills (square 9)
+    expect(sounds(s)).toEqual([]);
+    s = run(s, { type: "buy", qty: 1 });
+    expect(sounds(s)).toEqual(["cash"]);
+  });
+});

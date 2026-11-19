@@ -15,7 +15,7 @@ import {
   type GameState,
   type Player,
 } from "@/lib/engine";
-import { playBell, playCash, playDice, setMuted, useMuted } from "@/lib/sound";
+import { playBell, playCash, playDice, playLoss, setMuted, useMuted } from "@/lib/sound";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -192,7 +192,7 @@ export function GameView({
   const winner = ph.t === "gameOver" ? state.players[ph.winnerId] : null;
   const muted = useMuted();
 
-  // Ca-ching whenever anyone buys or sells (new log entries only, not on load).
+  // Sounds tied to new log entries (not on load): ca-ching for trades, "womp womp" for costly squares.
   const lastLogId = useRef(state.log[0]?.id ?? -1);
   const newestLogId = state.log[0]?.id ?? -1;
   useEffect(() => {
@@ -200,7 +200,9 @@ export function GameView({
     if (newestLogId === seen) return;
     lastLogId.current = newestLogId;
     if (newestLogId < seen) return; // a different or reloaded game
-    if (state.log.some((e) => e.id > seen && e.trade)) playCash();
+    const fresh = state.log.filter((e) => e.id > seen);
+    if (fresh.some((e) => e.sound === "loss")) playLoss();
+    if (fresh.some((e) => e.sound === "cash")) playCash();
   }, [newestLogId, state.log]);
 
   // Ring a bell once when a turn becomes this player's.

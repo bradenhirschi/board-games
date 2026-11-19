@@ -197,3 +197,37 @@ export function playCash() {
     osc.stop(ching + decay + 0.05);
   }
 }
+
+/** A short "womp womp": two falling, slightly sagging horn notes. */
+export function playLoss() {
+  if (muted) return;
+  const ac = audio();
+  if (!ac) return;
+  const at = ac.currentTime + 0.01;
+  const out = ac.createGain();
+  out.gain.value = 0.22;
+  const tone = ac.createBiquadFilter();
+  tone.type = "lowpass";
+  tone.frequency.value = 1400;
+  tone.connect(out).connect(ac.destination);
+
+  const notes: [start: number, from: number, to: number, length: number][] = [
+    [0, 311, 294, 0.24],
+    [0.28, 262, 220, 0.5],
+  ];
+  for (const [offset, from, to, length] of notes) {
+    const t0 = at + offset;
+    const osc = ac.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(from, t0);
+    osc.frequency.linearRampToValueAtTime(to, t0 + length);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(1, t0 + 0.03);
+    g.gain.setValueAtTime(1, t0 + length * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + length);
+    osc.connect(g).connect(tone);
+    osc.start(t0);
+    osc.stop(t0 + length + 0.02);
+  }
+}
