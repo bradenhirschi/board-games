@@ -2929,3 +2929,9 @@ button.link {
     flex: none;
   }
 }
+@media (max-width: 900px) and (min-height: 740px) {
+  /* Keep the turn card well clear of the rounded screen corners and the home-bar swipe. */
+  .game {
+    padding-bottom: max(30px, calc(env(safe-area-inset-bottom) + 16px));
+  }
+}
