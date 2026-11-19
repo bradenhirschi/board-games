@@ -2431,3 +2431,335 @@ button.link {
     z-index: 20;
   }
 }
+
+/* ---------- Phones (layout v2): ticker beside the players, dice on the board, your money below ---------- */
+.m-top,
+.m-me-bar,
+.board-dice {
+  display: none;
+}
+@media (max-width: 900px) {
+  .game > .m-top {
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 6px;
+    align-self: stretch;
+  }
+  .m-top .m-ticker {
+    display: block;
+    min-width: 0;
+    padding: 4px 8px;
+    border: var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: left;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .m-top .m-players {
+    min-width: 0;
+  }
+  /* The old dice/ticker row: dice now live on the board. */
+  .action-col > .dice {
+    display: none;
+  }
+  /* The same dice as before, just moved onto the board. */
+  .board-dice {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 12px;
+  }
+  .board-dice .die {
+    width: 40px;
+    height: 40px;
+    padding: 5px;
+    border-radius: 8px;
+  }
+  .action-col .m-me-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 10px;
+    border: var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+  }
+  .m-me-money {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .m-me-money small {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .m-me-money b {
+    font-family: var(--mono);
+  }
+  .m-holdings {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: nowrap; /* one row; swipe sideways when you own lots of stocks */
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    gap: 3px;
+    font-size: 11px;
+  }
+  .m-holdings::-webkit-scrollbar {
+    display: none;
+  }
+  .m-pill {
+    flex: none;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 900px) {
+  .m-top .m-ticker {
+    grid-column: auto;
+  }
+  .m-top .m-ticker > span:first-child {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+@media (max-width: 900px) {
+  /* Clamp the ticker text itself (the padding was letting a third line peek through). */
+  .m-top .m-ticker {
+    display: flex;
+    align-items: center;
+  }
+  .m-top .m-ticker > span:first-child {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* ---------- Game menu: an info block (goal, round) above the options ---------- */
+.menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--muted);
+}
+.menu-info b {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.menu-info + .menu-item {
+  border-top: 0;
+}
+
+/* ---------- Phones (layout v3): no title bar; ticker + menu on top, then all players ---------- */
+@media (max-width: 900px) {
+  .game > .topbar {
+    display: none;
+  }
+  .game > .m-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ticker menu"
+      "players players";
+    align-items: stretch;
+  }
+  .m-top .m-ticker {
+    grid-area: ticker;
+    min-height: 36px;
+  }
+  .m-top .game-menu {
+    grid-area: menu;
+    margin-left: 0;
+  }
+  .m-top .menu-button {
+    height: 100%;
+    min-height: 36px;
+  }
+  .m-top .m-players {
+    grid-area: players;
+    align-items: stretch;
+  }
+  /* You: cash, worth and every stock you own. */
+  .m-chip.m-me {
+    flex: 0 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 60%;
+    max-width: 100%;
+    padding: 6px 8px;
+    border-radius: 12px;
+  }
+  .m-me-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .m-me .m-me-money {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .m-me .m-holdings {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  /* Everyone else: just token, name and net worth. */
+  .m-top .m-chip:not(.m-me) {
+    flex: none;
+    border-radius: 12px;
+  }
+}
+@media (max-width: 900px) {
+  /* The turn panel fills whatever is left under the board. */
+  .game > .action-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .game > .action-col > .turn {
+    flex: 1 1 0;
+  }
+  /* No title bar any more, so the board can be a little bigger. */
+  .game > .board-zoom {
+    width: min(100%, calc(100dvh - 310px));
+  }
+}
+
+/* ---------- Phones (layout v4): one tidy header, every box the same height ---------- */
+.m-me-strip {
+  display: none;
+}
+@media (max-width: 900px) {
+  .game > .m-top {
+    --m-h: 42px;
+    grid-template-columns: var(--m-h) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "menu players ticker"
+      "me me me";
+    gap: 6px;
+  }
+  .m-top .game-menu {
+    grid-area: menu;
+  }
+  .m-top .menu-button {
+    width: var(--m-h);
+    height: var(--m-h);
+    min-height: 0;
+    border-radius: 10px;
+  }
+  .m-top .menu-panel {
+    left: 0;
+    right: auto;
+  }
+  .m-top .m-players {
+    grid-area: players;
+    gap: 4px;
+  }
+  .m-top .m-chip:not(.m-me) {
+    flex: 1 0 auto;
+    height: var(--m-h);
+    padding: 0 8px 0 5px;
+    gap: 5px;
+    border-radius: 10px;
+  }
+  .m-top .m-chip .token-static {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+  .m-top .m-chip-text b {
+    font-size: 11px;
+  }
+  .m-top .m-chip-text span {
+    font-size: 10px;
+  }
+  .m-top .m-ticker {
+    grid-area: ticker;
+    height: var(--m-h);
+    min-height: 0;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .m-me-strip {
+    grid-area: me;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--m-h);
+    min-width: 0;
+    padding: 0 8px 0 6px;
+    border: var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+  }
+  .m-me-strip .token-static {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+  .m-stat {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .m-stat small {
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .m-stat b {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .m-me-strip .m-holdings {
+    flex: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-left: 10px;
+    border-left: 1px solid var(--rule);
+    align-items: center;
+  }
+  .m-me-strip.m-chip-current {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+}
+@media (max-width: 900px) {
+  /* The shorter header leaves room for a bigger board. */
+  .game > .board-zoom {
+    width: min(100%, calc(100dvh - 292px));
+  }
+}

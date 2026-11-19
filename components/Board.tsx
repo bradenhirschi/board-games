@@ -18,6 +18,7 @@ import {
 import type { Player, Pos } from "@/lib/engine";
 import { STOCKS, lowestPrice } from "@/lib/stocks";
 import PriceTracker from "./PriceTracker";
+import { Die } from "./Dice";
 
 interface BoardProps {
   players: Player[];
@@ -28,6 +29,9 @@ interface BoardProps {
   diceTotal: number | null;
   /** When set, START squares are clickable (choosing where to start). */
   onPickStart?: (index: number) => void;
+  /** Phones show the dice on the board, under the price tracker. */
+  dice?: [number, number] | null;
+  rolling?: boolean;
 }
 
 const at = (row: number, col: number, rowSpan = 1, colSpan = 1): CSSProperties => ({
@@ -53,21 +57,48 @@ const INNER = `${LANE_DEPTH}fr ${LANE_DEPTH}fr ${SPACER}fr repeat(7, 1fr) ${SPAC
  * four meeting lanes, which span squares 2–9 and are 2 × LANE_DEPTH deep.
  */
 const L = 2 * LANE_DEPTH;
-const FIELD_LINE = [
-  [0, 0], [2, 0], [2, L], [9, L], [9, 0], [11, 0],
-  [11, 2], [11 - L, 2], [11 - L, 9], [11, 9], [11, 11],
-  [9, 11], [9, 11 - L], [2, 11 - L], [2, 11], [0, 11],
-  [0, 9], [L, 9], [L, 2], [0, 2],
-]
-  .map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`)
-  .join(" ") + " Z";
+const FIELD_LINE =
+  [
+    [0, 0],
+    [2, 0],
+    [2, L],
+    [9, L],
+    [9, 0],
+    [11, 0],
+    [11, 2],
+    [11 - L, 2],
+    [11 - L, 9],
+    [11, 9],
+    [11, 11],
+    [9, 11],
+    [9, 11 - L],
+    [2, 11 - L],
+    [2, 11],
+    [0, 11],
+    [0, 9],
+    [L, 9],
+    [L, 2],
+    [0, 2],
+  ]
+    .map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`)
+    .join(" ") + " Z";
 
 /** Key for any cell a token can sit on. */
 function posKey(pos: Pos): string {
   return pos.kind === "track" ? `t${pos.index}` : `l${pos.lane}:${laneCell(pos.from, pos.p)}`;
 }
 
-export default function Board({ players, currentId, market, marketDelta, lastLanding, diceTotal, onPickStart }: BoardProps) {
+export default function Board({
+  players,
+  currentId,
+  market,
+  marketDelta,
+  lastLanding,
+  diceTotal,
+  onPickStart,
+  dice,
+  rolling,
+}: BoardProps) {
   const byCell = new Map<string, Player[]>();
   for (const p of players) {
     const key = p.status === "market" && p.pos ? posKey(p.pos) : p.career !== null ? `c${p.career}` : null;
@@ -96,7 +127,10 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
 
       {/* Everything inside the track lives on its own grid, so the meeting lanes can be
           shallow (like the printed board) while still lining up with the track squares. */}
-      <div className="board-inner" style={{ ...at(1, 1, GRID - 2, GRID - 2), gridTemplateColumns: INNER, gridTemplateRows: INNER }}>
+      <div
+        className="board-inner"
+        style={{ ...at(1, 1, GRID - 2, GRID - 2), gridTemplateColumns: INNER, gridTemplateRows: INNER }}
+      >
         {LANES.map((lane, l) => (
           <MeetingLane key={lane.side} lane={lane} laneIndex={l} landed={landed} tokens={tokens} />
         ))}
@@ -117,13 +151,17 @@ export default function Board({ players, currentId, market, marketDelta, lastLan
         ))}
 
         <div className="board-center" style={at(3, 2, 7, 9)}>
-          <div className="logo">
-            STOCK MARKET
-          </div>
+          <div className="logo">STOCK MARKET</div>
           <PriceTracker market={market} delta={marketDelta} />
           <div className="logo logo-flipped" aria-hidden>
             STOCK MARKET
           </div>
+          {dice && (
+            <div className="board-dice">
+              <Die value={dice[0]} rolling={rolling} />
+              <Die value={dice[1]} rolling={rolling} />
+            </div>
+          )}
         </div>
       </div>
     </div>

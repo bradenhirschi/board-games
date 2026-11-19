@@ -41,8 +41,11 @@ export type Phase =
   /** Game start: every human picks an occupation (any order) before the first roll. */
   | { t: "chooseCareers" }
   | { t: "preRoll" }
-  /** `noDetour`: the player has just left a meeting and can't enter another until a later turn. */
-  | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null; noDetour: boolean }
+  /**
+   * `leftLane`: the meeting the player just walked out of this move. They can't turn straight
+   * back into it from its other entrance, but may enter a different meeting further on.
+   */
+  | { t: "moving"; remaining: number; dir: Dir; skipDetourAt: number | null; leftLane: number | null }
   /** Passing (or leaving) an entrance for a stock the player owns. */
   | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
   /**
@@ -248,7 +251,7 @@ function apply(s: GameState, a: Action): boolean {
       }
       const pos = p.pos!;
       const dir: Dir = pos.kind === "track" ? directionFor(pos.index, total) : "cw";
-      s.phase = { t: "moving", remaining: total, dir, skipDetourAt: null, noDetour: false };
+      s.phase = { t: "moving", remaining: total, dir, skipDetourAt: null, leftLane: null };
       return true;
     }
 
@@ -257,7 +260,8 @@ function apply(s: GameState, a: Action): boolean {
       const pos = p.pos!;
       if (pos.kind === "track") {
         const stock = entranceStock(pos.index);
-        if (stock && p.shares[stock] > 0 && !ph.noDetour && ph.skipDetourAt !== pos.index) {
+        const lane = laneAtEntrance(pos.index)?.lane ?? null;
+        if (stock && p.shares[stock] > 0 && lane !== (ph.leftLane ?? null) && ph.skipDetourAt !== pos.index) {
           s.phase = { t: "detour", remaining: ph.remaining, dir: ph.dir, stock, at: pos.index };
           return true;
         }
@@ -266,9 +270,9 @@ function apply(s: GameState, a: Action): boolean {
         p.pos = { ...pos, p: pos.p + 1 };
       } else {
         // Leave the meeting by the far entrance and keep going the same way.
-        // No re-entering any meeting until the player has landed.
+        // No turning straight back into this meeting; another one further on is fine.
         ph.dir = exitDirection(pos.lane, pos.from);
-        ph.noDetour = true;
+        ph.leftLane = pos.lane;
         p.pos = { kind: "track", index: LANES[pos.lane].entries[1 - pos.from] };
       }
       ph.skipDetourAt = null;
@@ -280,13 +284,13 @@ function apply(s: GameState, a: Action): boolean {
     case "detour": {
       if (ph.t !== "detour") return false;
       if (!a.enter) {
-        s.phase = { t: "moving", remaining: ph.remaining, dir: ph.dir, skipDetourAt: ph.at, noDetour: false };
+        s.phase = { t: "moving", remaining: ph.remaining, dir: ph.dir, skipDetourAt: ph.at, leftLane: null };
         return true;
       }
       const entry = laneAtEntrance(ph.at)!;
       p.pos = { kind: "lane", lane: entry.lane, from: entry.from, p: 0 };
       log(s, p.id, `detours into the ${STOCKS[ph.stock].name} shareholders' meeting`);
-      s.phase = { t: "moving", remaining: ph.remaining - 1, dir: ph.dir, skipDetourAt: null, noDetour: false };
+      s.phase = { t: "moving", remaining: ph.remaining - 1, dir: ph.dir, skipDetourAt: null, leftLane: null };
       if (ph.remaining - 1 === 0) land(s);
       return true;
     }

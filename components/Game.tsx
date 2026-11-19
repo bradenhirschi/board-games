@@ -16,7 +16,7 @@ import {
   type Player,
 } from "@/lib/engine";
 import { playBell, playCash, playDice, playLoss, setSoundOn, useSoundOn } from "@/lib/sound";
-import { STOCKS, STOCK_ORDER, lowestPrice, priceAt } from "@/lib/stocks";
+import { STOCKS, STOCK_ORDER, lowestPrice, priceAt, type StockId } from "@/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
 import { Die } from "./Dice";
@@ -233,26 +233,67 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <GameMenu onQuit={onQuit} />
+        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
-      <div className="m-players" role="list">
-        {[viewer, ...state.players.filter((p) => p.id !== viewer.id)].map((p) => (
-          <button
-            key={p.id}
-            role="listitem"
-            className={`m-chip ${p.id === current.id && !winner ? "m-chip-current" : ""}`}
-            onClick={() => setSheet(p.id)}
-          >
-            <span className="token token-static" style={{ background: p.color }}>
-              {p.name.slice(0, 1).toUpperCase()}
-            </span>
-            <span className="m-chip-text">
-              <b>{p.id === viewer.id ? "You" : p.name}</b>
-              <span>${fmt(netWorth(p, state.market))}</span>
-            </span>
-          </button>
-        ))}
+      {/* Phones: the latest ticker line (tap for the whole log) beside the other players. */}
+      {/* Phones: ☰, the other players and the ticker on top; your money and stocks below. */}
+      <div className="m-top">
+        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
+        <div className="m-players" role="list">
+          {state.players
+            .filter((p) => p.id !== viewer.id)
+            .map((p) => (
+              <button
+                key={p.id}
+                role="listitem"
+                className={`m-chip ${p.id === current.id && !winner ? "m-chip-current" : ""}`}
+                onClick={() => setSheet(p.id)}
+              >
+                <span className="token token-static" style={{ background: p.color }}>
+                  {p.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="m-chip-text">
+                  <b>{p.name}</b>
+                  <span>${fmt(netWorth(p, state.market))}</span>
+                </span>
+              </button>
+            ))}
+        </div>
+        <button className="m-ticker" onClick={() => setSheet("log")} aria-label="Open the ticker">
+          {state.log[0] ? (
+            <LogText state={state} entry={state.log[0]} />
+          ) : (
+            <span className="muted">Nothing has happened yet.</span>
+          )}
+        </button>
+        <button
+          className={`m-me-strip ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
+          onClick={() => setSheet(viewer.id)}
+          aria-label="Your money and stocks"
+        >
+          <span className="token token-static" style={{ background: viewer.color }}>
+            {viewer.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="m-stat">
+            <small>Cash</small>
+            <b>${fmt(viewer.cash)}</b>
+          </span>
+          <span className="m-stat">
+            <small>Worth</small>
+            <b>${fmt(netWorth(viewer, state.market))}</b>
+          </span>
+          <span className="m-holdings">
+            {STOCK_ORDER.filter((id) => viewer.shares[id] > 0)
+              .sort((a, b) => viewer.shares[b] - viewer.shares[a]) // most shares first
+              .map((id) => (
+                <span key={id} className="m-pill" style={{ background: STOCKS[id].color, color: STOCKS[id].ink }}>
+                  {STOCK_TAGS[id]} {fmt(viewer.shares[id])}
+                </span>
+              ))}
+            {STOCK_ORDER.every((id) => viewer.shares[id] === 0) && <span className="muted">No stock yet</span>}
+          </span>
+        </button>
       </div>
 
       <ZoomableBoard>
@@ -263,6 +304,8 @@ export function GameView({
           marketDelta={state.lastMarketDelta}
           lastLanding={ph.t === "moving" ? null : state.lastLanding}
           diceTotal={diceTotal}
+          dice={dice}
+          rolling={!!rolling}
           onPickStart={
             pickingStart && canAct
               ? (start) => {
@@ -283,18 +326,6 @@ export function GameView({
             <Die value={dice[1]} rolling={!!rolling} />
           </div>
         )}
-
-        {/* Phones: the latest ticker line; tap for the whole log. */}
-        <button className="m-ticker" onClick={() => setSheet("log")} aria-label="Open the ticker">
-          {state.log[0] ? (
-            <LogText state={state} entry={state.log[0]} />
-          ) : (
-            <span className="muted">Nothing has happened yet.</span>
-          )}
-          <span className="m-ticker-more" aria-hidden>
-            ›
-          </span>
-        </button>
 
         {winner ? (
           <section className="turn turn-over">
@@ -401,6 +432,18 @@ export function GameView({
   );
 }
 
+/** Short tags for the holdings pills on phones. */
+const STOCK_TAGS: Record<StockId, string> = {
+  ALCOA: "ALC",
+  WOOL: "WOOL",
+  AMMO: "AMC",
+  WPUB: "WPB",
+  CASE: "JIC",
+  MAYTAG: "MAY",
+  GMILLS: "GM",
+  ISHOE: "ISH",
+};
+
 /** $100,000 → "$100k", $1,500,000 → "$1.5M". */
 function shortMoney(n: number): string {
   if (n >= 1_000_000) return `$${+(n / 1_000_000).toFixed(1)}M`;
@@ -409,7 +452,18 @@ function shortMoney(n: number): string {
 }
 
 /** The ☰ button in the top bar: a small panel to turn sound on/off or quit the game. */
-function GameMenu({ onQuit }: { onQuit: () => void }) {
+function GameMenu({
+  onQuit,
+  target,
+  round,
+  extra,
+}: {
+  onQuit: () => void;
+  target: number;
+  round: number;
+  /** Extra game info (e.g. the online room code). */
+  extra?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const soundOn = useSoundOn();
 
@@ -437,6 +491,15 @@ function GameMenu({ onQuit }: { onQuit: () => void }) {
         <>
           <div className="menu-backdrop" onClick={() => setOpen(false)} />
           <div className="menu-panel" role="menu">
+            <div className="menu-info">
+              <span>
+                First to <b>${fmt(target)}</b>
+              </span>
+              <span>
+                Round <b>{round}</b>
+              </span>
+              {extra}
+            </div>
             <button
               role="menuitemcheckbox"
               aria-checked={soundOn}
