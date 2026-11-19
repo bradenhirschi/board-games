@@ -297,6 +297,25 @@ describe("shareholders' meetings", () => {
     expect(s.phase.t).toBe("detour");
   });
 
+  it("can go round the corner into a different meeting on the same roll", () => {
+    let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
+    s.players[0].shares.ISHOE = 1;
+    s.players[0].shares.GMILLS = 1; // the bottom meeting's far entrance: no turning straight back in
+    s.players[0].shares.WPUB = 1; // the left meeting's entrance, round the corner
+    s = reducer(s, { type: "roll", dice: [4, 5] }); // p8, out at 9, then 10 … 15
+    const offers: string[] = [];
+    while (s.phase.t === "moving") {
+      s = reducer(s, { type: "step" });
+      if (s.phase.t === "detour") {
+        offers.push(s.phase.stock);
+        break;
+      }
+    }
+    expect(offers).toEqual(["WPUB"]);
+    s = reducer(s, { type: "detour", enter: true });
+    expect(s.players[0].pos).toMatchObject({ kind: "lane", lane: 1 });
+  });
+
   it("exits by the far entrance and keeps going", () => {
     let s = place(game(), 0, { kind: "lane", lane: 0, from: 1, p: 7 });
     s.players[0].shares.ISHOE = 1;
