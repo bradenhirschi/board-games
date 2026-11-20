@@ -1,7 +1,15 @@
 "use client";
 
 import { doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
-import { DEFAULT_TARGET, MAX_PLAYERS, MIN_PLAYERS, newGame, type Action, type GameState } from "./engine";
+import {
+  DEFAULT_TARGET,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  newGame,
+  type Action,
+  type BotLevel,
+  type GameState,
+} from "./engine";
 import { firebase } from "./firebase";
 import type { Resolved } from "./online";
 
@@ -31,6 +39,8 @@ export interface Room {
   hostUid: string;
   status: "lobby" | "playing";
   target: number;
+  /** How well the room's bots play (chosen by the host in the lobby). */
+  botLevel: BotLevel;
   seats: Seat[];
   memberUids: string[];
   version: number;
@@ -44,7 +54,10 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I
 const CODE_LENGTH = 5;
 
 export function normalizeCode(input: string): string {
-  return input.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+  return input
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, CODE_LENGTH);
 }
 
 function randomCode(): string {
@@ -62,6 +75,7 @@ function parseRoom(data: DocumentData): Room {
     hostUid: data.hostUid,
     status: data.status,
     target: data.target,
+    botLevel: data.botLevel === "easy" ? "easy" : "normal",
     seats: data.seats,
     memberUids: data.memberUids,
     version: data.version,
@@ -125,7 +139,10 @@ export async function joinRoom(code: string, uid: string, name: string): Promise
 }
 
 /** Change the lobby's seats or target (host), or leave it (anyone). */
-export async function editLobby(code: string, edit: (room: Room) => { seats?: Seat[]; target?: number }): Promise<void> {
+export async function editLobby(
+  code: string,
+  edit: (room: Room) => { seats?: Seat[]; target?: number; botLevel?: BotLevel },
+): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) throw new RoomError("That room no longer exists.");
@@ -137,6 +154,9 @@ export async function editLobby(code: string, edit: (room: Room) => { seats?: Se
       seats,
       memberUids: seats.flatMap((s) => (s.uid ? [s.uid] : [])),
       target: next.target ?? room.target,
+      // Only written when the host picks a level, so other players' edits (joining,
+      // leaving) never touch a field the rules reserve for the host.
+      ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
   });
@@ -152,6 +172,7 @@ export async function startGame(code: string): Promise<void> {
     const state = newGame(
       room.seats.map((s) => ({ name: s.name, isBot: s.isBot })),
       room.target,
+      room.botLevel,
     );
     tx.update(roomRef(code), {
       status: "playing",

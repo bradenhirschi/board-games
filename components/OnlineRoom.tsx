@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEFAULT_TARGET, MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, fmt, reducer, type Action, type GameState, type Player } from "@/lib/engine";
+import {
+  DEFAULT_TARGET,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  PLAYER_COLORS,
+  fmt,
+  reducer,
+  type Action,
+  type GameState,
+  type Player,
+  BOT_LEVELS,
+  BOT_LEVEL_NAMES,
+  type BotLevel,
+} from "@/lib/engine";
 import { ensureUser } from "@/lib/firebase";
 import { botDecision, isBotTurn, resolve, type Decision } from "@/lib/online";
 import { RoomError, editLobby, joinRoom, startGame, submitMove, watchRoom, type Replay, type Room } from "@/lib/rooms";
@@ -81,18 +94,25 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
     }
   };
 
-  const share = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Stock Market", text: `Join my Stock Market game (room ${room.code})`, url: link });
-        return;
-      } catch {
-        /* cancelled: fall back to copying */
-      }
-    }
+  const copy = async () => {
     await navigator.clipboard?.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  /** The phone's share sheet (Messages, WhatsApp, …); copies the link where there isn't one. */
+  const share = async () => {
+    if (!canShare) return copy();
+    try {
+      await navigator.share({
+        title: "Stock Market",
+        text: `Join my Stock Market game (room ${room.code})`,
+        url: link,
+      });
+    } catch (e) {
+      // Closing the share sheet isn't an error worth acting on; anything else, copy instead.
+      if (!(e instanceof DOMException && e.name === "AbortError")) await copy();
+    }
   };
 
   const bots = room.seats.filter((s) => s.isBot).length;
@@ -106,8 +126,13 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
           <b>{room.code}</b>
         </div>
         <div className="btn-row">
-          <button className="btn" onClick={share}>
-            {copied ? "Link copied!" : "Share invite link"}
+          {canShare && (
+            <button className="btn btn-primary" onClick={share}>
+              Share invite
+            </button>
+          )}
+          <button className="btn" onClick={copy}>
+            {copied ? "Link copied!" : "Copy link"}
           </button>
         </div>
 
@@ -146,7 +171,12 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
               run(() => joinRoom(room.code, uid, joinName.trim() || "Player"));
             }}
           >
-            <input value={joinName} maxLength={16} onChange={(e) => setJoinName(e.target.value)} aria-label="Your name" />
+            <input
+              value={joinName}
+              maxLength={16}
+              onChange={(e) => setJoinName(e.target.value)}
+              aria-label="Your name"
+            />
             <button className="btn btn-primary" disabled={busy || room.seats.length >= MAX_PLAYERS}>
               {room.seats.length >= MAX_PLAYERS ? "Room is full" : "Join game"}
             </button>
@@ -185,6 +215,22 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
                 ))}
               </select>
             </label>
+            {bots > 0 && (
+              <label className="setup-target">
+                <span>Bots</span>
+                <select
+                  value={room.botLevel}
+                  disabled={busy}
+                  onChange={(e) => run(() => editLobby(room.code, () => ({ botLevel: e.target.value as BotLevel })))}
+                >
+                  {BOT_LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {BOT_LEVEL_NAMES[l]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               className="btn btn-primary btn-big"
               disabled={busy || room.seats.length < MIN_PLAYERS}
@@ -324,7 +370,9 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
   useEffect(() => {
     const s = savedAt.current;
     if (s && room.version >= s.version) {
-      console.info(`[stock-market] live update for move ${s.version} arrived ${Math.round(performance.now() - s.at)}ms after it saved`);
+      console.info(
+        `[stock-market] live update for move ${s.version} arrived ${Math.round(performance.now() - s.at)}ms after it saved`,
+      );
       savedAt.current = null;
     }
     adopt(room);
@@ -346,8 +394,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
   // Based on what the board shows, so the panel doesn't flicker to "waiting" while your
   // own move is saving and replaying.
   const choosing = display.phase.t === "chooseCareers";
-  const myTurn =
-    mySeat >= 0 && (choosing || (display.current === mySeat && display.phase.t !== "gameOver"));
+  const myTurn = mySeat >= 0 && (choosing || (display.current === mySeat && display.phase.t !== "gameOver"));
 
   const send = useCallback(
     async (decision: Decision, by: string) => {
@@ -415,7 +462,12 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
-        headerExtra={<> · Room <b>{room.code}</b></>}
+        headerExtra={
+          <>
+            {" "}
+            · Room <b>{room.code}</b>
+          </>
+        }
         waitingNote={mySeat < 0 ? "You're watching this game." : undefined}
         statusNote={slowSave ? "Saving…" : undefined}
       />
