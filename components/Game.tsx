@@ -111,24 +111,26 @@ export default function LocalGame({ initial, onQuit }: { initial: GameState; onQ
 }
 
 /**
- * Tumble the dice for ROLL_MS, then call `done` (which applies the real roll).
- * Returns the interval so the caller can cancel it on unmount.
+ * Tumble the dice for at least ROLL_MS (and until `ready()` says the real roll is known),
+ * then call `done`, which shows the real roll. The tumble stops in the same update, so the
+ * dice never settle on stale faces first. Returns the interval so the caller can cancel it.
  */
 export function animateRoll(
   setRolling: (d: [number, number] | null) => void,
   done: () => void,
+  ready: () => boolean = () => true,
 ): ReturnType<typeof setInterval> {
   const started = Date.now();
   playDice();
   setRolling([rollDie(), rollDie()]);
   const timer = setInterval(() => {
-    if (Date.now() - started < ROLL_MS) {
+    if (Date.now() - started < ROLL_MS || !ready()) {
       setRolling([rollDie(), rollDie()]);
       return;
     }
     clearInterval(timer);
-    setRolling(null);
     done();
+    setRolling(null);
   }, 70);
   return timer;
 }

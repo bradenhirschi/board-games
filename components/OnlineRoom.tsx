@@ -314,14 +314,20 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
       for (const action of rep.actions) {
         if (!alive.current) return;
         if (action.type === "roll" && rep.by !== uid) {
-          // Someone else rolled: tumble the dice here too before showing the result.
-          setRolling([1, 1]);
+          // Someone else rolled: tumble the dice here too, then show the result in the same
+          // update that stops the tumble.
+          const rolled = reducer(s, action);
           await new Promise<void>((done) => {
-            rollTimer.current = animateRoll(setRolling, done);
+            rollTimer.current = animateRoll(setRolling, () => {
+              setDisplay(rolled);
+              done();
+            });
           });
+          s = rolled;
+        } else {
+          s = reducer(s, action);
+          setDisplay(s);
         }
-        s = reducer(s, action);
-        setDisplay(s);
         await sleep(action.type === "step" ? STEP_MS : DECISION_MS);
       }
     },
@@ -428,8 +434,16 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
 
   const roll = useCallback(() => {
     if (rolling || pending) return;
-    setPending(true);
-    rollTimer.current = animateRoll(setRolling, () => void send({ type: "rollDice" }, uid));
+    // Save the roll straight away and keep the dice tumbling until it's saved: the dice are
+    // thrown in the save, so stopping earlier would settle on the last roll's faces and then
+    // jump to the real ones.
+    let saved = false;
+    void send({ type: "rollDice" }, uid).finally(() => (saved = true));
+    rollTimer.current = animateRoll(
+      setRolling,
+      () => {},
+      () => saved,
+    );
   }, [rolling, pending, send, uid]);
 
   // Bot turns: any seated player's phone may play them. If two phones try at once,
