@@ -154,7 +154,9 @@ export async function editLobby(
       seats,
       memberUids: seats.flatMap((s) => (s.uid ? [s.uid] : [])),
       target: next.target ?? room.target,
-      botLevel: next.botLevel ?? room.botLevel,
+      // Only written when the host picks a level, so other players' edits (joining,
+      // leaving) never touch a field the rules reserve for the host.
+      ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
   });

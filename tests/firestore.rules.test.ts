@@ -98,6 +98,15 @@ describe("the lobby", () => {
     await assertFails(room("amy").update({ target: 5 }));
     await assertFails(room("amy").update({ status: "playing", version: 1 }));
   });
+  it("lets only the host choose the bot level", async () => {
+    await seed(lobby({ memberUids: ["host", "amy"] }));
+    await assertFails(room("amy").update({ botLevel: "easy" }));
+    await assertSucceeds(room("host").update({ botLevel: "easy" }));
+  });
+  it("lets a player leave a room that has no bot level saved", async () => {
+    await seed(lobby({ memberUids: ["host", "amy"] }));
+    await assertSucceeds(room("amy").update({ memberUids: ["host"] }));
+  });
   it("lets the host start the game", async () => {
     await assertSucceeds(room("host").update({ status: "playing", version: 1, stateJson: "{}" }));
   });
@@ -124,6 +133,9 @@ describe("during a game", () => {
   });
   it("gives the host no special right to write on someone else's turn", async () => {
     await assertFails(room("host").update({ version: 6 }));
+  });
+  it("never lets the bot level change mid-game", async () => {
+    await assertFails(room("amy").update({ version: 6, botLevel: "easy" }));
   });
   it("never lets seats or membership change", async () => {
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));
