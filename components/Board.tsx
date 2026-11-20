@@ -144,7 +144,12 @@ export default function Board({
           <CareerCorner
             key={career.name}
             career={career}
-            active={diceTotal !== null && career.rolls.includes(diceTotal)}
+            // Only light up an occupation the throw paid: someone still at work in it.
+            active={
+              diceTotal !== null &&
+              career.rolls.includes(diceTotal) &&
+              players.some((p) => p.status === "work" && p.career === i)
+            }
           >
             {tokens(`c${i}`)}
           </CareerCorner>

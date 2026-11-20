@@ -5,6 +5,7 @@ import { botMove } from "@/lib/bot";
 import { CAREERS, START_SQUARES, TRACK, arrowFor, sideOf } from "@/lib/board";
 import {
   canRoll,
+  feeName,
   fmt,
   mustGoToMarket,
   netWorth,
@@ -819,8 +820,8 @@ function TurnControls({
     return (
       <div className="controls">
         <p className="hint bad">
-          You owe <b>${fmt(ph.owed)}</b> for the {ph.reason} but have ${fmt(player.cash)}. Sell stock at the lowest
-          board price, or go broke.
+          {feeName(ph.reason).replace(/^./, (c) => c.toUpperCase())}: ${fmt(ph.owed)}. You have ${fmt(player.cash)}, so
+          you need <b>${fmt(ph.owed - player.cash)} more</b>. Sell at the lowest price or go broke.
         </p>
         <div className="sell-box">
           {held.map((id) => (
@@ -830,9 +831,8 @@ function TurnControls({
               owned={player.shares[id]}
               price={lowestPrice(id)}
               disabled={disabled}
-              onSell={async (qty) => {
-                if (await confirmLowSale(confirm, state, id, qty)) dispatch({ type: "forcedSell", stock: id, qty });
-              }}
+              // Selling to cover a fee is the only way out, so no "are you sure?" here.
+              onSell={(qty) => dispatch({ type: "forcedSell", stock: id, qty })}
             />
           ))}
         </div>
@@ -872,17 +872,58 @@ function AfterRollBox({
 }) {
   const ph = state.phase;
   const [qty, setQty] = useState(0);
+  /** Sales the player set a quantity for but hasn't made yet (asked about before ending the turn). */
+  const [pendingSales, setPendingSales] = useState<Partial<Record<StockId, number>>>({});
   const [confirmDialog, confirm] = useConfirm();
   if (ph.t !== "afterRoll") return null;
   const offer = ph.buy;
+  const fee = ph.fee;
   const player = state.players[state.current];
   const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
+  const setPending = (id: StockId, n: number | null) =>
+    setPendingSales((prev) => {
+      const next = { ...prev };
+      if (n === null) delete next[id];
+      else next[id] = n;
+      return next;
+    });
+
+  const endTurn = async () => {
+    const unsold = STOCK_ORDER.filter((id) => pendingSales[id] && player.shares[id] > 0).map(
+      (id) => `${fmt(Math.min(pendingSales[id]!, player.shares[id]))} ${STOCKS[id].name}`,
+    );
+    const unbought = offer && !offer.limited && Math.min(qty, offer.max) > 0 ? Math.min(qty, offer.max) : 0;
+    const pending = [
+      ...(unsold.length ? [`sell ${unsold.join(" and ")}`] : []),
+      ...(unbought ? [`buy ${fmt(unbought)} ${STOCKS[offer!.stock].name}`] : []),
+    ];
+    if (
+      pending.length &&
+      !(await confirm(`You were about to ${pending.join(" and ")} but didn't. End your turn anyway?`, "End turn"))
+    )
+      return;
+    dispatch({ type: "endTurn" });
+  };
 
   return (
     <div className="controls">
       {/* Phones skip this line when there's an offer: the buy line already names the square. */}
       <p className={`hint ${offer ? "m-hide" : ""}`}>
-        Landed on <b>{posName(player.pos)}</b>.{offer ? "" : " Nothing to buy here."}{" "}
+        Landed on <b>{posName(player.pos)}</b>.
+        {fee ? (
+          fee.amount > 0 ? (
+            <>
+              {" "}
+              You paid <b>${fmt(fee.amount)}</b> for the {feeName(fee.reason)}.
+            </>
+          ) : (
+            " You have no stock, so there's no broker fee."
+          )
+        ) : offer ? (
+          ""
+        ) : (
+          " Nothing to buy here."
+        )}{" "}
         <span className="m-hide">You can still sell (at the lowest board price) before you end your turn.</span>
       </p>
 
@@ -913,9 +954,11 @@ function AfterRollBox({
                   owned={player.shares[id]}
                   price={lowestPrice(id)}
                   disabled={disabled}
+                  onChange={(q) => setPending(id, q)}
                   onSell={async (q) => {
-                    if (await confirmLowSale(confirm, state, id, q))
-                      dispatch({ type: "forcedSell", stock: id, qty: q });
+                    if (!(await confirmLowSale(confirm, state, id, q))) return;
+                    setPending(id, null);
+                    dispatch({ type: "forcedSell", stock: id, qty: q });
                   }}
                 />
               ))}
@@ -923,7 +966,7 @@ function AfterRollBox({
           </Fold>
         )}
 
-        <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
+        <button className="btn btn-primary btn-big" disabled={disabled} onClick={endTurn}>
           End turn
         </button>
       </div>
@@ -1001,12 +1044,15 @@ function SellRow({
   price,
   disabled,
   onSell,
+  onChange,
 }: {
   stock: keyof typeof STOCKS;
   owned: number;
   price: number;
   disabled: boolean;
   onSell: (qty: number) => void;
+  /** The player typed a quantity: the sale it would make (null once cleared). */
+  onChange?: (qty: number | null) => void;
 }) {
   const [qty, setQty] = useState(owned);
   const n = Math.max(1, Math.min(owned, qty || 1));
@@ -1025,7 +1071,11 @@ function SellRow({
         max={owned}
         value={Math.min(qty, owned)}
         disabled={disabled}
-        onChange={(e) => setQty(Number(e.target.value))}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setQty(v);
+          onChange?.(v > 0 ? Math.min(v, owned) : null);
+        }}
         aria-label={`Shares of ${s.name} to sell`}
       />
       <button className="btn btn-small" disabled={disabled} onClick={() => onSell(n)}>
@@ -1062,10 +1112,7 @@ function Fold({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Lowest-price sales losing at least this much against the board price ask first. */
-const CONFIRM_LOSS = 200;
-
-/** Ask before a sale at the lowest board price that throws away a lot of value. */
+/** Ask before any optional sale at the lowest board price (selling to cover a fee doesn't ask). */
 async function confirmLowSale(
   confirm: (text: string, yes: string) => Promise<boolean>,
   state: GameState,
@@ -1074,9 +1121,10 @@ async function confirmLowSale(
 ): Promise<boolean> {
   const low = lowestPrice(stock) * qty;
   const board = priceAt(stock, state.market) * qty;
-  if (board - low < CONFIRM_LOSS) return true;
+  const loss =
+    board > low ? ` At the board price they're worth $${fmt(board)}, so you'd lose $${fmt(board - low)}.` : "";
   return confirm(
-    `Sell ${fmt(qty)} ${STOCKS[stock].name} for $${fmt(low)}? At the board price they're worth $${fmt(board)}, so you'd lose $${fmt(board - low)}.`,
+    `Sell ${fmt(qty)} ${STOCKS[stock].name} at the lowest price for $${fmt(low)}?${loss}`,
     `Sell for $${fmt(low)}`,
   );
 }
