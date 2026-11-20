@@ -193,7 +193,7 @@ describe("ending the turn", () => {
   it("waits for the player to end their turn after landing", () => {
     let s = place(game(), 0, { kind: "track", index: 11 }); // → broker fee corner
     s = rollAndMove(s, [1, 0] as unknown as [number, number]);
-    expect(s.phase).toEqual({ t: "afterRoll", buy: null });
+    expect(s.phase).toEqual({ t: "afterRoll", buy: null, fee: { amount: 0, reason: "broker fee" } });
     expect(s.current).toBe(0);
     s = reducer(s, { type: "endTurn" });
     expect(s.current).toBe(1);
@@ -266,7 +266,7 @@ describe("fees and forced sales", () => {
     expect(s.phase).toMatchObject({ t: "raiseCash", owed: 200 });
     const sold = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
     expect(sold.players[0].cash).toBe(5 + 20 * lowestPrice("WPUB") - 200);
-    expect(sold.phase).toEqual({ t: "afterRoll", buy: null }); // fee paid; player still ends their own turn
+    expect(sold.phase).toEqual({ t: "afterRoll", buy: null, fee: { amount: 200, reason: "broker fee" } }); // fee paid; player still ends their own turn
     const broke = reducer(s, { type: "goBroke" });
     expect(broke.players[0]).toMatchObject({ status: "work", cash: 0, pos: null });
   });
