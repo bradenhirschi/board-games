@@ -32,7 +32,8 @@ All games share one site, one Firebase project and one set of player accounts. S
 | `platform/sound.ts`, `Dice.tsx`, `ZoomableBoard.tsx`, `storage.ts` | Sound setting and dice sound, a die, a pinch-zoom board, safe localStorage |
 | `games/<game-id>/` | The game's rules engine, bot, board data, screens and sounds |
 | `firestore.rules` | Who may read and write rooms: shared room rules, one block per game |
-| `app/globals.css` | Site-wide styles (currently also holds Stock Market's look) |
+| `app/globals.css` | Site-wide styles only: palette tokens, base elements, buttons, the shared start screen, lobby and game list |
+| `games/<game-id>/<game-id>.css` | The game's own look, loaded by its route and scoped under its wrapper class (`:where(.<game-id>)`) |
 
 ### Online play
 
@@ -70,7 +71,9 @@ Old Stock Market invite links (`/?room=CODE`) redirect to `/stock-market?room=CO
 4. Add `app/<id>/page.tsx` and list the game in `games/index.ts`.
 5. Add a `match /<collection>/{code}` block to `firestore.rules` that uses the shared room functions, and
    rules tests for anything game-specific.
-6. Prefix its localStorage keys with `<id>:`.
+6. Put its styles in `games/<id>/<id>.css`, import it from `app/<id>/page.tsx`, wrap the page in
+   `<div className="<id>">`, and scope every rule with `:where(.<id>)` (see `stock-market.css`).
+7. Prefix its localStorage keys with `<id>:`.
 
 ### Hidden information: hidden on screen only
 
@@ -131,6 +134,7 @@ Games on one device save automatically in the browser, so a refresh doesn't lose
 | `bot.ts` | Computer player strategy |
 | `online.ts`, `game.ts`, `rooms.ts` | Online play: resolving moves, the game's `OnlineGame` description, its rooms |
 | `sounds.ts` | Bell, cash and loss sounds |
+| `stock-market.css` | The game's look: board, tracker, game screen, phone layouts |
 | `components/` | Start screen (`Home.tsx`), board, price tracker, the game screen, and the online game (`OnlineRoom.tsx`) |
 
 The quotation board prices in `stocks.ts` are copied row for row from the playtest board. To rename

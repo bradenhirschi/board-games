@@ -61,8 +61,9 @@ online play works, how to add a game, and each game's rules and file map; read i
 - Prefix a game's localStorage keys with `<id>:`; site-wide ones use `board-games:`.
 - Don't change a saved state's shape without handling old saves (local saves and rooms in progress).
 - Styles: `app/globals.css` is site-wide and small (base, palette defaults, the shared lobby and start
-  screens). Each game's look lives in `games/<id>/<id>.css`, imported by its route, and every rule in it is
-  scoped under the game's root class (e.g. `.stock-market`), so games can't restyle each other.
+  screens). Each game's look lives in `games/<id>/<id>.css`, imported by its route; the route wraps the
+  page in `<div className="<id>">` and every rule is scoped with `:where(.<id>)` (no added specificity),
+  so games can't restyle each other. Keep new styles out of `globals.css` unless every game uses them.
 - Hidden information (Plunder needs it; simultaneous turns not yet) is **hidden on screen only**, by the
   owner's decision: the site is for friends, so the room state stays one document every player can read.
   Each such game exports a pure `viewFor(state, seat)` (seat -1 = watcher) that masks what that seat can't
