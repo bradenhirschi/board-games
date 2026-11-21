@@ -4,7 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PlatformOnlineRoom, { type LobbyOptions } from "@/platform/OnlineRoom";
 import type { Replay, Room } from "@/platform/rooms";
 import { useRoomSync, type AnimateContext, type RoomPlay } from "@/platform/useRoomSync";
-import { DEFAULT_TARGET, PLAYER_COLORS, fmt, reducer, type Action, type GameState, type Player } from "../engine";
+import {
+  BOT_LEVELS,
+  BOT_LEVEL_NAMES,
+  DEFAULT_TARGET,
+  PLAYER_COLORS,
+  fmt,
+  reducer,
+  type Action,
+  type BotLevel,
+  type GameState,
+  type Player,
+} from "../engine";
 import { STOCK_MARKET, TARGETS, type StockMarketSettings } from "../game";
 import { botDecision, isBotTurn, resolve, type Decision } from "../online";
 import { rooms } from "../rooms";
@@ -19,18 +30,40 @@ type SMRoom = Room<GameState, Action, StockMarketSettings>;
 
 const LOBBY: LobbyOptions<StockMarketSettings> = {
   seatColors: PLAYER_COLORS,
-  settingsControl: ({ settings, disabled, onChange }) => (
-    <label className="setup-target">
-      <span>Winning amount</span>
-      <select value={settings.target} disabled={disabled} onChange={(e) => onChange({ target: Number(e.target.value) })}>
-        {TARGETS.map((t) => (
-          <option key={t} value={t}>
-            ${fmt(t)}
-            {t === DEFAULT_TARGET ? " (standard)" : ""}
-          </option>
-        ))}
-      </select>
-    </label>
+  settingsControl: ({ settings, seats, disabled, onChange }) => (
+    <>
+      <label className="setup-target">
+        <span>Winning amount</span>
+        <select
+          value={settings.target}
+          disabled={disabled}
+          onChange={(e) => onChange({ target: Number(e.target.value) })}
+        >
+          {TARGETS.map((t) => (
+            <option key={t} value={t}>
+              ${fmt(t)}
+              {t === DEFAULT_TARGET ? " (standard)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      {seats.some((s) => s.isBot) && (
+        <label className="setup-target">
+          <span>Bots</span>
+          <select
+            value={settings.botLevel}
+            disabled={disabled}
+            onChange={(e) => onChange({ botLevel: e.target.value as BotLevel })}
+          >
+            {BOT_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {BOT_LEVEL_NAMES[l]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </>
   ),
   settingsSummary: (settings) => (
     <>
@@ -71,14 +104,20 @@ function OnlineGame({ room, uid, onQuit }: { room: SMRoom; uid: string; onQuit: 
       for (const action of rep.actions) {
         if (!alive()) return;
         if (action.type === "roll" && rep.by !== uid) {
-          // Someone else rolled: tumble the dice here too before showing the result.
-          setRolling([1, 1]);
+          // Someone else rolled: tumble the dice here too, then show the result in the same
+          // update that stops the tumble.
+          const rolled = reducer(s, action);
           await new Promise<void>((done) => {
-            rollTimer.current = animateRoll(setRolling, done);
+            rollTimer.current = animateRoll(setRolling, () => {
+              show(rolled);
+              done();
+            });
           });
+          s = rolled;
+        } else {
+          s = reducer(s, action);
+          show(s);
         }
-        s = reducer(s, action);
-        show(s);
         await sleep(action.type === "step" ? STEP_MS : DECISION_MS);
       }
     },
@@ -99,7 +138,7 @@ function OnlineGame({ room, uid, onQuit }: { room: SMRoom; uid: string; onQuit: 
     [animate],
   );
 
-  const { display, caughtUp, pending, setPending, slowSave, error, mySeat, send } = useRoomSync({
+  const { display, caughtUp, pending, slowSave, error, mySeat, send } = useRoomSync({
     room,
     uid,
     rooms,
@@ -116,9 +155,17 @@ function OnlineGame({ room, uid, onQuit }: { room: SMRoom; uid: string; onQuit: 
 
   const roll = useCallback(() => {
     if (rolling || pending) return;
-    setPending(true);
-    rollTimer.current = animateRoll(setRolling, () => void send({ type: "rollDice" }, uid));
-  }, [rolling, pending, setPending, send, uid]);
+    // Save the roll straight away and keep the dice tumbling until it's saved: the dice are
+    // thrown in the save, so stopping earlier would settle on the last roll's faces and then
+    // jump to the real ones.
+    let saved = false;
+    void send({ type: "rollDice" }, uid).finally(() => (saved = true));
+    rollTimer.current = animateRoll(
+      setRolling,
+      () => {},
+      () => saved,
+    );
+  }, [rolling, pending, send, uid]);
 
   const viewer: Player =
     mySeat >= 0 ? display.players[mySeat] : (display.players.find((p) => !p.isBot) ?? display.players[display.current]);
@@ -133,7 +180,12 @@ function OnlineGame({ room, uid, onQuit }: { room: SMRoom; uid: string; onQuit: 
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
-        headerExtra={<> · Room <b>{room.code}</b></>}
+        headerExtra={
+          <>
+            {" "}
+            · Room <b>{room.code}</b>
+          </>
+        }
         waitingNote={mySeat < 0 ? "You're watching this game." : undefined}
         statusNote={slowSave ? "Saving…" : undefined}
       />

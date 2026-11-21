@@ -6,12 +6,15 @@ import { onlineAvailable } from "@/platform/firebase";
 import OnlineStart, { roomFromUrl, setRoomInUrl } from "@/platform/OnlineStart";
 import { readName, readStorage, writeName, writeStorage } from "@/platform/storage";
 import {
+  BOT_LEVELS,
+  BOT_LEVEL_NAMES,
   DEFAULT_TARGET,
   MAX_PLAYERS,
   MIN_PLAYERS,
   PLAYER_COLORS,
   fmt,
   newGame,
+  type BotLevel,
   type GameState,
   type PlayerSetup,
 } from "../engine";
@@ -40,6 +43,7 @@ export default function Home() {
     { name: "Bot 1", isBot: true },
   ]);
   const [target, setTarget] = useState(DEFAULT_TARGET);
+  const [botLevel, setBotLevel] = useState<BotLevel>("normal");
   const [game, setGame] = useState<{ key: number; state: GameState } | null>(null);
   const [saved, setSaved] = useState<GameState | null>(null);
   const [room, setRoom] = useState<string | null>(null);
@@ -90,7 +94,7 @@ export default function Home() {
 
   const start = () => {
     const clean = players.map((p, i) => ({ ...p, name: p.name.trim() || `Player ${i + 1}` }));
-    setGame({ key: Date.now(), state: newGame(clean, target) });
+    setGame({ key: Date.now(), state: newGame(clean, target, botLevel) });
   };
 
   return (
@@ -218,6 +222,18 @@ export default function Home() {
                   ))}
                 </select>
               </label>
+              {players.some((p) => p.isBot) && (
+                <label className="setup-target">
+                  <span>Bots</span>
+                  <select value={botLevel} onChange={(e) => setBotLevel(e.target.value as BotLevel)}>
+                    {BOT_LEVELS.map((l) => (
+                      <option key={l} value={l}>
+                        {BOT_LEVEL_NAMES[l]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <button type="submit" className="btn btn-primary btn-big">
                 New game

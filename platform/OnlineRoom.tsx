@@ -3,13 +3,18 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ensureUser } from "./firebase";
 import type { OnlineGame } from "./game";
-import { RoomError, type Room, type RoomsApi } from "./rooms";
+import { RoomError, type Room, type RoomsApi, type Seat } from "./rooms";
 
 export interface LobbyOptions<Settings> {
   /** Token color for each seat. */
   seatColors: readonly string[];
   /** The host's controls for the game's settings (e.g. a target score). */
-  settingsControl?(props: { settings: Settings; disabled: boolean; onChange(patch: Partial<Settings>): void }): ReactNode;
+  settingsControl?(props: {
+    settings: Settings;
+    seats: Seat[];
+    disabled: boolean;
+    onChange(patch: Partial<Settings>): void;
+  }): ReactNode;
   /** What other players see about the settings while they wait, e.g. "First to $100,000." */
   settingsSummary?(settings: Settings): ReactNode;
 }
@@ -117,18 +122,21 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
     }
   };
 
-  const share = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: game.name, text: `Join my ${game.name} game (room ${room.code})`, url: link });
-        return;
-      } catch {
-        /* cancelled: fall back to copying */
-      }
-    }
+  const copy = async () => {
     await navigator.clipboard?.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  /** The phone's share sheet (Messages, WhatsApp, …); copies the link where there isn't one. */
+  const share = async () => {
+    if (!canShare) return copy();
+    try {
+      await navigator.share({ title: game.name, text: `Join my ${game.name} game (room ${room.code})`, url: link });
+    } catch (e) {
+      // Closing the share sheet isn't an error worth acting on; anything else, copy instead.
+      if (!(e instanceof DOMException && e.name === "AbortError")) await copy();
+    }
   };
 
   const bots = room.seats.filter((s) => s.isBot).length;
@@ -142,8 +150,13 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
           <b>{room.code}</b>
         </div>
         <div className="btn-row">
-          <button className="btn" onClick={share}>
-            {copied ? "Link copied!" : "Share invite link"}
+          {canShare && (
+            <button className="btn btn-primary" onClick={share}>
+              Share invite
+            </button>
+          )}
+          <button className="btn" onClick={copy}>
+            {copied ? "Link copied!" : "Copy link"}
           </button>
         </div>
 
@@ -165,7 +178,9 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
                   className="link small"
                   disabled={busy}
                   aria-label={`Remove ${s.name}`}
-                  onClick={() => run(() => rooms.editLobby(room.code, (r) => ({ seats: r.seats.filter((_, j) => j !== i) })))}
+                  onClick={() =>
+                    run(() => rooms.editLobby(room.code, (r) => ({ seats: r.seats.filter((_, j) => j !== i) })))
+                  }
                 >
                   ✕
                 </button>
@@ -182,7 +197,12 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
               run(() => rooms.joinRoom(room.code, uid, joinName.trim() || "Player"));
             }}
           >
-            <input value={joinName} maxLength={16} onChange={(e) => setJoinName(e.target.value)} aria-label="Your name" />
+            <input
+              value={joinName}
+              maxLength={16}
+              onChange={(e) => setJoinName(e.target.value)}
+              aria-label="Your name"
+            />
             <button className="btn btn-primary" disabled={busy || full}>
               {full ? "Room is full" : "Join game"}
             </button>
@@ -208,6 +228,7 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
             )}
             {options.settingsControl?.({
               settings: room.settings,
+              seats: room.seats,
               disabled: busy,
               onChange: (patch) => run(() => rooms.editLobby(room.code, () => ({ settings: patch }))),
             })}
@@ -220,11 +241,7 @@ function Lobby<S, A, Settings extends Record<string, unknown>>({
             </button>
           </>
         ) : (
-          seated && (
-            <p className="muted">
-              {options.settingsSummary?.(room.settings)} Waiting for the host to start…
-            </p>
-          )
+          seated && <p className="muted">{options.settingsSummary?.(room.settings)} Waiting for the host to start…</p>
         )}
 
         {error && <p className="hint bad">{error}</p>}

@@ -122,7 +122,9 @@ export function useRoomSync<S, A, Settings, D>({
   useEffect(() => {
     const s = savedAt.current;
     if (s && room.version >= s.version) {
-      console.info(`[${logTag}] live update for move ${s.version} arrived ${Math.round(performance.now() - s.at)}ms after it saved`);
+      console.info(
+        `[${logTag}] live update for move ${s.version} arrived ${Math.round(performance.now() - s.at)}ms after it saved`,
+      );
       savedAt.current = null;
     }
     adopt(room);
@@ -191,10 +193,8 @@ export function useRoomSync<S, A, Settings, D>({
     display,
     /** True when the board shows the newest saved version. */
     caughtUp,
-    /** A save is in flight (or about to start: see `setPending`). */
+    /** A save is in flight. */
     pending,
-    /** Mark a move as underway before `send` (e.g. while the dice tumble). */
-    setPending,
     /** A save has been in flight for over a second. */
     slowSave,
     error,

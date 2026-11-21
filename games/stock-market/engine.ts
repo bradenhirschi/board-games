@@ -52,10 +52,16 @@ export type Phase =
    * After landing, until the player ends their turn. They may sell at the lowest board
    * price, and buy the stock they landed on (`buy`) if it was a stock square.
    */
-  | { t: "afterRoll"; buy: BuyOffer | null }
+  | { t: "afterRoll"; buy: BuyOffer | null; fee?: FeePaid }
   /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
   | { t: "raiseCash"; owed: number; reason: string }
   | { t: "gameOver"; winnerId: number; reason: "target" };
+
+/** A fee charged on landing this turn (amount 0: a broker fee with no shares to charge for). */
+export interface FeePaid {
+  amount: number;
+  reason: string;
+}
 
 export interface BuyOffer {
   stock: StockId;
@@ -91,7 +97,13 @@ export interface GameState {
   nextLogId: number;
   /** First log id of the current turn (for showing what this turn's player did). */
   turnLogStart?: number;
+  /** How well the computer players play (older saves: normal). */
+  botLevel?: BotLevel;
 }
+
+export type BotLevel = "easy" | "normal";
+export const BOT_LEVELS: BotLevel[] = ["easy", "normal"];
+export const BOT_LEVEL_NAMES: Record<BotLevel, string> = { easy: "Easy", normal: "Normal" };
 
 export interface PlayerSetup {
   name: string;
@@ -112,8 +124,12 @@ export const DEFAULT_TARGET = 100_000;
 export const emptyHoldings = (): Holdings => Object.fromEntries(STOCK_ORDER.map((id) => [id, 0])) as Holdings;
 
 const BOT_CAREERS = [2, 3];
+/** Policeman (5/9) and Prospector (2/12): the occupations that pay least per throw. */
+const EASY_BOT_CAREERS = [0, 1];
 
-export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameState {
+export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel: BotLevel = "normal"): GameState {
+  // Easy bots take the lower-paying occupations; the others the best-paying ones.
+  const botCareers = botLevel === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS;
   return {
     version: 3,
     players: setup.map((p, i) => ({
@@ -122,7 +138,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
-      career: p.isBot ? BOT_CAREERS[i % BOT_CAREERS.length] : null,
+      career: p.isBot ? botCareers[i % botCareers.length] : null,
       status: "work",
       pos: null,
       cash: 0,
@@ -139,6 +155,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET): GameStat
     log: [],
     nextLogId: 1,
     turnLogStart: 1,
+    botLevel,
   };
 }
 
@@ -445,13 +462,14 @@ function buyable(cash: number, offer: BuyOffer): number {
 }
 
 /** The player has landed; they act (sell low, maybe buy) until they end their turn. */
-function afterRoll(s: GameState, buy: BuyOffer | null) {
-  s.phase = { t: "afterRoll", buy };
+function afterRoll(s: GameState, buy: BuyOffer | null, fee?: FeePaid) {
+  // No `fee: undefined` key: Firestore rejects undefined fields.
+  s.phase = fee ? { t: "afterRoll", buy, fee } : { t: "afterRoll", buy };
 }
 
 function charge(s: GameState, amount: number, reason: string) {
   const p = s.players[s.current];
-  if (amount <= 0) return afterRoll(s, null);
+  if (amount <= 0) return afterRoll(s, null, { amount: 0, reason });
   if (p.cash >= amount) return payFee(s, amount, reason);
   s.phase = { t: "raiseCash", owed: amount, reason };
 }
@@ -459,8 +477,13 @@ function charge(s: GameState, amount: number, reason: string) {
 function payFee(s: GameState, amount: number, reason: string) {
   const p = s.players[s.current];
   p.cash -= amount;
-  log(s, p.id, `pays a $${fmt(amount)} ${reason.replace(/^\$100 /, "")}`, "bad");
-  afterRoll(s, null);
+  log(s, p.id, `pays a $${fmt(amount)} ${feeName(reason)}`, "bad");
+  afterRoll(s, null, { amount, reason });
+}
+
+/** "$100 START fee" → "START fee". */
+export function feeName(reason: string): string {
+  return reason.replace(/^\$100 /, "");
 }
 
 function endTurn(s: GameState) {

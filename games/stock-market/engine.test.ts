@@ -85,7 +85,12 @@ describe("choosing occupations", () => {
       { name: "Bot", isBot: true },
     ]);
     expect(reducer(s, { type: "chooseCareer", playerId: 1, career: 0 })).toBe(s);
-    expect(newGame([{ name: "X", isBot: true }, { name: "Y", isBot: true }]).phase.t).toBe("preRoll");
+    expect(
+      newGame([
+        { name: "X", isBot: true },
+        { name: "Y", isBot: true },
+      ]).phase.t,
+    ).toBe("preRoll");
   });
 });
 
@@ -113,7 +118,12 @@ describe("working", () => {
 
 describe("paired stocks", () => {
   it("each pair shares one ladder, inverted", () => {
-    for (const [a, b] of [["ALCOA", "WOOL"], ["AMMO", "WPUB"], ["CASE", "MAYTAG"], ["GMILLS", "ISHOE"]] as const) {
+    for (const [a, b] of [
+      ["ALCOA", "WOOL"],
+      ["AMMO", "WPUB"],
+      ["CASE", "MAYTAG"],
+      ["GMILLS", "ISHOE"],
+    ] as const) {
       for (let l = 0; l <= 50; l++) expect(priceAt(b, l)).toBe(priceAt(a, 50 - l));
       expect(priceAt(a, 50)).toBeGreaterThan(priceAt(a, 0));
       expect(priceAt(b, 50)).toBeLessThan(priceAt(b, 0));
@@ -139,7 +149,10 @@ describe("board arrows", () => {
     // START: odd / even arrows on each side.
     const starts: Record<number, [string, string]> = { 6: ["←", "→"], 18: ["↑", "↓"], 30: ["→", "←"], 42: ["↓", "↑"] };
     for (const [i, [odd, even]] of Object.entries(starts)) {
-      expect([arrowFor(Number(i), directionFor(Number(i), 3)), arrowFor(Number(i), directionFor(Number(i), 4))]).toEqual([odd, even]);
+      expect([
+        arrowFor(Number(i), directionFor(Number(i), 3)),
+        arrowFor(Number(i), directionFor(Number(i), 4)),
+      ]).toEqual([odd, even]);
     }
   });
 });
@@ -162,7 +175,10 @@ describe("moving", () => {
   it("moves the slider and offers stock at the new price", () => {
     const s = rollAndMove(place(game(), 0, { kind: "track", index: 6 }), [1, 2]); // lands on General Mills, DOWN 3
     expect(s.market).toBe(22);
-    expect(s.phase).toMatchObject({ t: "afterRoll", buy: { stock: "GMILLS", price: priceAt("GMILLS", 22), limited: true, max: 1 } });
+    expect(s.phase).toMatchObject({
+      t: "afterRoll",
+      buy: { stock: "GMILLS", price: priceAt("GMILLS", 22), limited: true, max: 1 },
+    });
   });
 
   it("pays dividends on shares already owned", () => {
@@ -177,7 +193,7 @@ describe("ending the turn", () => {
   it("waits for the player to end their turn after landing", () => {
     let s = place(game(), 0, { kind: "track", index: 11 }); // → broker fee corner
     s = rollAndMove(s, [1, 0] as unknown as [number, number]);
-    expect(s.phase).toEqual({ t: "afterRoll", buy: null });
+    expect(s.phase).toEqual({ t: "afterRoll", buy: null, fee: { amount: 0, reason: "broker fee" } });
     expect(s.current).toBe(0);
     s = reducer(s, { type: "endTurn" });
     expect(s.current).toBe(1);
@@ -250,7 +266,7 @@ describe("fees and forced sales", () => {
     expect(s.phase).toMatchObject({ t: "raiseCash", owed: 200 });
     const sold = reducer(s, { type: "forcedSell", stock: "WPUB", qty: 20 });
     expect(sold.players[0].cash).toBe(5 + 20 * lowestPrice("WPUB") - 200);
-    expect(sold.phase).toEqual({ t: "afterRoll", buy: null }); // fee paid; player still ends their own turn
+    expect(sold.phase).toEqual({ t: "afterRoll", buy: null, fee: { amount: 200, reason: "broker fee" } }); // fee paid; player still ends their own turn
     const broke = reducer(s, { type: "goBroke" });
     expect(broke.players[0]).toMatchObject({ status: "work", cash: 0, pos: null });
   });
@@ -333,34 +349,41 @@ describe("winning", () => {
 });
 
 describe("bot games", () => {
-  it("play to completion", () => {
-    const turns: number[] = [];
-    for (let g = 0; g < 20; g++) {
-      let s = newGame(
-        Array.from({ length: 4 }, (_, i) => ({ name: `Bot ${i}`, isBot: true })),
-        100_000,
-      );
-      for (let i = 0; i < 400_000 && s.phase.t !== "gameOver"; i++) {
-        if (s.phase.t === "moving") {
-          s = reducer(s, { type: "step" });
-          continue;
+  it.each(["easy", "normal"] as const)(
+    "play to completion (%s)",
+    (level) => {
+      const turns: number[] = [];
+      for (let g = 0; g < 20; g++) {
+        let s = newGame(
+          Array.from({ length: 4 }, (_, i) => ({ name: `Bot ${i}`, isBot: true })),
+          100_000,
+          level,
+        );
+        for (let i = 0; i < 400_000 && s.phase.t !== "gameOver"; i++) {
+          if (s.phase.t === "moving") {
+            s = reducer(s, { type: "step" });
+            continue;
+          }
+          const m = botMove(s);
+          if (!m) throw new Error(`bot stuck in ${s.phase.t}`);
+          const a: Action =
+            m.type === "rollDice"
+              ? { type: "roll", dice: [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)] }
+              : m;
+          const next = reducer(s, a);
+          if (next === s) throw new Error(`bot made an illegal move ${JSON.stringify(a)} in ${s.phase.t}`);
+          s = next;
         }
-        const m = botMove(s);
-        if (!m) throw new Error(`bot stuck in ${s.phase.t}`);
-        const a: Action =
-          m.type === "rollDice" ? { type: "roll", dice: [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)] } : m;
-        const next = reducer(s, a);
-        if (next === s) throw new Error(`bot made an illegal move ${JSON.stringify(a)} in ${s.phase.t}`);
-        s = next;
+        expect(s.phase.t).toBe("gameOver");
+        for (const p of s.players) expect(p.cash).toBeGreaterThanOrEqual(0);
+        turns.push(s.turn);
+        void netWorth;
       }
-      expect(s.phase.t).toBe("gameOver");
-      for (const p of s.players) expect(p.cash).toBeGreaterThanOrEqual(0);
-      turns.push(s.turn);
-      void netWorth;
-    }
-    turns.sort((a, b) => a - b);
-    console.log("turns per 4-player game (min/median/max):", turns[0], turns[10], turns[19]);
-  }, 60_000);
+      turns.sort((a, b) => a - b);
+      console.log(`${level}: turns per 4-player game (min/median/max):`, turns[0], turns[10], turns[19]);
+    },
+    60_000,
+  );
 });
 
 describe("sound cues", () => {

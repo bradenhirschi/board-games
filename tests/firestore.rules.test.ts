@@ -76,7 +76,11 @@ describe("creating a room", () => {
     await assertFails(room("host").set(lobby({ status: "playing" })));
   });
   it("needs a valid code", async () => {
-    await assertFails(db("host").doc("stockMarketRooms/abc").set(lobby({ code: "abc" })));
+    await assertFails(
+      db("host")
+        .doc("stockMarketRooms/abc")
+        .set(lobby({ code: "abc" })),
+    );
   });
 });
 
@@ -101,6 +105,15 @@ describe("the lobby", () => {
   });
   it("lets the host change settings", async () => {
     await assertSucceeds(room("host").update({ settings: { target: 50000 } }));
+  });
+  it("lets only the host choose the bot level", async () => {
+    await seed(lobby({ memberUids: ["host", "amy"] }));
+    await assertFails(room("amy").update({ settings: { target: 100000, botLevel: "easy" } }));
+    await assertSucceeds(room("host").update({ settings: { target: 100000, botLevel: "easy" } }));
+  });
+  it("lets a player leave a room that has no settings saved", async () => {
+    await seed(lobby({ memberUids: ["host", "amy"], settings: null }));
+    await assertSucceeds(room("amy").update({ memberUids: ["host"] }));
   });
   it("lets the host start the game", async () => {
     await assertSucceeds(room("host").update({ status: "playing", version: 1, stateJson: "{}" }));
@@ -128,6 +141,9 @@ describe("during a game", () => {
   });
   it("gives the host no special right to write on someone else's turn", async () => {
     await assertFails(room("host").update({ version: 6 }));
+  });
+  it("never lets the bot level change mid-game", async () => {
+    await assertFails(room("amy").update({ version: 6, settings: { target: 100000, botLevel: "easy" } }));
   });
   it("never lets seats or membership change", async () => {
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));

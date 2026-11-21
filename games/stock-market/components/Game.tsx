@@ -5,6 +5,7 @@ import { botMove } from "../bot";
 import { CAREERS, START_SQUARES, TRACK, arrowFor, sideOf } from "../board";
 import {
   canRoll,
+  feeName,
   fmt,
   mustGoToMarket,
   netWorth,
@@ -111,24 +112,26 @@ export default function LocalGame({ initial, onQuit }: { initial: GameState; onQ
 }
 
 /**
- * Tumble the dice for ROLL_MS, then call `done` (which applies the real roll).
- * Returns the interval so the caller can cancel it on unmount.
+ * Tumble the dice for at least ROLL_MS (and until `ready()` says the real roll is known),
+ * then call `done`, which shows the real roll. The tumble stops in the same update, so the
+ * dice never settle on stale faces first. Returns the interval so the caller can cancel it.
  */
 export function animateRoll(
   setRolling: (d: [number, number] | null) => void,
   done: () => void,
+  ready: () => boolean = () => true,
 ): ReturnType<typeof setInterval> {
   const started = Date.now();
   playDice();
   setRolling([rollDie(), rollDie()]);
   const timer = setInterval(() => {
-    if (Date.now() - started < ROLL_MS) {
+    if (Date.now() - started < ROLL_MS || !ready()) {
       setRolling([rollDie(), rollDie()]);
       return;
     }
     clearInterval(timer);
-    setRolling(null);
     done();
+    setRolling(null);
   }, 70);
   return timer;
 }
@@ -686,6 +689,7 @@ function TurnControls({
   setPickingStart: (v: boolean) => void;
 }) {
   const ph = state.phase;
+  const [confirmDialog, confirm] = useConfirm();
 
   if (ph.t === "moving") return <p className="hint">Moving…</p>;
 
@@ -819,8 +823,8 @@ function TurnControls({
     return (
       <div className="controls">
         <p className="hint bad">
-          You owe <b>${fmt(ph.owed)}</b> for the {ph.reason} but have ${fmt(player.cash)}. Sell stock at the lowest
-          board price, or go broke.
+          {feeName(ph.reason).replace(/^./, (c) => c.toUpperCase())}: ${fmt(ph.owed)}. You have ${fmt(player.cash)}, so
+          you need <b>${fmt(ph.owed - player.cash)} more</b>. Sell at the lowest price or go broke.
         </p>
         <div className="sell-box">
           {held.map((id) => (
@@ -830,13 +834,25 @@ function TurnControls({
               owned={player.shares[id]}
               price={lowestPrice(id)}
               disabled={disabled}
+              // Selling to cover a fee is the only way out, so no "are you sure?" here.
               onSell={(qty) => dispatch({ type: "forcedSell", stock: id, qty })}
             />
           ))}
         </div>
-        <button className="btn btn-danger" disabled={disabled} onClick={() => dispatch({ type: "goBroke" })}>
+        <button
+          className="btn btn-danger"
+          disabled={disabled}
+          onClick={async () => {
+            const ok = await confirm(
+              "Go broke? You hand back all your cash and stock and go back to work.",
+              "Go broke",
+            );
+            if (ok) dispatch({ type: "goBroke" });
+          }}
+        >
           Go broke (return everything, back to work)
         </button>
+        {confirmDialog}
       </div>
     );
   }
@@ -859,16 +875,58 @@ function AfterRollBox({
 }) {
   const ph = state.phase;
   const [qty, setQty] = useState(0);
+  /** Sales the player set a quantity for but hasn't made yet (asked about before ending the turn). */
+  const [pendingSales, setPendingSales] = useState<Partial<Record<StockId, number>>>({});
+  const [confirmDialog, confirm] = useConfirm();
   if (ph.t !== "afterRoll") return null;
   const offer = ph.buy;
+  const fee = ph.fee;
   const player = state.players[state.current];
   const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
+  const setPending = (id: StockId, n: number | null) =>
+    setPendingSales((prev) => {
+      const next = { ...prev };
+      if (n === null) delete next[id];
+      else next[id] = n;
+      return next;
+    });
+
+  const endTurn = async () => {
+    const unsold = STOCK_ORDER.filter((id) => pendingSales[id] && player.shares[id] > 0).map(
+      (id) => `${fmt(Math.min(pendingSales[id]!, player.shares[id]))} ${STOCKS[id].name}`,
+    );
+    const unbought = offer && !offer.limited && Math.min(qty, offer.max) > 0 ? Math.min(qty, offer.max) : 0;
+    const pending = [
+      ...(unsold.length ? [`sell ${unsold.join(" and ")}`] : []),
+      ...(unbought ? [`buy ${fmt(unbought)} ${STOCKS[offer!.stock].name}`] : []),
+    ];
+    if (
+      pending.length &&
+      !(await confirm(`You were about to ${pending.join(" and ")} but didn't. End your turn anyway?`, "End turn"))
+    )
+      return;
+    dispatch({ type: "endTurn" });
+  };
 
   return (
     <div className="controls">
       {/* Phones skip this line when there's an offer: the buy line already names the square. */}
       <p className={`hint ${offer ? "m-hide" : ""}`}>
-        Landed on <b>{posName(player.pos)}</b>.{offer ? "" : " Nothing to buy here."}{" "}
+        Landed on <b>{posName(player.pos)}</b>.
+        {fee ? (
+          fee.amount > 0 ? (
+            <>
+              {" "}
+              You paid <b>${fmt(fee.amount)}</b> for the {feeName(fee.reason)}.
+            </>
+          ) : (
+            " You have no stock, so there's no broker fee."
+          )
+        ) : offer ? (
+          ""
+        ) : (
+          " Nothing to buy here."
+        )}{" "}
         <span className="m-hide">You can still sell (at the lowest board price) before you end your turn.</span>
       </p>
 
@@ -899,17 +957,23 @@ function AfterRollBox({
                   owned={player.shares[id]}
                   price={lowestPrice(id)}
                   disabled={disabled}
-                  onSell={(q) => dispatch({ type: "forcedSell", stock: id, qty: q })}
+                  onChange={(q) => setPending(id, q)}
+                  onSell={async (q) => {
+                    if (!(await confirmLowSale(confirm, state, id, q))) return;
+                    setPending(id, null);
+                    dispatch({ type: "forcedSell", stock: id, qty: q });
+                  }}
                 />
               ))}
             </div>
           </Fold>
         )}
 
-        <button className="btn btn-primary btn-big" disabled={disabled} onClick={() => dispatch({ type: "endTurn" })}>
+        <button className="btn btn-primary btn-big" disabled={disabled} onClick={endTurn}>
           End turn
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }
@@ -983,12 +1047,15 @@ function SellRow({
   price,
   disabled,
   onSell,
+  onChange,
 }: {
   stock: keyof typeof STOCKS;
   owned: number;
   price: number;
   disabled: boolean;
   onSell: (qty: number) => void;
+  /** The player typed a quantity: the sale it would make (null once cleared). */
+  onChange?: (qty: number | null) => void;
 }) {
   const [qty, setQty] = useState(owned);
   const n = Math.max(1, Math.min(owned, qty || 1));
@@ -1007,7 +1074,11 @@ function SellRow({
         max={owned}
         value={Math.min(qty, owned)}
         disabled={disabled}
-        onChange={(e) => setQty(Number(e.target.value))}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setQty(v);
+          onChange?.(v > 0 ? Math.min(v, owned) : null);
+        }}
         aria-label={`Shares of ${s.name} to sell`}
       />
       <button className="btn btn-small" disabled={disabled} onClick={() => onSell(n)}>
@@ -1019,6 +1090,10 @@ function SellRow({
 
 /** This device's player: a larger box with their money, whereabouts and holdings. */
 /** On phones, tucks optional controls behind a toggle; on desktop, shows them as they are. */
+/**
+ * Optional controls (selling). Desktop and very tall phones show them inline; other phones
+ * show a toggle that opens them in a slide-up sheet, so the turn card never overflows.
+ */
 function Fold({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1026,9 +1101,64 @@ function Fold({ label, children }: { label: string; children: ReactNode }) {
       <button className="btn fold-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
         {label} {open ? "▴" : "▾"}
       </button>
-      {children}
+      {open && <div className="fold-backdrop" onClick={() => setOpen(false)} />}
+      <div className="fold-body">
+        <div className="fold-head">
+          <b>{label}</b>
+          <button className="btn btn-small" onClick={() => setOpen(false)}>
+            Done
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
+}
+
+/** Ask before any optional sale at the lowest board price (selling to cover a fee doesn't ask). */
+async function confirmLowSale(
+  confirm: (text: string, yes: string) => Promise<boolean>,
+  state: GameState,
+  stock: StockId,
+  qty: number,
+): Promise<boolean> {
+  const low = lowestPrice(stock) * qty;
+  const board = priceAt(stock, state.market) * qty;
+  const loss =
+    board > low ? ` At the board price they're worth $${fmt(board)}, so you'd lose $${fmt(board - low)}.` : "";
+  return confirm(
+    `Sell ${fmt(qty)} ${STOCKS[stock].name} at the lowest price for $${fmt(low)}?${loss}`,
+    `Sell for $${fmt(low)}`,
+  );
+}
+
+/** A small in-app "are you sure?" dialog: returns the dialog element and an ask() that resolves to the answer. */
+function useConfirm(): [ReactNode, (text: string, yes: string) => Promise<boolean>] {
+  const [req, setReq] = useState<{ text: string; yes: string; resolve: (ok: boolean) => void } | null>(null);
+  const ask = useCallback(
+    (text: string, yes: string) => new Promise<boolean>((resolve) => setReq({ text, yes, resolve })),
+    [],
+  );
+  const answer = (ok: boolean) => {
+    req?.resolve(ok);
+    setReq(null);
+  };
+  const dialog = req && (
+    <div className="confirm-backdrop" onClick={() => answer(false)}>
+      <div className="confirm" role="alertdialog" aria-modal onClick={(e) => e.stopPropagation()}>
+        <p>{req.text}</p>
+        <div className="confirm-buttons">
+          <button className="btn" onClick={() => answer(false)}>
+            Cancel
+          </button>
+          <button className="btn btn-danger" onClick={() => answer(true)} autoFocus>
+            {req.yes}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  return [dialog, ask];
 }
 
 function MeCard({ p, market, active }: { p: Player; market: number; active: boolean }) {

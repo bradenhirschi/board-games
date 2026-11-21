@@ -39,7 +39,10 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I
 export const CODE_LENGTH = 5;
 
 export function normalizeCode(input: string): string {
-  return input.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+  return input
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, CODE_LENGTH);
 }
 
 function randomCode(): string {
