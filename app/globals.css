@@ -2959,3 +2959,31 @@ button.link {
     margin-top: 8px;
   }
 }
+
+/* ---------- Site home: the list of games ---------- */
+.game-list {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.game-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--rule);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+}
+.game-tile b {
+  font-size: 18px;
+}
+.game-tile:hover,
+.game-tile:focus-visible {
+  border-color: var(--accent);
+}

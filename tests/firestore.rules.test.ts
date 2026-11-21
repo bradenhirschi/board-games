@@ -7,7 +7,8 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 
-// Run with `npm run test:rules` (starts the Firestore emulator).
+// Run with `npm run test:rules` (starts the Firestore emulator). These cover the shared room
+// rules, through Stock Market's collection.
 
 let env: RulesTestEnvironment;
 
@@ -15,7 +16,7 @@ const lobby = (over: Record<string, unknown> = {}) => ({
   code: "ABCDE",
   hostUid: "host",
   status: "lobby",
-  target: 100000,
+  settings: { target: 100000 },
   seats: [{ uid: "host", name: "Host", isBot: false }],
   memberUids: ["host"],
   version: 0,
@@ -51,7 +52,7 @@ async function seed(data: Record<string, unknown>) {
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
-    projectId: "demo-stock-market",
+    projectId: "demo-board-games",
     firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8085 },
   });
 });
@@ -95,8 +96,11 @@ describe("the lobby", () => {
     await assertFails(room("amy").update({ memberUids: [] }));
   });
   it("doesn't let a non-host change settings or start the game", async () => {
-    await assertFails(room("amy").update({ target: 5 }));
+    await assertFails(room("amy").update({ settings: { target: 5 } }));
     await assertFails(room("amy").update({ status: "playing", version: 1 }));
+  });
+  it("lets the host change settings", async () => {
+    await assertSucceeds(room("host").update({ settings: { target: 50000 } }));
   });
   it("lets the host start the game", async () => {
     await assertSucceeds(room("host").update({ status: "playing", version: 1, stateJson: "{}" }));
@@ -128,5 +132,6 @@ describe("during a game", () => {
   it("never lets seats or membership change", async () => {
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));
     await assertFails(room("amy").update({ version: 6, seats: [] }));
+    await assertFails(room("amy").update({ version: 6, settings: { target: 5 } }));
   });
 });
