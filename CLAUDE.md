@@ -22,9 +22,11 @@ one set of player accounts, and a shared online-play layer. See README.md for th
   built from the shared room functions. Add rules tests in `tests/` for any change to the rules.
 - Prefix a game's localStorage keys with `<id>:`; site-wide ones use `board-games:`.
 - Don't change a saved state's shape without handling old saves (local saves and rooms in progress).
-- Plunder needs **hidden information** (not simultaneous turns yet). A room's state is currently one
-  document every player can read; see "Hidden information" in README.md for the options and pick one with
-  the owner before building it.
+- Hidden information (Plunder needs it; simultaneous turns not yet) is **hidden on screen only**, by the
+  owner's decision: the site is for friends, so the room state stays one document every player can read.
+  Each such game exports a pure `viewFor(state, seat)` (seat -1 = watcher) that masks what that seat can't
+  see; screens, animations, log text and bots use only that view. Show a "Pass to <name>" screen between
+  human turns on one device. Test `viewFor`. Details under "Hidden information" in README.md.
 
 ## Checks
 

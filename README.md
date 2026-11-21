@@ -72,18 +72,27 @@ Old Stock Market invite links (`/?room=CODE`) redirect to `/stock-market?room=CO
    rules tests for anything game-specific.
 6. Prefix its localStorage keys with `<id>:`.
 
-### Hidden information (planned, for Plunder)
+### Hidden information: hidden on screen only
 
-Today a room's whole state is one document that every player can read, so a game can only *hide*
-information in its screens; anyone opening the browser's developer tools could see it. Options, from least
-to most work:
+Decision: games hide information **on screen only**. The site is for friends, so we accept that anyone
+opening the browser's developer tools could read a room's full state. A room stays one document that
+every seated player can read, and no platform or security-rules changes are needed.
 
-1. **Hidden in the screens only.** Fine among friends; no platform changes.
-2. **Private per-player documents** (`<collection>/{code}/private/{uid}`, readable only by that player).
-   Works when each player creates their own secret (a hidden plan, a secret destination). It does not work
-   when another player's phone has to deal the secret, because that phone sees it.
-3. **A trusted server** (Cloud Functions), which deals and checks hidden information. Real secrecy, but it
-   needs Firebase's pay-as-you-go Blaze plan.
+How a game with hidden information (Plunder first) should do it:
+
+- **The state holds everything**, including the secrets, so every phone can still replay every move.
+- **The game exports `viewFor(state, seat)`**, a pure function that returns a copy of the state with what
+  that seat can't see removed or masked (other players' hands, unexplored tiles, and so on). Watchers get
+  `seat = -1`. Screens draw only this view, never the raw state; that keeps hiding in one tested place.
+- **Animations and the log follow the same rule.** Replayed actions and log text must not reveal a secret
+  (e.g. "Anne draws a card", not which card).
+- **Bots play fair**: a bot decides from `viewFor(state, botSeat)`, not the full state.
+- **On one device**, show a "Pass to <name>" screen between human turns so players don't see each other's
+  secrets.
+
+If the site ever goes beyond friends, the stronger options are private per-player documents
+(`<collection>/{code}/private/{uid}`, which works only when players create their own secrets) or a trusted
+server (Cloud Functions, which needs Firebase's pay-as-you-go Blaze plan).
 
 Simultaneous turns are not supported yet: the rules allow one writer per version (or everyone, in phases
 like Stock Market's occupation pick, applied in whatever order they arrive).
