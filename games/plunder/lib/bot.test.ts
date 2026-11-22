@@ -28,6 +28,8 @@ function playOut(start: GameState, seed: number, maxActions = 20000) {
   let conquests = 0;
   let sinkings = 0;
   let captains = 0;
+  let trades = 0;
+  let bribes = 0;
   while (s.phase.t !== "gameOver" && actions < maxActions) {
     let a = botAction(s);
     expect(a, "a bot always has a move").not.toBeNull();
@@ -36,6 +38,10 @@ function playOut(start: GameState, seed: number, maxActions = 20000) {
     expect(next, `bot action ${JSON.stringify(a)} should change the game`).not.toBe(s);
     treasures += next.notices.filter((n) => n.t === "treasure").length;
     for (const n of next.notices) {
+      if (n.t === "deal") {
+        if (n.kind === "bribe") bribes++;
+        else trades++;
+      }
       if (n.t !== "battle") continue;
       battles++;
       if (n.won && n.target.kind === "island") conquests++;
@@ -45,12 +51,12 @@ function playOut(start: GameState, seed: number, maxActions = 20000) {
     s = { ...next, notices: [] };
     actions++;
   }
-  return { s, actions, treasures, battles, conquests, sinkings, captains };
+  return { s, actions, treasures, battles, conquests, sinkings, captains, trades, bribes };
 }
 
 describe("plunder bots", () => {
   it("play whole games to a winner, every action legal, fighting along the way", () => {
-    const totals = { treasures: 0, battles: 0, conquests: 0, sinkings: 0, captains: 0 };
+    const totals = { treasures: 0, battles: 0, conquests: 0, sinkings: 0, captains: 0, trades: 0, bribes: 0 };
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const r = playOut(newGame(bots, seed, randomLayout(seed)), seed);
       expect(r.s.phase.t, `seed ${seed}`).toBe("gameOver");
@@ -60,6 +66,7 @@ describe("plunder bots", () => {
     expect(totals.battles, "bots fight").toBeGreaterThan(0);
     expect(totals.conquests, "bots conquer islands").toBeGreaterThan(0);
     expect(totals.captains, "sunk captains get back on the water").toBeGreaterThan(0);
+    expect(totals.trades, "bots trade").toBeGreaterThan(0);
   });
 
   it("only moves for bots", () => {

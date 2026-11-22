@@ -9,8 +9,9 @@
  * Built so far: setup (players pick a one-skull island and start in its port, three resource cards
  * each), turns (draw a resource per island, roll, sail the fleet, build, bury gold, end the turn),
  * battles (attacking islands from their port and ships next door), a captain without a ship,
- * the storm, X-marks-the-spot tokens, Plunder Points and winning. Not yet: trading, and the Treasure
- * card deck (finding an X only says the cards aren't written yet).
+ * the storm, trading (players and merchant islands), threats, bribes and treaties, X-marks-the-spot
+ * tokens, Plunder Points and winning. Not yet: the Treasure card deck (finding an X only says the
+ * cards aren't written yet).
  */
 
 import { COLS, ROWS } from "./board";
@@ -117,7 +118,11 @@ export type Notice =
   | { t: "drew"; player: number; cards: Resource[] }
   | Battle
   | { t: "doubles"; player: number; dice: [number, number] }
-  | { t: "storm"; player: number; at: Pos };
+  | { t: "storm"; player: number; at: Pos }
+  /** A deal went through: `player` and `with` swapped cards (`kind` says what sort of deal). */
+  | { t: "deal"; player: number; with: number; kind: Trade["kind"]; gave: Cards; got: Cards }
+  /** Nobody took `player`'s offer. */
+  | { t: "noDeal"; player: number; kind: Trade["kind"] };
 
 /**
  * A player who starts their turn without a ship: they may take a free card (no islands and no
@@ -133,6 +138,37 @@ export type Captain = {
   acquired: boolean;
   /** Where the new ship can be placed, while it waits to be placed. */
   spots: Pos[] | null;
+};
+
+/** Some resource cards, by type. */
+export type Cards = Partial<Record<Resource, number>>;
+
+/**
+ * An offer on the table. `from` gives `give` to whoever takes it, and gets `get` back.
+ * - "trade": the current player offers it to everyone they may trade with (or a counter-offer goes
+ *   back to one player). Everyone answers in turn; the offerer picks one of those who accepted.
+ * - "threat": the current player demands `get` from one player, giving nothing, or else.
+ * - "bribe": a player about to be attacked offers `give` to the attacker to call it off.
+ * Any deal that goes through makes a treaty between the two for the rest of the turn.
+ */
+export type Trade = {
+  kind: "trade" | "threat" | "bribe";
+  from: number;
+  to: number[];
+  give: Cards;
+  get: Cards;
+  /** Answers so far (a missing player hasn't answered yet). */
+  answers: Record<number, "accept" | "decline">;
+};
+
+/** An attack on a player, waiting while the defender decides whether to offer a bribe. */
+export type PendingAttack = {
+  ship: number;
+  target: Target;
+  defender: number;
+  stage: "bribe" | "fight";
+  /** Bribes offered so far for this attack. */
+  bribes?: number;
 };
 
 /** Ways a shipless captain can get a ship other than doubles. */
@@ -161,6 +197,14 @@ export type GameState = {
   captain?: Captain | null;
   /** The centre of the 3×3 storm (it can hang off the board). Missing in games saved before the storm. */
   storm?: Pos;
+  /** The offer currently on the table, if any. */
+  trade?: Trade | null;
+  /** An attack on a player, waiting on a possible bribe. */
+  pendingAttack?: PendingAttack | null;
+  /** Players the current player has a treaty with this turn (they can't attack each other). */
+  treaties?: number[];
+  /** Trade offers the current player has made this turn (bots make one at most). */
+  offers?: number;
   notices: Notice[];
   log: string[];
 };
@@ -178,6 +222,20 @@ export type Action =
   | { t: "rollDoubles"; dice: [number, number] }
   | { t: "getShip"; via: ShipVia }
   | { t: "placeShip"; at: Pos }
+  | { t: "merchant"; give: [Resource, Resource]; get: Resource }
+  | { t: "offer"; kind: "trade"; give: Cards; get: Cards }
+  | { t: "offer"; kind: "threat"; to: number; get: Cards }
+  /** The player whose answer is awaited (see `waitingOn`) accepts or declines. */
+  | { t: "answer"; accept: boolean }
+  /** The player whose answer is awaited sends a counter-offer back instead. */
+  | { t: "counter"; give: Cards; get: Cards }
+  /** The offerer picks one of the players who accepted. */
+  | { t: "pickTrade"; with: number }
+  | { t: "cancelTrade" }
+  /** The defender of a pending attack offers a bribe, or lets the battle go ahead. */
+  | { t: "bribe"; give: Cards }
+  | { t: "noBribe" }
+  | { t: "cancelAttack" }
   | { t: "endTurn" }
   | { t: "clearNotices" };
 
@@ -387,7 +445,10 @@ export function attackTargets(s: GameState, ship: Ship): Target[] {
     if (isl.kind !== "resource" || s.owners[isl.id] === ship.owner) continue;
     if (isl.ports.some((p) => same(p, ship.pos))) out.push({ kind: "island", id: isl.id });
   }
-  return out.filter((t) => !attackedAlready(s, ship.id, t));
+  // No attacking a player you have a treaty with this turn.
+  const treaties = s.treaties ?? [];
+  const owner = (t: Target) => (t.kind === "ship" ? s.ships.find((sh) => sh.id === t.id)?.owner : s.owners[t.id]);
+  return out.filter((t) => !attackedAlready(s, ship.id, t) && !treaties.includes(owner(t) ?? -1));
 }
 
 /** The defender's bonus: the defending ship's cannons, or the island's skulls. */
@@ -437,6 +498,80 @@ function captainSpots(s: GameState, player: number): [Pos[], number] {
     if (around.length) return [around, rng];
   }
   return [[], rng];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trading
+
+export const cardCount = (c: Cards) => RESOURCES.reduce((n, r) => n + (c[r] ?? 0), 0);
+
+/** Does a hand hold these cards? */
+export function hasCards(hand: Hand, c: Cards): boolean {
+  return RESOURCES.every((r) => hand[r] >= (c[r] ?? 0) && (c[r] ?? 0) >= 0);
+}
+
+/** A player's ships sitting in ports the storm doesn't cover. */
+function portsInUse(s: GameState, player: number): { ship: Ship; island: string }[] {
+  const out: { ship: Ship; island: string }[] = [];
+  for (const isl of islandsOf(s.layout)) {
+    for (const sh of s.ships) {
+      if (sh.owner === player && isl.ports.some((p) => same(p, sh.pos)) && !inStorm(s, sh.pos)) {
+        out.push({ ship: sh, island: isl.id });
+      }
+    }
+  }
+  return out;
+}
+
+/** Is the player docked at a merchant island (through a port the storm doesn't cover)? */
+export function atMerchant(s: GameState, player: number): boolean {
+  const merchants = new Set(
+    islandsOf(s.layout)
+      .filter((i) => i.kind === "merchant")
+      .map((i) => i.id),
+  );
+  return portsInUse(s, player).some((d) => merchants.has(d.island));
+}
+
+/** Is a ship of `a` in a port of an island `b` owns, or are their ships side by side (not across land or the storm's edge)? */
+function closeEnough(s: GameState, a: number, b: number): boolean {
+  const inPortOf = (x: number, y: number) => portsInUse(s, x).some((d) => s.owners[d.island] === y);
+  if (inPortOf(a, b) || inPortOf(b, a)) return true;
+  const map = mapOf(s.layout);
+  for (const sh of s.ships) {
+    if (sh.owner !== a) continue;
+    for (const side of SIDES) {
+      const other = shipAt(s, step(sh.pos, side));
+      if (other?.owner === b && canSail(map, sh.pos, side) && sameSide(s, sh.pos, other.pos)) return true;
+    }
+  }
+  return false;
+}
+
+/** Players `a` may trade with: positioned as the rules say, or anyone if either is docked at a merchant island. */
+export function tradePartners(s: GameState, a: number): number[] {
+  return s.players
+    .map((_, b) => b)
+    .filter((b) => b !== a && (atMerchant(s, a) || atMerchant(s, b) || closeEnough(s, a, b)));
+}
+
+/** Players `a` may threaten: in their port, or ship beside ship (a merchant island doesn't count). */
+export function threatTargets(s: GameState, a: number): number[] {
+  return s.players.map((_, b) => b).filter((b) => b !== a && closeEnough(s, a, b));
+}
+
+/** Who the game is waiting on: someone answering an offer or deciding on a bribe, else the current player. */
+export function waitingOn(s: GameState): number {
+  if (s.phase.t === "pickIsland") return s.phase.order[s.phase.index];
+  const t = s.trade;
+  if (t) {
+    // Answers come in seat order, starting after the offerer.
+    const n = s.players.length;
+    const order = [...t.to].sort((x, y) => ((x - t.from + n) % n) - ((y - t.from + n) % n));
+    return order.find((p) => !t.answers[p]) ?? t.from;
+  }
+  if (s.pendingAttack?.stage === "bribe") return s.pendingAttack.defender;
+  return s.turn;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -609,8 +744,57 @@ function collectXs(s: GameState, ship: Ship): GameState {
   return out;
 }
 
+/** Actions that answer an open offer or a pending bribe; while one is open, nothing else can happen. */
+const NEGOTIATION = new Set<Action["t"]>([
+  "answer",
+  "counter",
+  "pickTrade",
+  "cancelTrade",
+  "bribe",
+  "noBribe",
+  "cancelAttack",
+]);
+
+/** Move cards from one player's hand to another's. */
+function transfer(s: GameState, from: number, to: number, c: Cards): GameState {
+  return {
+    ...s,
+    players: s.players.map((p, i) => {
+      if (i !== from && i !== to) return p;
+      const hand = { ...p.hand };
+      for (const r of RESOURCES) hand[r] += (i === to ? 1 : -1) * (c[r] ?? 0);
+      return { ...p, hand };
+    }),
+  };
+}
+
+/** Carry out an accepted deal between the offerer and `partner`, and make them a treaty for the turn. */
+function closeDeal(s: GameState, t: Trade, partner: number): GameState {
+  if (!hasCards(s.players[t.from].hand, t.give) || !hasCards(s.players[partner].hand, t.get)) return s;
+  let out = transfer(s, t.from, partner, t.give);
+  out = transfer(out, partner, t.from, t.get);
+  const other = t.from === s.turn ? partner : t.from;
+  const treaties = [...new Set([...(s.treaties ?? []), other])];
+  const deal: Notice = { t: "deal", player: t.from, with: partner, kind: t.kind, gave: t.give, got: t.get };
+  out = { ...out, trade: null, treaties, notices: [...out.notices, deal] };
+  // A bribe calls off the attack.
+  if (t.kind === "bribe") out = { ...out, pendingAttack: null };
+  const what = t.kind === "trade" ? "traded with" : t.kind === "threat" ? "gave in to a threat from" : "bribed";
+  return log(
+    out,
+    `${s.players[t.kind === "threat" ? partner : t.from].name} ${what} ${s.players[t.kind === "threat" ? t.from : partner].name}.`,
+  );
+}
+
+const validCards = (c: Cards) => RESOURCES.every((r) => Number.isInteger(c[r] ?? 0) && (c[r] ?? 0) >= 0);
+
 export function reducer(s: GameState, a: Action): GameState {
   if (s.phase.t === "gameOver" && a.t !== "clearNotices") return s;
+  // While an offer is on the table or a bribe is being decided, only answers to it are allowed.
+  if ((s.trade || s.pendingAttack?.stage === "bribe") && !NEGOTIATION.has(a.t) && a.t !== "clearNotices") return s;
+  if (s.pendingAttack?.stage === "fight" && a.t !== "attack" && a.t !== "cancelAttack" && a.t !== "clearNotices") {
+    return s;
+  }
   switch (a.t) {
     case "clearNotices":
       return s.notices.length ? { ...s, notices: [] } : s;
@@ -759,13 +943,28 @@ export function reducer(s: GameState, a: Action): GameState {
       const ship = s.ships.find((sh) => sh.id === a.ship);
       if (!ship || ship.owner !== s.turn) return s;
       if (!attackTargets(s, ship).some((t) => targetKey(t) === targetKey(a.target))) return s;
+      // Attacking a player: first they get the chance to offer a bribe.
+      const victim =
+        a.target.kind === "ship"
+          ? s.ships.find((sh) => sh.id === (a.target as { id: number }).id)!.owner
+          : s.owners[a.target.id];
+      const pending = s.pendingAttack;
+      const agreed =
+        pending?.stage === "fight" && pending.ship === ship.id && targetKey(pending.target) === targetKey(a.target);
+      if (victim !== undefined && !agreed) {
+        return { ...s, pendingAttack: { ship: ship.id, target: a.target, defender: victim, stage: "bribe" } };
+      }
       const ok = (d: number) => Number.isInteger(d) && d >= 1 && d <= 6;
       if (!ok(a.attackDie) || !ok(a.defenseDie)) return s;
       const attacker = ship.owner;
       const attack = { die: a.attackDie, bonus: ship.cannons };
       const defense = { die: a.defenseDie, bonus: defenseBonus(s, a.target) };
       const won = attack.die + attack.bonus >= defense.die + defense.bonus;
-      let out: GameState = { ...s, attacks: [...(s.attacks ?? []), `${ship.id}>${targetKey(a.target)}`] };
+      let out: GameState = {
+        ...s,
+        pendingAttack: null,
+        attacks: [...(s.attacks ?? []), `${ship.id}>${targetKey(a.target)}`],
+      };
       let defender: number | null;
       let at: Pos;
       let sunk: Battle["sunk"] = null;
@@ -883,6 +1082,99 @@ export function reducer(s: GameState, a: Action): GameState {
       return checkWin(collectXs(out, ship));
     }
 
+    case "merchant": {
+      if (s.phase.t !== "turn" || !atMerchant(s, s.turn) || a.give.length !== 2) return s;
+      const cost: Cards = {};
+      for (const r of a.give) cost[r] = (cost[r] ?? 0) + 1;
+      if (!hasCards(s.players[s.turn].hand, cost)) return s;
+      const out = takeCard(pay(s, s.turn, cost), s.turn, a.get);
+      return log(out, `${s.players[s.turn].name} traded at a merchant island.`);
+    }
+
+    case "offer": {
+      if (s.phase.t !== "turn") return s;
+      const me = s.turn;
+      if (a.kind === "trade") {
+        if (!validCards(a.give) || !validCards(a.get) || !cardCount(a.give) || !cardCount(a.get)) return s;
+        if (!hasCards(s.players[me].hand, a.give)) return s;
+        const to = tradePartners(s, me);
+        if (!to.length) return s;
+        return {
+          ...s,
+          offers: (s.offers ?? 0) + 1,
+          trade: { kind: "trade", from: me, to, give: a.give, get: a.get, answers: {} },
+        };
+      }
+      if (!validCards(a.get) || !cardCount(a.get) || !threatTargets(s, me).includes(a.to)) return s;
+      return {
+        ...s,
+        offers: (s.offers ?? 0) + 1,
+        trade: { kind: "threat", from: me, to: [a.to], give: {}, get: a.get, answers: {} },
+      };
+    }
+
+    case "answer": {
+      const t = s.trade;
+      if (!t) return s;
+      const who = waitingOn(s);
+      if (who === t.from || !t.to.includes(who)) return s;
+      // Can't accept without the cards they're asking for.
+      if (a.accept && !hasCards(s.players[who].hand, t.get)) return s;
+      const answers = { ...t.answers, [who]: a.accept ? ("accept" as const) : ("decline" as const) };
+      const trade = { ...t, answers };
+      // With one player asked (a counter-offer, a threat, a bribe), their yes closes the deal.
+      if (a.accept && t.to.length === 1) return closeDeal({ ...s, trade }, trade, who);
+      // Everyone said no: the offer is withdrawn.
+      if (t.to.every((p) => answers[p] === "decline")) {
+        return { ...s, trade: null, notices: [...s.notices, { t: "noDeal", player: t.from, kind: t.kind }] };
+      }
+      return { ...s, trade };
+    }
+
+    case "counter": {
+      const t = s.trade;
+      if (!t || t.kind !== "trade") return s;
+      const who = waitingOn(s);
+      if (who === t.from) return s;
+      if (!validCards(a.give) || !validCards(a.get) || !cardCount(a.give) || !cardCount(a.get)) return s;
+      if (!hasCards(s.players[who].hand, a.give)) return s;
+      // The counter replaces the offer, between just these two.
+      return { ...s, trade: { kind: "trade", from: who, to: [t.from], give: a.give, get: a.get, answers: {} } };
+    }
+
+    case "pickTrade": {
+      const t = s.trade;
+      if (!t || t.answers[a.with] !== "accept" || waitingOn(s) !== t.from) return s;
+      return closeDeal(s, t, a.with);
+    }
+
+    case "cancelTrade": {
+      if (!s.trade || waitingOn(s) !== s.trade.from) return s;
+      return { ...s, trade: null };
+    }
+
+    case "bribe": {
+      const pa = s.pendingAttack;
+      if (!pa || pa.stage !== "bribe" || s.trade) return s;
+      if (!validCards(a.give) || !cardCount(a.give) || !hasCards(s.players[pa.defender].hand, a.give)) return s;
+      return {
+        ...s,
+        pendingAttack: { ...pa, bribes: (pa.bribes ?? 0) + 1 },
+        trade: { kind: "bribe", from: pa.defender, to: [s.turn], give: a.give, get: {}, answers: {} },
+      };
+    }
+
+    case "noBribe": {
+      const pa = s.pendingAttack;
+      if (!pa || pa.stage !== "bribe" || s.trade) return s;
+      return { ...s, pendingAttack: { ...pa, stage: "fight" } };
+    }
+
+    case "cancelAttack": {
+      if (!s.pendingAttack || s.trade) return s;
+      return { ...s, pendingAttack: null };
+    }
+
     case "endTurn": {
       if (s.phase.t !== "turn") return s;
       const turn = (s.turn + 1) % s.players.length;
@@ -894,6 +1186,10 @@ export function reducer(s: GameState, a: Action): GameState {
         phase: { t: "turn", roll: null, moves: 0 },
         attacks: [],
         captain: null,
+        trade: null,
+        pendingAttack: null,
+        treaties: [],
+        offers: 0,
       };
       // Start of the next turn: one resource card for every island they own, except islands with
       // every port inside the storm.

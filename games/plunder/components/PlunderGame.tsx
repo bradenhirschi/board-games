@@ -13,7 +13,11 @@ import {
   RESOURCES,
   STORM_TOLL,
   WIN_POINTS,
+  atMerchant,
   attackTargets,
+  threatTargets,
+  tradePartners,
+  waitingOn,
   stormToll,
   canAfford,
   defenseBonus,
@@ -36,6 +40,7 @@ import {
 } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
+import TradePanel from "./Trade";
 import { COLOR_HEX, Flag, RESOURCE_NAMES, ResourceIcon, ShipPiece, SquareMark, StormPiece, XMark } from "./Pieces";
 
 const same = (a: Pos, b: Pos) => a.r === b.r && a.c === b.c;
@@ -59,6 +64,8 @@ type Props = {
 const BOT_STEP_MS = 750;
 /** How long a bot's news stays on screen before it carries on. */
 const BOT_NOTICE_MS: Record<Notice["t"], number> = {
+  deal: 1800,
+  noDeal: 1600,
   treasure: 1600,
   battle: 2600,
   doubles: 1600,
@@ -125,20 +132,29 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   const myShips = s.ships.filter((sh) => sh.owner === current);
   const ship: Ship | undefined = s.ships.find((sh) => sh.id === selected && sh.owner === current) ?? undefined;
   const isBot = !!me.isBot;
+  // Who the game is waiting on: usually the current player, but someone answering an offer or
+  // deciding on a bribe acts in the middle of another player's turn.
+  const actor = phase.t === "gameOver" ? current : waitingOn(s);
+  const actorBot = !!s.players[actor].isBot;
   const humans = s.players.filter((p) => !p.isBot).length;
-  // Cover the screen when the phone passes between people. Bots don't need it, nor does a lone human.
-  const covered = !isBot && phase.t !== "gameOver" && humans > 1 && holder !== current;
+  // Cover the screen when the device passes between people. Bots don't need it, nor does a lone human.
+  const covered = !actorBot && phase.t !== "gameOver" && humans > 1 && holder !== actor;
   const notice: Notice | undefined = covered ? undefined : s.notices[0];
+  // News that shows for a moment and moves on: anything from a bot's turn, and finished deals.
+  const passing = !!notice && (!!s.players[notice.player].isBot || notice.t === "deal" || notice.t === "noDeal");
   const botNotice = notice && s.players[notice.player].isBot;
+  const negotiating = !!s.trade || s.pendingAttack?.stage === "bribe";
+  const [tradeOpen, setTradeOpen] = useState(false);
 
-  // Bots play by themselves, one visible step at a time.
   useEffect(() => {
-    if (!isBot || phase.t === "gameOver" || rolling || moving) return;
-    if (notice) {
-      // A bot's news (treasure, battles, doubles) shows for a moment; what it drew stays private.
-      const t = window.setTimeout(() => onChange({ ...s, notices: s.notices.slice(1) }), BOT_NOTICE_MS[notice.t]);
-      return () => window.clearTimeout(t);
-    }
+    if (!passing) return;
+    const t = window.setTimeout(() => onChange({ ...s, notices: s.notices.slice(1) }), BOT_NOTICE_MS[notice!.t]);
+    return () => window.clearTimeout(t);
+  }, [s, passing, notice, onChange]);
+
+  // Bots play by themselves, one visible step at a time (including answering offers on others' turns).
+  useEffect(() => {
+    if (!actorBot || phase.t === "gameOver" || rolling || moving || notice) return;
     const a = botAction(s);
     if (!a) return;
     const t = window.setTimeout(() => {
@@ -153,7 +169,23 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       }, ROLL_MS);
     }, BOT_STEP_MS);
     return () => window.clearTimeout(t);
-  }, [s, isBot, phase.t, notice, onChange, rolling, moving]);
+  }, [s, actorBot, phase.t, notice, onChange, rolling, moving]);
+
+  // A person's attack on a player who chose to fight (or whose bribe was refused): roll it.
+  const fight = s.pendingAttack?.stage === "fight" && !isBot && actor === s.turn ? s.pendingAttack : null;
+  useEffect(() => {
+    if (!fight || rolling || covered) return;
+    const t = window.setTimeout(() => {
+      setRolling(true);
+      window.setTimeout(() => {
+        setRolling(false);
+        onChange(
+          reducer(s, { t: "attack", ship: fight.ship, target: fight.target, attackDie: d6(), defenseDie: d6() }),
+        );
+      }, ROLL_MS);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [s, fight, rolling, covered, onChange]);
 
   const reach = useMemo(
     () => (ship && phase.t === "turn" ? reachable(s, ship) : new Map<string, Pos[]>()),
@@ -178,6 +210,9 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
 
   function attack(t: Target) {
     if (!ship || rolling) return;
+    // Attacking a player: they get to offer a bribe first (the dice roll only if they fight).
+    const victim = t.kind === "ship" ? s.ships.find((sh) => sh.id === t.id)?.owner : s.owners[t.id];
+    if (victim !== undefined) return act({ t: "attack", ship: ship.id, target: t, attackDie: 1, defenseDie: 1 });
     setRolling(true);
     window.setTimeout(() => {
       setRolling(false);
@@ -194,7 +229,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   }
 
   function onSquareTap(p: Pos) {
-    if (covered || isBot || rolling || moving) return;
+    if (covered || isBot || rolling || moving || negotiating || tradeOpen) return;
     if (captainSpots.some((q) => same(q, p))) {
       act({ t: "placeShip", at: p });
       return;
@@ -379,6 +414,15 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
                 <button className="pl-btn" onClick={() => setBuildOpen(true)}>
                   Build
                 </button>
+                <button
+                  className="pl-btn"
+                  disabled={
+                    !tradePartners(s, current).length && !atMerchant(s, current) && !threatTargets(s, current).length
+                  }
+                  onClick={() => setTradeOpen(true)}
+                >
+                  Trade
+                </button>
                 {phase.roll === null ? (
                   <button className="pl-btn pl-btn-main" disabled={rolling} onClick={roll}>
                     {rolling ? "Rolling…" : "Roll"}
@@ -419,12 +463,29 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
         />
       )}
 
+      {(tradeOpen || negotiating) && !covered && phase.t === "turn" && (
+        <TradePanel
+          key={`${actor}:${s.trade?.kind}:${s.trade?.from}:${s.trade ? JSON.stringify(s.trade.answers) : ""}:${tradeOpen}`}
+          game={s}
+          start={tradeOpen && !negotiating ? "trade" : null}
+          onAct={act}
+          onClose={() => setTradeOpen(false)}
+        />
+      )}
+
       {covered && (
         <div className="pl-cover" role="dialog" aria-label="Pass the device">
-          <span className="pl-dot pl-dot-big" style={{ background: COLOR_HEX[me.color] }} />
-          <p className="pl-cover-title">Pass the device to {me.name}</p>
-          <button className="pl-btn pl-btn-main" onClick={() => onHolder(current)}>
-            I&rsquo;m {me.name}
+          <span className="pl-dot pl-dot-big" style={{ background: COLOR_HEX[s.players[actor].color] }} />
+          <p className="pl-cover-title">Pass the device to {s.players[actor].name}</p>
+          {actor !== current && (
+            <p className="pl-cover-sub">
+              {s.trade
+                ? `${s.players[s.trade.from].name} has an offer for you.`
+                : `${me.name} is attacking you! Bribe or fight?`}
+            </p>
+          )}
+          <button className="pl-btn pl-btn-main" onClick={() => onHolder(actor)}>
+            I&rsquo;m {s.players[actor].name}
           </button>
         </div>
       )}
@@ -474,7 +535,22 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           <BattleCard battle={notice} game={s} />
         </div>
       )}
-      {notice && !botNotice && (
+      {notice && (notice.t === "deal" || notice.t === "noDeal") && (
+        <div className="pl-toast" role="status">
+          {notice.t === "deal"
+            ? notice.kind === "bribe"
+              ? `${s.players[notice.with].name} took ${s.players[notice.player].name}'s bribe`
+              : notice.kind === "threat"
+                ? `${s.players[notice.with].name} gave in to ${s.players[notice.player].name}`
+                : `${s.players[notice.player].name} traded with ${s.players[notice.with].name}`
+            : notice.kind === "bribe"
+              ? "Bribe refused!"
+              : notice.kind === "threat"
+                ? "Threat refused!"
+                : `Nobody took ${s.players[notice.player].name}'s offer`}
+        </div>
+      )}
+      {notice && !botNotice && !passing && (
         <NoticeDialog notice={notice} game={s} onOk={() => onChange({ ...s, notices: s.notices.slice(1) })} />
       )}
     </>

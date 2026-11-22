@@ -21,6 +21,13 @@ import {
   RESOURCES,
   attackTargets,
   stormToll,
+  atMerchant,
+  cardCount,
+  hasCards,
+  points,
+  tradePartners,
+  waitingOn,
+  type Cards,
   defenseBonus,
   islandsOf,
   winChance,
@@ -44,11 +51,10 @@ import { SIDES, canSail, edgeKey, isSailable, type Pos, type Side } from "./tile
 const STEP: Record<Side, Pos> = { N: { r: -1, c: 0 }, E: { r: 0, c: 1 }, S: { r: 1, c: 0 }, W: { r: 0, c: -1 } };
 const key = (p: Pos) => `${p.r},${p.c}`;
 
-/** Whose move it is: the picker during island picking, otherwise the player whose turn it is. */
+/** Whose move it is: the picker, someone answering an offer or deciding on a bribe, or the current player. */
 export function actingPlayer(s: GameState): number | null {
-  if (s.phase.t === "pickIsland") return s.phase.order[s.phase.index];
-  if (s.phase.t === "turn") return s.turn;
-  return null;
+  if (s.phase.t === "gameOver") return null;
+  return waitingOn(s);
 }
 
 export function isBotMove(s: GameState): boolean {
@@ -179,6 +185,10 @@ export function botAction(s: GameState): Action | null {
   const hand = s.players[me].hand;
   const ships = s.ships.filter((sh) => sh.owner === me);
 
+  // Deals and bribes on the table come first: the game is waiting on this bot's answer.
+  const deal = negotiate(s, me);
+  if (deal) return deal;
+
   // A captain without a ship: free card, doubles, then any affordable way to get one.
   const c = s.captain;
   if (c && !ships.length) {
@@ -229,6 +239,20 @@ export function botAction(s: GameState): Action | null {
     }
   }
 
+  // Trading: the merchant swap when one card short, else one offer a turn to fill the gap.
+  const want = shortfall(s, me);
+  const spare = surplus(s, me);
+  if (cardCount(want) === 1 && cardCount(spare) >= 2 && atMerchant(s, me)) {
+    const need = RESOURCES.find((r) => want[r])!;
+    const two = RESOURCES.flatMap((r) => Array<Resource>(spare[r] ?? 0).fill(r)).slice(0, 2) as [Resource, Resource];
+    return { t: "merchant", give: two, get: need };
+  }
+  if (!(s.offers ?? 0) && cardCount(want) >= 1 && cardCount(spare) >= 1 && tradePartners(s, me).length) {
+    const need = RESOURCES.find((r) => want[r])!;
+    const give = RESOURCES.find((r) => spare[r])!;
+    return { t: "offer", kind: "trade", give: { [give]: 1 }, get: { [need]: 1 } };
+  }
+
   if (s.phase.roll === null) return { t: "roll", die: 0 };
 
   // Sailing: the first ship with somewhere useful to go (paying the storm if it must).
@@ -262,4 +286,108 @@ export function tollCards(hand: Hand, n: number): Resource[] {
     out.push(r);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trading and bribes
+
+/** What the bot is saving for: a ship while it has room, then cannons, masts and lives. */
+function goal(s: GameState, me: number): Cards {
+  const ships = s.ships.filter((sh) => sh.owner === me);
+  if (ships.length < MAX_SHIPS) return COSTS.ship;
+  if (ships.some((sh) => sh.cannons < MAX_CANNONS)) return COSTS.cannon;
+  if (ships.some((sh) => sh.masts < MAX_MASTS)) return COSTS.mast;
+  return COSTS.life;
+}
+
+/** Cards still missing for the goal. */
+function shortfall(s: GameState, me: number): Cards {
+  const hand = s.players[me].hand;
+  const g = goal(s, me);
+  const out: Cards = {};
+  for (const r of RESOURCES) if ((g[r] ?? 0) > hand[r]) out[r] = (g[r] ?? 0) - hand[r];
+  return out;
+}
+
+/** Cards beyond what the goal needs (gold is kept for burying, so it's never spare). */
+function surplus(s: GameState, me: number): Cards {
+  const hand = s.players[me].hand;
+  const g = goal(s, me);
+  const out: Cards = {};
+  for (const r of RESOURCES) if (r !== "gold" && hand[r] > (g[r] ?? 0)) out[r] = hand[r] - (g[r] ?? 0);
+  return out;
+}
+
+/** How much the bot values some cards: ones it's missing count double, gold one and a half. */
+function worth(s: GameState, me: number, c: Cards): number {
+  const missing = shortfall(s, me);
+  let v = 0;
+  for (const r of RESOURCES) {
+    const n = c[r] ?? 0;
+    const needed = Math.min(n, missing[r] ?? 0);
+    v += needed * 2 + (n - needed) * (r === "gold" ? 1.5 : 1);
+  }
+  return v;
+}
+
+/** Is a trade (receiving `get`, giving `give`) good for the bot, and safe given who it helps? */
+function likes(s: GameState, me: number, other: number, receive: Cards, give: Cards): boolean {
+  if (!hasCards(s.players[me].hand, give)) return false;
+  if (points(s, other) >= 8) return false; // don't help someone close to winning
+  return worth(s, me, receive) >= worth(s, me, give) + 0.5;
+}
+
+/** The bot's move when it's part of an offer, threat or bribe; null if it isn't. */
+function negotiate(s: GameState, me: number): Action | null {
+  const t = s.trade;
+  if (t) {
+    if (t.from === me) {
+      // Everyone has answered: take the first yes, or withdraw.
+      const yes = t.to.find((p) => t.answers[p] === "accept");
+      return yes !== undefined ? { t: "pickTrade", with: yes } : { t: "cancelTrade" };
+    }
+    if (t.kind === "bribe") {
+      // Take a good bribe, or one for a fight that isn't a sure thing.
+      const pa = s.pendingAttack;
+      const ship = s.ships.find((sh) => sh.id === pa?.ship);
+      const chance = pa && ship ? winChance(ship.cannons, defenseBonus(s, pa.target)) : 0.5;
+      return { t: "answer", accept: cardCount(t.give) >= 3 || (cardCount(t.give) >= 2 && chance < 0.8) };
+    }
+    if (t.kind === "threat") {
+      // Give in to small demands from someone who'd probably win.
+      const theirs = s.ships.filter((sh) => sh.owner === t.from);
+      const strong = theirs.some((sh) => sh.cannons >= 1);
+      return { t: "answer", accept: hasCards(s.players[me].hand, t.get) && cardCount(t.get) <= 2 && strong };
+    }
+    if (likes(s, me, t.from, t.give, t.get)) return { t: "answer", accept: true };
+    // A simple counter to an opening offer: ask one card less.
+    if (t.to.length > 1 && cardCount(t.get) >= 2) {
+      const less = { ...t.get };
+      const r = RESOURCES.find((x) => less[x])!;
+      less[r]! -= 1;
+      if (likes(s, me, t.from, t.give, less)) return { t: "counter", give: less, get: t.give };
+    }
+    return { t: "answer", accept: false };
+  }
+  const pa = s.pendingAttack;
+  if (pa?.stage === "bribe" && pa.defender === me) {
+    // Bribe once when the fight looks bad and the stakes are high (an island, or a ship's last life):
+    // the two cards it can most spare.
+    const attacker = s.ships.find((sh) => sh.id === pa.ship);
+    const target = pa.target.kind === "ship" ? s.ships.find((sh) => sh.id === pa.target.id) : undefined;
+    const highStakes = pa.target.kind === "island" || target?.lives === 1;
+    const holdsOut = attacker ? 1 - winChance(attacker.cannons, defenseBonus(s, pa.target)) : 0.5;
+    const hand = s.players[me].hand;
+    if (!(pa.bribes ?? 0) && highStakes && holdsOut < 0.4 && cardCount(hand) >= 2) {
+      const cards = tollCards(hand, 2);
+      const give: Cards = {};
+      for (const r of cards) give[r] = (give[r] ?? 0) + 1;
+      return { t: "bribe", give };
+    }
+    return { t: "noBribe" };
+  }
+  if (pa?.stage === "fight" && s.turn === me) {
+    return { t: "attack", ship: pa.ship, target: pa.target, attackDie: 0, defenseDie: 0 };
+  }
+  return null;
 }

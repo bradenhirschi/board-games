@@ -71,6 +71,11 @@ rules, how online play works, and the file map; read it first.
   sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
   attacking costs no moves and can happen before the roll; ships built after the roll can't sail
   but can attack; the app rolls islands' defence; sinking against an unowned island gives no card.
+  Trading follows the printed rules: offers go to every eligible player, each answers in seat order
+  (pass the device), the offerer picks among those who accepted; counters go back and forth; only
+  the current player starts trades, bribes come from the player being attacked; treaties are
+  enforced. `waitingOn(state)` says who must act. The trading panel (`components/Trade.tsx`) copies
+  the owner's reference layout (want row, two give/get rows, hand, big buttons on the right).
   Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 

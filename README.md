@@ -84,8 +84,17 @@ Plunder Points (ships + islands + Plunder Point cards) and winning at 10. Basic 
 (`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
 when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
 
-**Not built yet:** trading/threatening/bribing/treaties (including the storm blocking trade through a
-covered port), merchant-island swaps, smarter bots (trading, avoiding danger), online play.
+Trading: the current player offers a trade to everyone they may trade with (ship in their port or
+they in yours, ships side by side, or anyone when either is docked at a merchant island; not through
+a port the storm covers or across its edge); each answers in turn (passing the device), accepting,
+declining or countering, and the offerer picks one who accepted. Counter-offers can go back and
+forth. Merchant islands swap any two cards for one. Threats (a demand to a player in your port or
+beside you) and bribes (offered by a player you attack, before the dice; raise after a refusal, or
+fight) work the same way. Any deal that goes through makes a treaty for the rest of the turn: no
+attacks between those two. Bots answer by what they need, counter, bribe when it matters and make
+one offer a turn.
+
+**Not built yet:** smarter bots and difficulty levels, online play.
 
 **Not decided yet** (placeholders in the code):
 

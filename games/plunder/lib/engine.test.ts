@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CARDS_PER_RESOURCE,
+  atMerchant,
   attackTargets,
+  islandsOf,
+  tradePartners,
+  waitingOn,
   inStorm,
   stormToll,
   winChance,
@@ -45,6 +49,13 @@ function started(): GameState {
   // No storm here, so these tests don't depend on where it happens to land; it has its own tests.
   const s = { ...newGame(setup, 42, DEFAULT_LAYOUT, [2, 6]), storm: undefined };
   return play(s, { t: "pickIsland", island: "4d" }, { t: "pickIsland", island: "1a" });
+}
+
+/** Attack; if it's a player's ship or island, they decline to bribe and the battle goes ahead. */
+function fight(s: GameState, a: Action): GameState {
+  const pending = reducer(s, a);
+  if (pending.pendingAttack?.stage !== "bribe") return pending;
+  return play(pending, { t: "noBribe" }, a);
 }
 
 function withHand(s: GameState, player: number, hand: Partial<Hand>): GameState {
@@ -247,7 +258,7 @@ describe("plunder battles", () => {
 
   it("wins ties, takes a life, and can't attack the same ship twice in a turn", () => {
     let s = facing();
-    s = play(s, {
+    s = fight(s, {
       t: "attack",
       ship: anne(s).id,
       target: { kind: "ship", id: bart(s).id },
@@ -256,7 +267,7 @@ describe("plunder battles", () => {
     });
     expect(bart(s).lives).toBe(2);
     expect(s.notices.at(-1)).toMatchObject({ t: "battle", won: true, sunk: null });
-    const again = play(s, {
+    const again = fight(s, {
       t: "attack",
       ship: anne(s).id,
       target: { kind: "ship", id: bart(s).id },
@@ -268,7 +279,7 @@ describe("plunder battles", () => {
 
   it("adds cannons: the defender's cannons can beat the attacker", () => {
     let s = moveShip(facing(), 1, sq("C3"), { cannons: 2 });
-    s = play(s, {
+    s = fight(s, {
       t: "attack",
       ship: anne(s).id,
       target: { kind: "ship", id: bart(s).id },
@@ -281,7 +292,7 @@ describe("plunder battles", () => {
 
   it("sinking a ship earns a Plunder Point card", () => {
     let s = moveShip(facing(), 1, sq("C3"), { lives: 1, masts: 2 });
-    s = play(s, {
+    s = fight(s, {
       t: "attack",
       ship: anne(s).id,
       target: { kind: "ship", id: bart(s).id },
@@ -295,7 +306,7 @@ describe("plunder battles", () => {
 
   it("losing your last ship ends your turn and hands the defender a card", () => {
     let s = moveShip(facing(), 0, sq("C2"), { lives: 1 });
-    s = play(s, {
+    s = fight(s, {
       t: "attack",
       ship: anne(s).id,
       target: { kind: "ship", id: bart(s).id },
@@ -312,7 +323,7 @@ describe("plunder battles", () => {
     s = moveShip(moveShip(s, 1, sq("A6")), 0, isl.ports[0]);
     expect(points(s, 1)).toBe(2);
     // One skull: 4 + 0 vs 3 + 1 is a tie, which goes to the attacker.
-    s = play(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "4d" }, attackDie: 4, defenseDie: 3 });
+    s = fight(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "4d" }, attackDie: 4, defenseDie: 3 });
     expect(s.owners["4d"]).toBe(0);
     expect(points(s, 0)).toBe(3);
     expect(points(s, 1)).toBe(1);
@@ -322,7 +333,7 @@ describe("plunder battles", () => {
     let s = started();
     const isl = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "5b")!;
     s = moveShip(s, 0, isl.ports[0], { lives: 1 });
-    s = play(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "5b" }, attackDie: 1, defenseDie: 6 });
+    s = fight(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "5b" }, attackDie: 1, defenseDie: 6 });
     expect(s.players.map((p) => p.plunderCards)).toEqual([0, 0]);
     expect(s.notices.some((n) => n.t === "battle" && n.sunk === "attacker" && n.pointTo === null)).toBe(true);
   });
@@ -463,5 +474,137 @@ describe("plunder storm", () => {
     s = play(s, { t: "endTurn" });
     expect(Object.values(s.players[1].hand).reduce((a, b) => a + b, 0)).toBe(before);
     expect(points(s, 1)).toBe(2); // it still counts
+  });
+});
+
+describe("plunder trading", () => {
+  const trio = [
+    { name: "Anne", color: "red" as const },
+    { name: "Bart", color: "purple" as const },
+    { name: "Cleo", color: "yellow" as const },
+  ];
+  /** Three players, Anne to move; Bart's and Cleo's ships parked beside Anne's on open water (C2/C3/D2). */
+  function table(): GameState {
+    let s: GameState = { ...newGame(trio, 3, DEFAULT_LAYOUT, [1, 2, 6]), storm: undefined };
+    s = play(
+      s,
+      { t: "pickIsland", island: "4d" },
+      { t: "pickIsland", island: "5b" },
+      { t: "pickIsland", island: "1a" },
+    );
+    expect(s.turn).toBe(0);
+    s = moveShip(moveShip(moveShip(s, 0, sq("C2")), 1, sq("C3")), 2, sq("D2"));
+    s = withHand(withHand(withHand(s, 0, { wood: 2, rum: 1 }), 1, { gold: 2 }), 2, { gold: 1, iron: 1 });
+    return { ...s, notices: [] };
+  }
+
+  it("trades with players beside you, in your port or theirs, or anyone from a merchant island", () => {
+    const s = table();
+    expect(tradePartners(s, 0)).toEqual([1, 2]);
+    const apart = moveShip(s, 1, sq("A12"));
+    expect(tradePartners(apart, 0)).toEqual([2]);
+    // Docked at a merchant island (tile 1's, its E4 port): trade with everyone.
+    const merchant = islandsOf(DEFAULT_LAYOUT).find((i) => i.kind === "merchant" && i.id.startsWith("1"))!;
+    const docked = moveShip(moveShip(apart, 2, sq("L18")), 0, merchant.ports[0]);
+    expect(atMerchant(docked, 0)).toBe(true);
+    expect(tradePartners(docked, 0)).toEqual([1, 2]);
+  });
+
+  it("asks everyone in seat order, then the offerer picks one who said yes, and they make a treaty", () => {
+    let s = play(table(), { t: "offer", kind: "trade", give: { wood: 1 }, get: { gold: 1 } });
+    expect(waitingOn(s)).toBe(1);
+    // While the offer is out, nothing else can happen.
+    expect(play(s, { t: "roll", die: 3 })).toBe(s);
+    s = play(s, { t: "answer", accept: true });
+    expect(waitingOn(s)).toBe(2);
+    s = play(s, { t: "answer", accept: true });
+    expect(waitingOn(s)).toBe(0);
+    s = play(s, { t: "pickTrade", with: 2 });
+    expect(s.trade).toBeNull();
+    expect(s.players[0].hand).toMatchObject({ wood: 1, gold: 1 });
+    expect(s.players[2].hand).toMatchObject({ wood: 1, gold: 0 });
+    expect(s.treaties).toEqual([2]);
+    // The treaty stops Anne attacking Cleo's ship (beside her), but not Bart's.
+    const targets = attackTargets(s, s.ships.find((sh) => sh.owner === 0)!);
+    expect(targets.map((t) => (t.kind === "ship" ? s.ships.find((sh) => sh.id === t.id)!.owner : -1))).toEqual([1]);
+  });
+
+  it("can't accept without the cards; everyone declining withdraws the offer", () => {
+    let s = play(table(), { t: "offer", kind: "trade", give: { wood: 1 }, get: { gold: 2 } });
+    // Cleo has only one gold, but Bart can: Bart declines anyway, then Cleo can't accept.
+    s = play(s, { t: "answer", accept: false });
+    expect(play(s, { t: "answer", accept: true })).toBe(s);
+    s = play(s, { t: "answer", accept: false });
+    expect(s.trade).toBeNull();
+    expect(s.notices.at(-1)).toMatchObject({ t: "noDeal", player: 0 });
+  });
+
+  it("goes back and forth with counter-offers", () => {
+    let s = play(table(), { t: "offer", kind: "trade", give: { wood: 1 }, get: { gold: 2 } });
+    // Bart counters: one gold for two wood. It goes back to Anne alone.
+    s = play(s, { t: "counter", give: { gold: 1 }, get: { wood: 2 } });
+    expect(s.trade).toMatchObject({ from: 1, to: [0] });
+    expect(waitingOn(s)).toBe(0);
+    // Anne counters back: one gold for one wood. Bart accepts and it's done.
+    s = play(s, { t: "counter", give: { wood: 1 }, get: { gold: 1 } });
+    expect(waitingOn(s)).toBe(1);
+    s = play(s, { t: "answer", accept: true });
+    expect(s.players[0].hand).toMatchObject({ wood: 1, gold: 1 });
+    expect(s.treaties).toEqual([1]);
+  });
+
+  it("swaps any two cards for one at a merchant island", () => {
+    let s = table();
+    expect(play(s, { t: "merchant", give: ["wood", "wood"], get: "iron" })).toBe(s);
+    const merchant = islandsOf(DEFAULT_LAYOUT).find((i) => i.kind === "merchant" && i.id.startsWith("1"))!;
+    s = moveShip(s, 0, merchant.ports[0]);
+    s = play(s, { t: "merchant", give: ["wood", "rum"], get: "iron" });
+    expect(s.players[0].hand).toMatchObject({ wood: 1, rum: 0, iron: 1 });
+  });
+
+  it("threatens a player positioned for it; giving in makes a treaty", () => {
+    let s = play(table(), { t: "offer", kind: "threat", to: 1, get: { gold: 2 } });
+    expect(waitingOn(s)).toBe(1);
+    s = play(s, { t: "answer", accept: true });
+    expect(s.players[0].hand.gold).toBe(2);
+    expect(s.players[1].hand.gold).toBe(0);
+    expect(s.treaties).toEqual([1]);
+  });
+
+  it("lets the defender bribe before a battle: raise after a refusal, or fight", () => {
+    let s = table();
+    const attack: Action = {
+      t: "attack",
+      ship: s.ships.find((sh) => sh.owner === 0)!.id,
+      target: { kind: "ship", id: s.ships.find((sh) => sh.owner === 1)!.id },
+      attackDie: 6,
+      defenseDie: 1,
+    };
+    s = play(s, attack);
+    expect(s.pendingAttack).toMatchObject({ defender: 1, stage: "bribe" });
+    expect(waitingOn(s)).toBe(1);
+    // One gold: Anne refuses. Bart raises to two: Anne takes it and the attack is off.
+    s = play(s, { t: "bribe", give: { gold: 1 } }, { t: "answer", accept: false });
+    expect(s.pendingAttack?.stage).toBe("bribe");
+    s = play(s, { t: "bribe", give: { gold: 2 } }, { t: "answer", accept: true });
+    expect(s.pendingAttack).toBeNull();
+    expect(s.players[0].hand.gold).toBe(2);
+    expect(s.treaties).toEqual([1]);
+    expect(play(s, attack)).toBe(s);
+  });
+
+  it("goes ahead with the battle when the defender won't bribe", () => {
+    let s = table();
+    const attack: Action = {
+      t: "attack",
+      ship: s.ships.find((sh) => sh.owner === 0)!.id,
+      target: { kind: "ship", id: s.ships.find((sh) => sh.owner === 1)!.id },
+      attackDie: 6,
+      defenseDie: 1,
+    };
+    s = play(s, attack, { t: "noBribe" });
+    expect(waitingOn(s)).toBe(0);
+    s = play(s, attack);
+    expect(s.notices.at(-1)).toMatchObject({ t: "battle", won: true });
   });
 });

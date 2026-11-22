@@ -1236,3 +1236,325 @@ body {
   fill: #08121c;
   opacity: 0.45;
 }
+
+/* ---- Trading panel: board above, panel over the lower part of the screen ---- */
+
+.pl-tr {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--pl-gold);
+  border-radius: 16px 16px 0 0;
+  background: #1b2a38;
+  box-shadow: 0 -6px 18px #0008;
+}
+
+.pl-tr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 0;
+  background: none;
+  color: var(--pl-parchment);
+  font: inherit;
+  font-size: 17px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pl-tr-head b {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-tr-chevron {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.pl-tr-body {
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 10px;
+}
+
+.pl-tr-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pl-tr-side {
+  flex: none;
+  width: 74px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pl-tr-big {
+  height: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 2px solid #8a6a3a;
+  border-radius: 12px;
+  background: #efe2c2;
+  color: #2b1b0b;
+  font: inherit;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pl-tr-big small {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pl-tr-big.ok {
+  border-color: #3f7a2a;
+  background: #d6ebc6;
+  color: #24521a;
+}
+
+.pl-tr-big.no {
+  border-color: #a3402a;
+  background: #f2d3c8;
+  color: #7a2414;
+}
+
+.pl-tr-big.edit {
+  border-color: #2f5c7e;
+  background: #d2e3f0;
+  color: #173149;
+}
+
+.pl-tr-big:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Parchment panels like the cards on the table. */
+.pl-tr-pick,
+.pl-tr-hand,
+.pl-tr-rows {
+  border-radius: 10px;
+  background: #efe2c2;
+  color: #2b1b0b;
+}
+
+.pl-tr-pick,
+.pl-tr-hand {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+}
+
+.pl-tr-hand {
+  background: #d9c48f;
+}
+
+.pl-tr-card {
+  width: 50px;
+  height: 52px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  border: 1.5px solid #8a6a3a;
+  border-radius: 8px;
+  background: #fbf4e2;
+  color: #2b1b0b;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.pl-tr-card small {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pl-tr-card:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pl-tr-rows {
+  padding: 4px 8px;
+}
+
+.pl-tr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 62px;
+}
+
+.pl-tr-row + .pl-tr-row {
+  border-top: 1px solid #8a6a3a44;
+}
+
+.pl-tr-who {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #2b1b0b;
+  border-radius: 50%;
+}
+
+.pl-tr-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-color: #5a3f1c;
+  background: #fbf4e2;
+}
+
+.pl-tr-group svg {
+  width: 24px;
+  height: 24px;
+  fill: #5a3f1c;
+}
+
+.pl-tr-arrow {
+  flex: none;
+  font-size: 20px;
+}
+
+.pl-tr-arrow.in {
+  color: #3f7a2a;
+}
+
+.pl-tr-arrow.out {
+  color: #c0392b;
+}
+
+.pl-tr-row-body {
+  min-width: 0;
+}
+
+.pl-tr-row-body small {
+  display: block;
+  font-size: 12px;
+  color: #5a3f1c;
+}
+
+.pl-tr-cards {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pl-tr-cards .pl-tr-card {
+  width: 44px;
+  height: 44px;
+}
+
+.pl-tr-empty {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+.pl-tr-note {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pl-tr-tabs {
+  display: flex;
+  border: 1px solid #d9a44188;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pl-tr-tabs button {
+  flex: 1;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--pl-parchment);
+  font: inherit;
+  font-size: 14px;
+}
+
+.pl-tr-tabs button[aria-selected="true"] {
+  background: var(--pl-gold);
+  color: var(--pl-sea);
+  font-weight: 700;
+}
+
+.pl-tr-targets,
+.pl-tr-status,
+.pl-tr-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pl-tr-targets .pl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pl-tr-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 4px;
+  border-radius: 14px;
+  background: #0003;
+  font-size: 14px;
+}
+
+.pl-tr-status-chip i {
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pl-tr-status-chip.accept i {
+  color: #6fd36a;
+}
+
+.pl-tr-status-chip.decline i {
+  color: #ff6b5a;
+}
+
+.pl-tr-with {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pl-cover-sub {
+  margin: -8px 0 0;
+  font-size: 16px;
+  opacity: 0.85;
+}
+
+/* Cards that are just shown (not tappable) look normal, not disabled. */
+.pl-tr-card.pl-tr-static:disabled {
+  opacity: 1;
+}
