@@ -64,8 +64,8 @@ NEXT_PUBLIC_FIREBASE_EMULATORS=1 npm run dev
 
 ## Plunder (in progress)
 
-A pirate board game at `/plunder`, built from the owner's rules document. Pass-and-play on one phone
-for 2–6 players, any of them bots; no online play yet.
+A pirate board game at `/plunder`, built from the owner's rules document. 2–6 players, any of them
+bots: pass-and-play on one device, or online (each player on their own device).
 
 **Built so far:** a shuffled, randomly turned board; picking one-skull starting islands (highest roll
 picks first, the last to pick starts); a ship in each player's port and three resource cards each;
@@ -94,7 +94,16 @@ fight) work the same way. Any deal that goes through makes a treaty for the rest
 attacks between those two. Bots answer by what they need, counter, bribe when it matters and make
 one offer a turn.
 
-**Not built yet:** smarter bots and difficulty levels, online play.
+**Online play** works like Stock Market's: rooms in Firestore at `plunderRooms/{code}`
+(`games/plunder/lib/rooms.ts`), joined by code or invite link (`/plunder?room=CODE`). The device the
+game waits on applies the move with the shared rules and saves the new state plus the actions it
+applied, in a transaction; every other device replays them (other players' ships sail square by
+square, and each device shows the news itself: battles, treasure, its own card draws). The game can
+wait on someone mid-turn (answering a trade, deciding on a bribe), and `currentUid` follows that.
+Bots are played by any seated device; the room keeps the first save. Saved states hold no notices
+(`games/plunder/lib/online.ts`).
+
+**Not built yet:** smarter bots and difficulty levels.
 
 **Not decided yet** (placeholders in the code):
 

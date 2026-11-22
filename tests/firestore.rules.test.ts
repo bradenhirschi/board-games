@@ -75,7 +75,11 @@ describe("creating a room", () => {
     await assertFails(room("host").set(lobby({ status: "playing" })));
   });
   it("needs a valid code", async () => {
-    await assertFails(db("host").doc("stockMarketRooms/abc").set(lobby({ code: "abc" })));
+    await assertFails(
+      db("host")
+        .doc("stockMarketRooms/abc")
+        .set(lobby({ code: "abc" })),
+    );
   });
 });
 

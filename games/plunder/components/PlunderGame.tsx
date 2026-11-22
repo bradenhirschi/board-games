@@ -162,9 +162,8 @@ export default function PlunderGame({
   const [rolling, setRolling] = useState(false);
 
   const s = game;
-  const act = (a: Action) => {
-    if (!locked) onAct(a);
-  };
+  // Online, the room holds back a move made during a replay until the board has caught up.
+  const act = (a: Action) => onAct(a);
   const phase = s.phase;
   const current = phase.t === "pickIsland" ? phase.order[phase.index] : s.turn;
   const me = s.players[current];
@@ -223,7 +222,8 @@ export default function PlunderGame({
   // A person's attack on a player who chose to fight (or whose bribe was refused): roll it.
   const fight = s.pendingAttack?.stage === "fight" && !isBot && actor === s.turn ? s.pendingAttack : null;
   useEffect(() => {
-    if (!fight || rolling || covered) return;
+    // Wait until the device has caught up (online, the other player's choice may still be replaying).
+    if (!fight || rolling || covered || locked) return;
     const t = window.setTimeout(() => {
       setRolling(true);
       window.setTimeout(() => {
@@ -234,11 +234,12 @@ export default function PlunderGame({
     return () => window.clearTimeout(t);
     // `act` is recreated each render; the fight is keyed by the state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s, fight, rolling, covered]);
+  }, [s, fight, rolling, covered, locked]);
 
   const reach = useMemo(
-    () => (ship && phase.t === "turn" ? reachable(s, ship) : new Map<string, Pos[]>()),
-    [s, ship, phase.t],
+    // Only for ships played from this device.
+    () => (ship && phase.t === "turn" && !isBot ? reachable(s, ship) : new Map<string, Pos[]>()),
+    [s, ship, phase.t, isBot],
   );
   const spots = useMemo(() => (placing ? shipSpots(s, current) : []), [s, placing, current]);
   // The player's ships that can take the chosen upgrade.
@@ -404,7 +405,7 @@ export default function PlunderGame({
             key={sh.id}
             ship={sh}
             color={s.players[sh.owner].color}
-            selected={sh.id === ship?.id}
+            selected={!isBot && sh.id === ship?.id}
             at={moving?.ship === sh.id ? moving.pos : undefined}
           />
         ))}
@@ -424,6 +425,13 @@ export default function PlunderGame({
 
         {phase.t !== "pickIsland" && (
           <div className="pl-hand" aria-label="Your cards">
+            {/* Online, the cards are always yours: say so while someone else is playing. */}
+            {online && seat !== null && seat !== undefined && seat !== current && (
+              <span className="pl-hand-you">
+                <span className="pl-dot" style={{ background: COLOR_HEX[s.players[seat].color] }} />
+                You
+              </span>
+            )}
             {RESOURCES.map((r) => (
               <span key={r} className="pl-card-count" title={RESOURCE_NAMES[r]}>
                 <ResourceIcon r={r} />

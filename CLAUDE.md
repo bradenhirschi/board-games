@@ -77,6 +77,9 @@ rules, how online play works, and the file map; read it first.
   enforced. `waitingOn(state)` says who must act. The trading panel (`components/Trade.tsx`) copies
   the owner's reference layout (want row, two give/get rows, hand, big buttons on the right).
   Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
+  Online: `lib/online.ts` (resolve/replay, notices are local to each device), `lib/rooms.ts`
+  (`plunderRooms`, same pattern and rules as Stock Market's), `components/Online.tsx` (start, lobby,
+  game wrapper). `PlunderGame` takes `seat` online (left out for pass-and-play) and `onAct`.
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;
