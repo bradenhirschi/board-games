@@ -26,53 +26,44 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-.pl-home {
-  min-height: 100dvh;
+.pl-screen {
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-  text-align: center;
+  gap: 8px;
+  padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: radial-gradient(ellipse at 50% 30%, var(--pl-sea-light), var(--pl-sea) 70%);
+  overflow: hidden;
+}
+
+.pl-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .pl-title {
   margin: 0;
-  font-size: clamp(48px, 16vw, 96px);
+  font-size: 28px;
   letter-spacing: 0.06em;
   color: var(--pl-gold);
-  text-shadow: 0 3px 0 #000a;
-}
-
-.pl-tagline {
-  margin: 0 0 24px;
-  font-size: 18px;
-  opacity: 0.85;
+  text-shadow: 0 2px 0 #000a;
 }
 
 .pl-account {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  font-size: 15px;
 }
 
-.pl-account p {
-  margin: 0;
-}
-
-.pl-btn {
-  font: inherit;
-  font-weight: 600;
-  padding: 12px 22px;
-  border: 2px solid var(--pl-gold);
-  border-radius: 10px;
-  background: var(--pl-gold);
-  color: var(--pl-sea);
-  cursor: pointer;
+.pl-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pl-link {
@@ -84,7 +75,6 @@ body {
   cursor: pointer;
 }
 
-.pl-btn:disabled,
 .pl-link:disabled {
   opacity: 0.6;
   cursor: default;
@@ -92,4 +82,73 @@ body {
 
 .pl-error {
   color: var(--pl-blood);
+}
+
+/* ---- Board ---- */
+
+.pl-board-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pl-board {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 14px #0009);
+}
+
+/* Show the orientation that fits the screen: the board turned on tall screens. */
+.pl-board-portrait {
+  display: none;
+}
+@media (max-aspect-ratio: 1/1) {
+  .pl-board-landscape {
+    display: none;
+  }
+  .pl-board-portrait {
+    display: block;
+  }
+}
+
+.pl-frame {
+  fill: #3b2814;
+}
+
+.pl-cell {
+  fill: #ecdcb0;
+  stroke: #8a6a3a;
+  stroke-width: 0.25;
+}
+
+.pl-label {
+  fill: #2b1b0b;
+  font-family: var(--pl-serif);
+  font-size: 5.6px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.pl-corner rect {
+  fill: #d9c48f;
+  stroke: #8a6a3a;
+  stroke-width: 0.25;
+}
+
+.pl-corner path {
+  fill: none;
+  stroke: #5a3f1c;
+  stroke-width: 0.6;
+}
+
+.pl-corner circle {
+  fill: #5a3f1c;
+}
+
+.pl-inner-edge {
+  fill: none;
+  stroke: #3b2814;
+  stroke-width: 0.6;
 }
