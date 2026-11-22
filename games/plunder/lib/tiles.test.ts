@@ -90,6 +90,8 @@ describe("plunder tiles", () => {
           if (!port) return;
           const n = portSides(map, { r, c }).length;
           const where = `tile ${t.id} ${"ABCDEF"[r]}${c + 1}`;
+          // Every anchor square shows both land and water: it's never full land, and never open sea.
+          expect(sq.half, `${where}: port on full land or open sea`).not.toBeNull();
           if (port === "diagonal") expect(n, where).toBeGreaterThanOrEqual(2);
           else expect(n, where).toBe(1);
         }),
@@ -112,12 +114,10 @@ describe("plunder tiles", () => {
     const t2 = TILES[1];
     const flat = tileMap(t2);
     const turned = tileMap(t2, 90);
-    // B2 (row 1, col 1), an upright port opening north, moves to B5 (row 1, col 4) opening east,
-    // and C3's half land (north and east) turns to face east and south.
-    expect(flat.squares[1][1].feature?.port).toBe("N");
-    expect(turned.squares[1][4].feature?.port).toBe("E");
+    // C3's half land (north and east) turns to face east and south, and keeps its port.
     expect(flat.squares[2][2].half).toEqual(["N", "E"]);
     expect(turned.squares[2][3].half).toEqual(["E", "S"]);
+    expect(turned.squares[2][3].feature?.port).toBe("diagonal");
     // The barrier on the south side of C5 (row 2, col 4) becomes the west side of E4 (row 4, col 3).
     expect(flat.walls.has(edgeKey({ r: 2, c: 4 }, "S"))).toBe(true);
     expect(turned.walls.has(edgeKey({ r: 4, c: 3 }, "W"))).toBe(true);
@@ -171,7 +171,7 @@ describe("plunder sailing", () => {
     expect(canSail(map, sq("C8"), "N")).toBe(false); // across its land into the bay
     expect(canSail(map, sq("C8"), "E")).toBe(true); // along the water side into C9
     expect(canSail(map, sq("C9"), "E")).toBe(false); // the island's edge on the C9|C10 line
-    // The bay B8 opens only north: an edge to the west, C8's land to the south, B9's land east.
+    // The bay B8 opens only north: its own land west and south, B9's land east.
     expect(portSides(map, sq("B8"))).toEqual(["N"]);
     // C9's diagonal port opens south and west.
     expect(portSides(map, sq("C9"))).toEqual(["S", "W"]);
@@ -188,8 +188,8 @@ describe("plunder sailing", () => {
   });
 
   it("enters a diagonal port from any side facing water", () => {
-    // Tile 1's B2 islet is its own port, open on all four sides.
-    expect(portSides(map, sq("B2"))).toEqual(["N", "E", "S", "W"]);
+    // Tile 1's B2 islet is half land (jungle to the west) with its port on the water side.
+    expect(portSides(map, sq("B2"))).toEqual(["N", "E", "S"]);
     // Tile 1's D5 port has island to the west and south, so it opens north and east.
     expect(portSides(map, sq("D5"))).toEqual(["N", "E"]);
     expect(canSail(map, sq("C5"), "S")).toBe(true);

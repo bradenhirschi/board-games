@@ -2,12 +2,12 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import { COLS, ROWS, ROW_LETTERS, tilePosition } from "@/games/plunder/lib/board";
-import { TILE_SIZE, boardMap } from "@/games/plunder/lib/tiles";
-import { ArtDefs, FeaturesArt, IslandsArt, S, SeaArt } from "./Art";
+import { DEFAULT_LAYOUT, TILE_SIZE } from "@/games/plunder/lib/tiles";
+import { ArtDefs, IslandsArt, S, SeaArt, placeLayout } from "./Art";
 
 /** One square = U units in the SVG. The border is one square thick on every side. */
 const U = S;
-const MAP = boardMap();
+const PLACED = placeLayout(DEFAULT_LAYOUT);
 const W = (COLS + 2) * U;
 const H = (ROWS + 2) * U;
 
@@ -66,8 +66,7 @@ function BoardSvg() {
       <rect className="pl-frame" x={-0.5} y={-0.5} width={W + 1} height={H + 1} rx={1.5} />
       <g transform={`translate(${U} ${U})`}>
         <SeaArt w={COLS} h={ROWS} tileSize={TILE_SIZE} />
-        <IslandsArt map={MAP} />
-        <FeaturesArt map={MAP} />
+        <IslandsArt placed={PLACED} />
       </g>
       {LABELS.map((l) => (
         <Label key={`${l.x},${l.y}`} {...l} />

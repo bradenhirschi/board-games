@@ -401,3 +401,28 @@ body {
   stroke-width: 1.1;
   stroke-linecap: round;
 }
+
+/* Traced island layers (see Art.tsx). */
+.pl-shallows {
+  fill: #8fd3df;
+  stroke: #8fd3df;
+  stroke-width: 5;
+  stroke-linejoin: round;
+  opacity: 0.45;
+}
+
+.pl-surf {
+  fill: #f4fbff;
+  stroke: #f4fbff;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.pl-sand {
+  fill: #ead6ad;
+}
+
+.pl-jungle {
+  fill: #4f5a26;
+}

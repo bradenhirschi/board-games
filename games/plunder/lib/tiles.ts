@@ -15,11 +15,11 @@
  * - **Edges** (`barriers`): thin land along the edge between two squares, which ships can't cross.
  *   Free-standing land barriers are edges too.
  *
- * **Ports** (anchor symbols) are where a ship docks to interact with an island. A port is usually a
- * water or half-land square beside the island, and it can be entered from whichever sides the land
- * around it leaves open: an upright anchor ends up with one way in, a diagonal anchor with several.
- * A few small islands are a single land square that is its own port; for those the open sides are
- * given (`port: "N" | "E" | "S" | "W"`) or, for `"diagonal"`, every side facing water.
+ * **Ports** (anchor symbols) are where a ship docks to interact with an island. A port is a water or
+ * half-land square at the island's edge (never full land), entered from whichever sides the land
+ * around it leaves open: an upright anchor ends up with exactly one way in, a diagonal anchor with
+ * several. Which squares are land, half land or port is a first guess traced from the art; the owner
+ * will correct it. The island art itself is traced separately (`tileArt.ts`).
  *
  * Island types (from the rules): skulls make a **resource** island, a barrel a **merchant** island,
  * otherwise it's a **normal** island. **Land barriers** take up no square; they sit on the edge
@@ -31,16 +31,24 @@ export const TILE_ROWS = "ABCDEF".split("");
 
 export type Side = "N" | "E" | "S" | "W";
 export const SIDES: Side[] = ["N", "E", "S", "W"];
-export type Port = "diagonal" | Side;
+export type Port = "upright" | "diagonal";
 
 export type Feature = { port?: Port; skulls?: 1 | 2 | 3; barrel?: true; half?: Side[] };
 export type Barrier = { at: string; side: Side };
+
+/**
+ * A symbol painted on the tile's art, placed exactly where it is on the sample board (tile units:
+ * 10 per square, from the tile's top-left). Gameplay uses `features`; these are only for drawing.
+ */
+export type IconKind = "anchor" | "anchor-tilted" | "skull" | "barrel";
+export type Icon = { kind: IconKind; x: number; y: number };
 
 export type TileDef = {
   id: number;
   map: string[];
   features: Record<string, Feature>;
   barriers: Barrier[];
+  icons: Icon[];
 };
 
 export const TILES: TileDef[] = [
@@ -48,125 +56,169 @@ export const TILES: TileDef[] = [
     id: 1,
     map: [
       "......", //
-      ".a.b..",
+      ".A.b..",
       ".....c",
-      "...dd.",
-      "...dd.",
+      "...dD.",
+      "...Dd.",
       "......",
     ],
     features: {
-      B2: { skulls: 1, port: "diagonal" },
-      D5: { port: "diagonal" },
-      E4: { port: "diagonal" },
+      B2: { half: ["W"], skulls: 1, port: "diagonal" },
+      D5: { half: ["S", "W"], port: "diagonal" },
+      E4: { half: ["N", "E"], port: "diagonal" },
       E5: { barrel: true },
     },
     barriers: [
       { at: "D1", side: "E" },
       { at: "E1", side: "E" },
     ],
+    icons: [
+      { kind: "skull", x: 12.5, y: 12.5 },
+      { kind: "anchor-tilted", x: 16.2, y: 16.2 },
+      { kind: "anchor-tilted", x: 44.2, y: 34.9 },
+      { kind: "anchor-tilted", x: 37.3, y: 46.3 },
+      { kind: "barrel", x: 45.6, y: 45.3 },
+    ],
   },
   {
     id: 2,
     map: [
       "....a.", //
-      "..b...",
+      ".Bb...",
       ".BB...",
       "......",
       "...c..",
       ".d...e",
     ],
     features: {
-      // The big island: B3 is full land; C2 and C3 are half land; a strip of land runs down the
-      // B1|B2 edge and another down the C3|C4 edge. B2 is the bay inside it.
-      B2: { port: "N" },
+      // The big island: B3 is full land; B2, C2 and C3 are half land, and a strip of land runs down
+      // the C3|C4 edge. B2 holds the bay, with land on its west and south, so it opens north only.
+      B2: { half: ["W", "S"], port: "upright" },
       B3: { skulls: 2 },
       C2: { half: ["N"] },
       C3: { half: ["N", "E"], port: "diagonal" },
     },
     barriers: [
-      { at: "B2", side: "W" },
       { at: "C3", side: "E" },
       { at: "C5", side: "S" },
       { at: "C6", side: "S" },
       { at: "D1", side: "S" },
       { at: "D2", side: "S" },
     ],
+    icons: [
+      { kind: "anchor", x: 15.9, y: 14.6 },
+      { kind: "skull", x: 23.4, y: 15.9 },
+      { kind: "skull", x: 26.4, y: 15.9 },
+      { kind: "anchor-tilted", x: 23.9, y: 26.4 },
+    ],
   },
   {
     id: 3,
     map: [
       "......", //
-      "a..bb.",
+      "a..bB.",
       "..c...",
       "....d.",
-      "e.f...",
+      "e.F...",
       "....g.",
     ],
     features: {
       B4: { skulls: 2 },
-      B5: { port: "diagonal" },
-      E3: { skulls: 1, port: "N" },
+      B5: { half: ["N"], port: "diagonal" },
+      // A sandy island around a little lagoon that opens north.
+      E3: { half: ["E", "S", "W"], skulls: 1, port: "upright" },
     },
     barriers: [{ at: "B3", side: "N" }],
+    icons: [
+      { kind: "skull", x: 33.2, y: 12.7 },
+      { kind: "skull", x: 35.2, y: 12.7 },
+      { kind: "anchor-tilted", x: 44.0, y: 15.5 },
+      { kind: "anchor", x: 24.2, y: 43.4 },
+      { kind: "skull", x: 26.4, y: 46.7 },
+    ],
   },
   {
     id: 4,
     map: [
       ".a....", //
-      "...b..",
+      "..BbB.",
       "c.bbb.",
       "......",
-      ".d...e",
+      ".D...e",
       "...f..",
     ],
     features: {
-      // The big island is B4 and C3–C5; its two ports are in the water above it, at B3 and B5.
-      B3: { port: "diagonal" },
-      B5: { port: "diagonal" },
+      // The big island is B4 and C3–C5; its ports are at its edge above it, at B3 and B5.
+      B3: { half: ["E", "S"], port: "diagonal" },
+      B5: { half: ["S", "W"], port: "diagonal" },
       C4: { skulls: 2 },
-      E2: { skulls: 1, port: "S" },
+      E2: { half: ["N", "E", "W"], skulls: 1, port: "upright" },
     },
     barriers: [],
+    icons: [
+      { kind: "anchor-tilted", x: 27.3, y: 15.1 },
+      { kind: "anchor-tilted", x: 44.8, y: 14.3 },
+      { kind: "skull", x: 33.8, y: 25.5 },
+      { kind: "skull", x: 36.8, y: 25.5 },
+      { kind: "skull", x: 15.3, y: 42.3 },
+      { kind: "anchor", x: 15.1, y: 47.4 },
+    ],
   },
   {
     id: 5,
     map: [
       "......", //
       "..a.b.",
-      ".c..b.",
-      ".cc...",
+      ".C..B.",
+      ".Cc...",
       "...d..",
       "..e..f",
     ],
     features: {
       B5: { skulls: 1 },
-      C5: { port: "E" },
-      C2: { port: "diagonal" },
-      D2: { barrel: true, port: "S" },
+      C5: { half: ["S", "W"], port: "upright" },
+      C2: { half: ["W"], port: "diagonal" },
+      D2: { half: ["N", "E", "W"], barrel: true, port: "upright" },
     },
     barriers: [],
+    icons: [
+      { kind: "skull", x: 44.9, y: 15.1 },
+      { kind: "anchor", x: 45.9, y: 24.2 },
+      { kind: "anchor-tilted", x: 15.9, y: 25.0 },
+      { kind: "barrel", x: 12.9, y: 32.4 },
+      { kind: "anchor", x: 15.7, y: 37.4 },
+    ],
   },
   {
     id: 6,
     map: [
       "a.....", //
       "...bb.",
-      "....b.",
+      "...Bb.",
       "c..bB.",
-      ".d...e",
+      ".D...e",
       "......",
     ],
     features: {
       // The crescent: B4, B5, C5 and D4 are full land, D5 is half land (north and west), and it wraps
-      // around an open-water bay at C4 whose port can only be entered from the west.
-      C4: { port: "W" },
+      // around a bay at C4 whose port can only be entered from the west.
+      C4: { half: ["N"], port: "upright" },
       C5: { skulls: 3 },
       D5: { half: ["N", "W"], port: "diagonal" },
-      E2: { skulls: 1, port: "N" },
+      E2: { half: ["E", "S", "W"], skulls: 1, port: "upright" },
     },
     barriers: [
       { at: "A2", side: "E" },
       { at: "B2", side: "E" },
+    ],
+    icons: [
+      { kind: "anchor", x: 36.5, y: 24.2 },
+      { kind: "skull", x: 44.8, y: 22.3 },
+      { kind: "skull", x: 44.8, y: 25.3 },
+      { kind: "skull", x: 44.8, y: 28.3 },
+      { kind: "anchor-tilted", x: 45.6, y: 36.3 },
+      { kind: "anchor", x: 14.7, y: 42.9 },
+      { kind: "skull", x: 14.8, y: 48.1 },
     ],
   },
 ];
@@ -237,7 +289,6 @@ export function tileMap(def: TileDef, rotation: Rotation = 0): SeaMap {
       let feature: Feature | null = null;
       if (f) {
         feature = { ...f };
-        if (f.port && f.port !== "diagonal") feature.port = turnSide(f.port);
         if (f.half) feature.half = f.half.map(turnSide);
       }
       const p = turnPos({ r, c });
@@ -276,9 +327,9 @@ function at(map: SeaMap, p: Pos): Square | undefined {
   return map.squares[p.r]?.[p.c];
 }
 
-/** Ships can be on open sea, on the water side of half land, or in a port; never on full land. */
+/** Ships can be on open sea or the water side of half land; never on full land. */
 export function isSailable(sq: Square | undefined): boolean {
-  return !!sq && (sq.island === null || sq.half !== null || !!sq.feature?.port);
+  return !!sq && (sq.island === null || sq.half !== null);
 }
 
 function step(p: Pos, side: Side): Pos {
@@ -299,27 +350,19 @@ function edgeOpen(map: SeaMap, p: Pos, side: Side): boolean {
   return true;
 }
 
-/** The sides a port can be entered from (and left by). */
+/** The sides a port can be entered from (and left by): those the land around it leaves open. */
 export function portSides(map: SeaMap, p: Pos): Side[] {
-  const port = at(map, p)?.feature?.port;
-  if (!port) return [];
-  // A single land square that is its own port with one way in names that side.
-  if (port !== "diagonal" && at(map, p)!.island && at(map, p)!.half === null) return [port];
+  if (!at(map, p)?.feature?.port) return [];
   return SIDES.filter((s) => edgeOpen(map, p, s));
 }
 
 /**
- * Can a ship sail one square from `from` in direction `dir`? The edge between them must be open
- * (see `edgeOpen`), and a port on full land must be entered and left through its open sides.
+ * Can a ship sail one square from `from` in direction `dir`? Only if the edge between them is open:
+ * neither square is full land, no barrier lies on it, and no half land covers it.
  * (Ships move orthogonally; diagonal moves aren't decided yet.)
  */
 export function canSail(map: SeaMap, from: Pos, dir: Side): boolean {
-  const to = step(from, dir);
-  if (!edgeOpen(map, from, dir)) return false;
-  const landPort = (p: Pos) => !!at(map, p)?.feature?.port && at(map, p)!.island !== null && at(map, p)!.half === null;
-  if (landPort(from) && !portSides(map, from).includes(dir)) return false;
-  if (landPort(to) && !portSides(map, to).includes(OPPOSITE[dir])) return false;
-  return true;
+  return edgeOpen(map, from, dir);
 }
 
 export type IslandKind = "resource" | "merchant" | "normal";

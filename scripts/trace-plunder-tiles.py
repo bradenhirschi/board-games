@@ -1,0 +1,130 @@
+"""
+Trace Plunder's island art from the owner's sample board image.
+
+Reads games/plunder/art/sample-board.webp (the six tiles laid out 3 × 2, each 6 × 6 squares),
+separates land (sand + jungle) from water by colour, and writes the island and jungle outlines of
+each tile as smooth SVG paths to games/plunder/lib/tileArt.ts, in tile units (10 per square, so a
+tile is 60 × 60). The game draws its islands from those paths.
+
+Run from the repo root (needs OpenCV and NumPy):
+    python3 -m venv /tmp/trace-venv && /tmp/trace-venv/bin/pip install opencv-python-headless numpy
+    /tmp/trace-venv/bin/python scripts/trace-plunder-tiles.py
+It also prints, per tile, how much of each square is land, to help with the gameplay maps.
+"""
+
+import cv2
+import numpy as np
+
+SRC = "games/plunder/art/sample-board.webp"
+OUT = "games/plunder/lib/tileArt.ts"
+SQUARE_PX = 45.16  # one board square in the source image (the image has a thin margin on the right)
+Z = 4  # work at 4× resolution for smoother outlines
+UNIT = 10  # tile units per square
+
+
+def kernel(n):
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (n, n))
+
+
+def clean(mask, close, open_, min_area, hole_area=4000):
+    m = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel(close))
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, kernel(open_))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
+    out = np.zeros_like(m)
+    for i in range(1, n):
+        if stats[i, cv2.CC_STAT_AREA] >= min_area:
+            out[lab == i] = 1
+    # Fill small enclosed holes (e.g. where a skull is painted on the jungle).
+    inv = (1 - out).astype(np.uint8)
+    n2, lab2, st2, _ = cv2.connectedComponentsWithStats(inv, 4)
+    h, w = m.shape
+    for i in range(1, n2):
+        x, y, ww, hh, a = st2[i]
+        if x > 0 and y > 0 and x + ww < w and y + hh < h and a < hole_area:
+            out[lab2 == i] = 1
+    return out
+
+
+def masks():
+    im = cv2.imread(SRC)
+    board = im[0 : round(12 * SQUARE_PX), 0 : round(18 * SQUARE_PX)]
+    big = cv2.resize(board, None, fx=Z, fy=Z, interpolation=cv2.INTER_CUBIC)
+    soft = cv2.GaussianBlur(big, (0, 0), 2.5)
+    b, g, r = [soft[..., i].astype(np.int32) for i in range(3)]
+    hsv = cv2.cvtColor(soft, cv2.COLOR_BGR2HSV).astype(np.int32)
+    s, v = hsv[..., 1], hsv[..., 2]
+    # Land is warm (more red than blue); water and surf are cool. Jungle is the dark or saturated land.
+    land = ((r - b) > 8).astype(np.uint8)
+    jungle = (land.astype(bool) & ((s > 105) | (v < 115))).astype(np.uint8)
+    # Ignore the red "1" marker painted on the sample.
+    marker = cv2.dilate(((r > 140) & (g < 90) & (b < 90)).astype(np.uint8), kernel(41))
+    land[marker == 1] = 0
+    jungle[marker == 1] = 0
+    # Ignore specks along the board's outer frame.
+    edge = 10
+    land[:edge, :] = land[-edge:, :] = 0
+    land[:, :edge] = land[:, -edge:] = 0
+    land = clean(land, 11, 7, 2500)  # the smallest real islet is ~4000 px at this scale
+    jungle = clean(jungle, 7, 5, 200) & land
+    return land, jungle
+
+
+def smooth_path(points, closed=True):
+    """A closed Catmull-Rom spline through the points, as SVG cubic Bézier commands."""
+    n = len(points)
+    if n < 3:
+        return ""
+    p = points
+    d = f"M{p[0][0]:.1f} {p[0][1]:.1f}"
+    for i in range(n):
+        p0, p1, p2, p3 = p[(i - 1) % n], p[i], p[(i + 1) % n], p[(i + 2) % n]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        d += f"C{c1[0]:.1f} {c1[1]:.1f} {c2[0]:.1f} {c2[1]:.1f} {p2[0]:.1f} {p2[1]:.1f}"
+    return d + "Z"
+
+
+def tile_paths(mask, scale):
+    contours, _ = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    parts = []
+    for c in contours:
+        if cv2.contourArea(c) < 60:
+            continue
+        approx = cv2.approxPolyDP(c, 2.2, True).reshape(-1, 2)
+        pts = [(x * scale, y * scale) for x, y in approx]
+        parts.append(smooth_path(pts))
+    return "".join(parts)
+
+
+def main():
+    land, jungle = masks()
+    tile_px = 6 * SQUARE_PX * Z
+    scale = 6 * UNIT / tile_px
+    sq_px = SQUARE_PX * Z
+    entries = []
+    for slot in range(6):
+        x0 = round((slot % 3) * tile_px)
+        y0 = round((slot // 3) * tile_px)
+        size = round(tile_px)
+        lt = np.ascontiguousarray(land[y0 : y0 + size, x0 : x0 + size])
+        jt = np.ascontiguousarray(jungle[y0 : y0 + size, x0 : x0 + size])
+        entries.append((slot + 1, tile_paths(lt, scale), tile_paths(jt, scale)))
+        print(f"Tile {slot + 1}: land % per square (rows A–F, columns 1–6)")
+        for r in range(6):
+            row = []
+            for c in range(6):
+                cell = lt[round(r * sq_px) : round((r + 1) * sq_px), round(c * sq_px) : round((c + 1) * sq_px)]
+                row.append(f"{round(cell.mean() * 100):3d}")
+            print("  " + "ABCDEF"[r] + " " + " ".join(row))
+    with open(OUT, "w") as f:
+        f.write("// Generated by scripts/trace-plunder-tiles.py from games/plunder/art/sample-board.webp. Don't edit.\n")
+        f.write("// Island (sand) and jungle outlines per tile, as SVG paths in tile units (10 per square).\n\n")
+        f.write("export const TILE_ART: Record<number, { land: string; jungle: string }> = {\n")
+        for tid, lp, jp in entries:
+            f.write(f'  {tid}: {{\n    land: "{lp}",\n    jungle: "{jp}",\n  }},\n')
+        f.write("};\n")
+    print(f"Wrote {OUT}")
+
+
+if __name__ == "__main__":
+    main()

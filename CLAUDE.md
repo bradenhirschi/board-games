@@ -55,8 +55,14 @@ rules, how online play works, and the file map; read it first.
   board (`games/plunder/lib/tiles.ts`). Islands are made of full-land squares (block ships),
   half-land squares (sailable, but the land sides can't be crossed) and edges (block crossing);
   free-standing land barriers are edges too. Ports (anchors) are where ships dock: an upright anchor
-  ends up with one way in, a diagonal one with several. Skulls = resource island, barrel = merchant. `canSail` encodes this. `/plunder/tiles` shows each tile with a
-  "Show sailing" overlay. Art is SVG generated from the map (`games/plunder/components/Art.tsx`).
+  ends up with one way in, a diagonal one with several; anchor squares are always half land (some
+  land and some water). Skulls = resource island, barrel = merchant. The gameplay map is a first
+  guess the owner will correct. The island **art is traced** from the owner's sample board
+  (`games/plunder/art/sample-board.webp`) by `scripts/trace-plunder-tiles.py` into
+  `games/plunder/lib/tileArt.ts` (generated, Prettier-ignored); icons are placed per tile in
+  `tiles.ts` (`icons`). The owner wants a 1:1 graphical match with the sample: compare silhouettes
+  against it when changing the art. `canSail` encodes this. `/plunder/tiles` shows each tile with a
+  "Show sailing" overlay. `games/plunder/components/Art.tsx` draws it.
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;

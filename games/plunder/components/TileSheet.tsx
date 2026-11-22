@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { TILES, TILE_ROWS, TILE_SIZE, tileMap } from "@/games/plunder/lib/tiles";
-import { ArtDefs, FeaturesArt, IslandsArt, S, SailingOverlay, SeaArt } from "./Art";
+import { ArtDefs, IslandsArt, S, SailingOverlay, SeaArt } from "./Art";
 
 /** Labels sit in a half-square margin around the tile. */
 const M = S * 0.7;
@@ -20,8 +20,7 @@ function TileCard({ id, sailing }: { id: number; sailing: boolean }) {
         </defs>
         <rect className="pl-sheet-frame" x={-0.4} y={-0.4} width={SIZE + 0.8} height={SIZE + 0.8} />
         <SeaArt w={TILE_SIZE} h={TILE_SIZE} />
-        <IslandsArt map={map} />
-        <FeaturesArt map={map} />
+        <IslandsArt placed={[{ tile: id, rotation: 0, x: 0, y: 0 }]} />
         {sailing && <SailingOverlay map={map} />}
         {Array.from({ length: TILE_SIZE }, (_, i) => (
           <g key={i} className="pl-sheet-label">
