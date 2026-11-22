@@ -76,13 +76,16 @@ cannons or skulls, ties to the attacker; the loser loses a life; sinking a ship 
 card; attacking costs no moves, and each ship can attack each target once a turn); a captain without
 a ship (free card if no islands or Plunder Points, roll for doubles, or build / pay 5 gold / trade a
 Plunder Point card / give up an island; one ship per turn this way);
-X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
+the storm (a 3×3 square, first placed off the one-skull islands' ports; rolling a 1 moves it and you
+still sail 1; sailing in or out costs 2 cards of your choice, so a ship with nothing to pay is trapped;
+no attacks, treasure or new-ship placement across its edge; islands with every port inside give no
+card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
 Plunder Points (ships + islands + Plunder Point cards) and winning at 10. Basic bots
 (`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
 when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
 
-**Not built yet:** the storm, trading/threatening/bribing/treaties, merchant-island swaps, smarter
-bots (trading, avoiding danger), online play.
+**Not built yet:** trading/threatening/bribing/treaties (including the storm blocking trade through a
+covered port), merchant-island swaps, smarter bots (trading, avoiding danger), online play.
 
 **Not decided yet** (placeholders in the code):
 

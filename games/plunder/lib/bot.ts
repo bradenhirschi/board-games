@@ -18,7 +18,9 @@ import {
   COSTS,
   GOLD_TO_BURY,
   MAX_LIVES,
+  RESOURCES,
   attackTargets,
+  stormToll,
   defenseBonus,
   islandsOf,
   winChance,
@@ -33,6 +35,8 @@ import {
   startingIslands,
   type Action,
   type GameState,
+  type Hand,
+  type Resource,
   type Ship,
 } from "./engine";
 import { SIDES, canSail, edgeKey, isSailable, type Pos, type Side } from "./tiles";
@@ -125,7 +129,9 @@ function bestSail(s: GameState, ship: Ship): Pos[] | null {
   for (const path of reach.values()) {
     const hits = new Set(path.filter((p) => xKeys.has(key(p))).map(key)).size;
     const port = portKeys.has(key(path[path.length - 1])) ? 1 : 0;
-    const score = port * 250 + hits * 100 - path.length;
+    // Storm tolls cost cards: worth it for a goal, not for wandering.
+    const toll = stormToll(s, ship.pos, path);
+    const score = port * 250 + hits * 100 - path.length - toll * 40;
     if ((hits || port) && score > bestScore) [best, bestScore] = [path, score];
   }
   if (best) return best;
@@ -135,6 +141,7 @@ function bestSail(s: GameState, ship: Ship): Pos[] | null {
   let closest: Pos[] | null = null;
   let closestDist = here;
   for (const path of reach.values()) {
+    if (stormToll(s, ship.pos, path)) continue; // don't pay the storm just to get closer
     const d = dist.get(key(path[path.length - 1])) ?? Infinity;
     if (d < closestDist || (d === closestDist && closest && path.length < closest.length)) {
       [closest, closestDist] = [path, d];
@@ -224,10 +231,13 @@ export function botAction(s: GameState): Action | null {
 
   if (s.phase.roll === null) return { t: "roll", die: 0 };
 
-  // Sailing: the first ship with somewhere useful to go.
+  // Sailing: the first ship with somewhere useful to go (paying the storm if it must).
   for (const ship of ships) {
     const path = bestSail(s, ship);
-    if (path) return { t: "sail", ship: ship.id, path };
+    if (path) {
+      const toll = stormToll(s, ship.pos, path);
+      return { t: "sail", ship: ship.id, path, ...(toll ? { pay: tollCards(hand, toll) } : {}) };
+    }
   }
   return { t: "endTurn" };
 }
@@ -238,4 +248,18 @@ export function fillDice(a: Action, d6: () => number): Action {
   if (a.t === "attack") return { ...a, attackDie: d6(), defenseDie: d6() };
   if (a.t === "rollDoubles") return { ...a, dice: [d6(), d6()] };
   return a;
+}
+
+/** The cards a bot gives up for a storm toll: from whatever it has most of, keeping gold for last. */
+export function tollCards(hand: Hand, n: number): Resource[] {
+  const left = { ...hand };
+  const out: Resource[] = [];
+  for (let i = 0; i < n; i++) {
+    const others = RESOURCES.filter((r) => r !== "gold" && left[r] > 0);
+    const r = others.length ? others.reduce((a, b) => (left[b] > left[a] ? b : a)) : left.gold > 0 ? "gold" : null;
+    if (!r) break;
+    left[r]--;
+    out.push(r);
+  }
+  return out;
 }

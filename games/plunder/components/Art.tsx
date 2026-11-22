@@ -49,6 +49,20 @@ export function ArtDefs() {
       <filter id="pl-softer" x="-30%" y="-30%" width="160%" height="160%">
         <feGaussianBlur stdDeviation={2.6} />
       </filter>
+      {/* Storm clouds: dark, swirling noise. */}
+      <filter id="pl-storm-swirl" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={4} seed={21} result="n" />
+        <feColorMatrix
+          in="n"
+          type="matrix"
+          values="0 0 0 0 0.12  0 0 0 0 0.16  0 0 0 0 0.22  0 0 0 2.4 -0.6"
+          result="clouds"
+        />
+        <feComposite in="clouds" in2="SourceGraphic" operator="in" />
+      </filter>
+      <pattern id="pl-rain" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+        <line x1="0" y1="0" x2="0" y2="1.6" stroke="#cfe3f2" strokeWidth="0.25" strokeOpacity="0.45" />
+      </pattern>
       {/* Speckled texture inside a shape, keeping its colour and outline. */}
       <filter id="pl-sand-tex" x="0" y="0" width="100%" height="100%">
         <feTurbulence type="fractalNoise" baseFrequency={0.45} numOctaves={2} seed={3} result="n" />

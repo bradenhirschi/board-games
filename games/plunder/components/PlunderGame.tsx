@@ -11,8 +11,10 @@ import {
   MAX_MASTS,
   MAX_SHIPS,
   RESOURCES,
+  STORM_TOLL,
   WIN_POINTS,
   attackTargets,
+  stormToll,
   canAfford,
   defenseBonus,
   winChance,
@@ -34,7 +36,7 @@ import {
 } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
-import { COLOR_HEX, Flag, RESOURCE_NAMES, ResourceIcon, ShipPiece, SquareMark, XMark } from "./Pieces";
+import { COLOR_HEX, Flag, RESOURCE_NAMES, ResourceIcon, ShipPiece, SquareMark, StormPiece, XMark } from "./Pieces";
 
 const same = (a: Pos, b: Pos) => a.r === b.r && a.c === b.c;
 const key = (p: Pos) => `${p.r},${p.c}`;
@@ -56,7 +58,13 @@ type Props = {
 /** How long a bot pauses before each move, so people can follow it. */
 const BOT_STEP_MS = 750;
 /** How long a bot's news stays on screen before it carries on. */
-const BOT_NOTICE_MS: Record<Notice["t"], number> = { treasure: 1600, battle: 2600, doubles: 1600, drew: 0 };
+const BOT_NOTICE_MS: Record<Notice["t"], number> = {
+  treasure: 1600,
+  battle: 2600,
+  doubles: 1600,
+  drew: 0,
+  storm: 1800,
+};
 /** How long dice tumble before they land. */
 const ROLL_MS = 550;
 /** How long a ship takes to sail one square. */
@@ -85,6 +93,8 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     () => game.ships.find((sh) => sh.owner === game.turn)?.id ?? null,
   );
   const [otherWays, setOtherWays] = useState(false);
+  /** A sail that crosses the storm, waiting for the player to choose the cards to pay. */
+  const [toll, setToll] = useState<{ ship: number; path: Pos[]; cards: number } | null>(null);
   /** A ship sailing along its route, square by square: where it is drawn right now. */
   const [moving, setMoving] = useState<{ ship: number; pos: Pos } | null>(null);
   const sailTimer = useRef<number | null>(null);
@@ -216,7 +226,9 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     const path = reach.get(key(p));
     if (ship && path) {
       const id = ship.id;
-      animateSail(id, path, () => act({ t: "sail", ship: id, path }));
+      const cards = stormToll(s, ship.pos, path);
+      if (cards) setToll({ ship: id, path, cards });
+      else animateSail(id, path, () => act({ t: "sail", ship: id, path }));
     }
   }
 
@@ -262,8 +274,13 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           ) : null,
         )}
         {startIsles.map((isl) => isl.ports.map((p) => <SquareMark key={`s${key(p)}`} at={p} kind="start" />))}
+        {s.storm && <StormPiece at={s.storm} />}
         {[...(moving ? [] : reach.values())].map((path) => (
-          <SquareMark key={`r${key(path[path.length - 1])}`} at={path[path.length - 1]} kind="reach" />
+          <SquareMark
+            key={`r${key(path[path.length - 1])}`}
+            at={path[path.length - 1]}
+            kind={ship && stormToll(s, ship.pos, path) ? "reach-toll" : "reach"}
+          />
         ))}
         {[...spots, ...captainSpots].map((p) => (
           <SquareMark key={`p${key(p)}`} at={p} kind="place" />
@@ -414,6 +431,19 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
 
       {captain?.freeCard && !isBot && !covered && !notice && (
         <FreeCardDialog onPick={(r) => act({ t: "freeCard", resource: r })} />
+      )}
+
+      {toll && (
+        <TollDialog
+          need={toll.cards}
+          hand={me.hand}
+          onPay={(pay) => {
+            const { ship: id, path } = toll;
+            setToll(null);
+            animateSail(id, path, () => act({ t: "sail", ship: id, path, pay }));
+          }}
+          onCancel={() => setToll(null)}
+        />
       )}
 
       {otherWays && captain && !captain.acquired && (
@@ -657,6 +687,74 @@ function BattleCard({ battle: b, game, children }: { battle: Battle; game: GameS
   );
 }
 
+/** Choose the cards to pay the storm: STORM_TOLL for each time the route crosses its border. */
+function TollDialog({
+  need,
+  hand,
+  onPay,
+  onCancel,
+}: {
+  need: number;
+  hand: Record<Resource, number>;
+  onPay: (cards: Resource[]) => void;
+  onCancel: () => void;
+}) {
+  const [picked, setPicked] = useState<Record<Resource, number>>({ wood: 0, iron: 0, rum: 0, gold: 0 });
+  const total = RESOURCES.reduce((n, r) => n + picked[r], 0);
+  const change = (r: Resource, d: number) =>
+    setPicked((p) => ({ ...p, [r]: Math.max(0, Math.min(hand[r], p[r] + d)) }));
+  return (
+    <div className="pl-sheet-backdrop pl-centered">
+      <div className="pl-dialog" role="alertdialog">
+        <p className="pl-dialog-title">Storm toll</p>
+        <p>
+          Sailing {need > STORM_TOLL ? "into and out of" : "across the edge of"} the storm costs {need} cards. Choose
+          which to give up.
+        </p>
+        <div className="pl-toll">
+          {RESOURCES.map((r) => (
+            <div key={r} className="pl-toll-row">
+              <ResourceIcon r={r} />
+              <span className="pl-toll-name">
+                {RESOURCE_NAMES[r]} <small>({hand[r]})</small>
+              </span>
+              <button
+                className="pl-close"
+                aria-label={`One less ${r}`}
+                disabled={!picked[r]}
+                onClick={() => change(r, -1)}
+              >
+                −
+              </button>
+              <b>{picked[r]}</b>
+              <button
+                className="pl-close"
+                aria-label={`One more ${r}`}
+                disabled={picked[r] >= hand[r] || total >= need}
+                onClick={() => change(r, 1)}
+              >
+                +
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="pl-actions">
+          <button className="pl-btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="pl-btn pl-btn-main"
+            disabled={total !== need}
+            onClick={() => onPay(RESOURCES.flatMap((r) => Array<Resource>(picked[r]).fill(r)))}
+          >
+            Pay {total}/{need}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** A captain with no islands and no Plunder Point cards picks a free resource card. */
 function FreeCardDialog({ onPick }: { onPick: (r: Resource) => void }) {
   return (
@@ -790,6 +888,11 @@ function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState;
                 : "You can still get a ship another way, or end your turn."}
             </p>
           </>
+        ) : notice.t === "storm" ? (
+          <>
+            <p className="pl-dialog-title">The storm moves!</p>
+            <p>A 1 was rolled, so the storm moves to {squareName(notice.at)}. You still sail 1 square.</p>
+          </>
         ) : notice.t === "treasure" ? (
           <>
             <p className="pl-dialog-title">Treasure!</p>
@@ -798,7 +901,7 @@ function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState;
               nothing happens for now.
             </p>
           </>
-        ) : (
+        ) : notice.t === "drew" ? (
           <>
             <p className="pl-dialog-title">Start of your turn</p>
             <p>You drew:</p>
@@ -811,7 +914,7 @@ function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState;
               ))}
             </div>
           </>
-        )}
+        ) : null}
         <button className="pl-btn pl-btn-main pl-btn-wide" onClick={onOk}>
           OK
         </button>

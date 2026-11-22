@@ -1171,3 +1171,68 @@ body {
 .pl-ship {
   transition: transform 0.18s linear;
 }
+
+/* ---- The storm ---- */
+
+.pl-storm-cloud {
+  fill: #fff;
+  opacity: 0.85;
+}
+
+.pl-storm-rain {
+  fill: url(#pl-rain);
+}
+
+.pl-storm-rope {
+  fill: none;
+  stroke: #e8dcc0;
+  stroke-width: 1.1;
+}
+
+.pl-storm-rope-twist {
+  fill: none;
+  stroke: #8a6a3a;
+  stroke-width: 0.5;
+  stroke-dasharray: 0.9 0.9;
+}
+
+.pl-mark-reach-toll {
+  fill: #e67e2233;
+  stroke: #f39c4a;
+  stroke-dasharray: 1.4 0.8;
+}
+
+.pl-toll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pl-toll-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pl-toll-name {
+  flex: 1;
+  text-align: left;
+}
+
+.pl-toll-name small {
+  opacity: 0.7;
+}
+
+.pl-toll-row b {
+  width: 18px;
+  text-align: center;
+}
+
+.pl-toll-row .pl-close:disabled {
+  opacity: 0.3;
+}
+
+.pl-storm-dark {
+  fill: #08121c;
+  opacity: 0.45;
+}

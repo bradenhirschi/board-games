@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   CARDS_PER_RESOURCE,
   attackTargets,
+  inStorm,
+  stormToll,
   winChance,
   COSTS,
   MAX_SHIPS,
@@ -40,7 +42,8 @@ function play(s: GameState, ...actions: Action[]): GameState {
  * last (tile 1's B2 islet), so she takes the first turn.
  */
 function started(): GameState {
-  const s = newGame(setup, 42, DEFAULT_LAYOUT, [2, 6]);
+  // No storm here, so these tests don't depend on where it happens to land; it has its own tests.
+  const s = { ...newGame(setup, 42, DEFAULT_LAYOUT, [2, 6]), storm: undefined };
   return play(s, { t: "pickIsland", island: "4d" }, { t: "pickIsland", island: "1a" });
 }
 
@@ -383,5 +386,82 @@ describe("plunder captain without a ship", () => {
     // With no port of their own, the compasses pick where the ship goes.
     s = play(s, { t: "rollDoubles", dice: [1, 1] });
     expect(s.captain!.spots!.length).toBeGreaterThan(0);
+  });
+});
+
+describe("plunder storm", () => {
+  /** Anne at C2 with cards to spare, the storm centred on C5 (covering B4–D6). */
+  function stormy(): GameState {
+    let s = withHand(started(), 0, { wood: 3, iron: 2, rum: 1, gold: 1 });
+    s = moveShip(s, 0, sq("C2"));
+    return { ...s, storm: sq("C5") };
+  }
+  const anne = (s: GameState) => s.ships.find((sh) => sh.owner === 0)!;
+
+  it("is a 3×3 square around its centre", () => {
+    const s = stormy();
+    expect(inStorm(s, sq("B4"))).toBe(true);
+    expect(inStorm(s, sq("D6"))).toBe(true);
+    expect(inStorm(s, sq("C3"))).toBe(false);
+  });
+
+  it("is placed at the start, never over a one-skull island's port", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const s = newGame(setup, seed);
+      expect(s.storm).toBeDefined();
+      for (const isl of startingIslands(s.layout)) for (const p of isl.ports) expect(inStorm(s, p)).toBe(false);
+    }
+  });
+
+  it("charges two cards to sail in, and four to sail in and back out", () => {
+    let s = play(stormy(), { t: "roll", die: 6 });
+    const into = [sq("C3"), sq("C4")];
+    expect(stormToll(s, anne(s).pos, into)).toBe(2);
+    // Must pay exactly the toll, from the hand.
+    expect(play(s, { t: "sail", ship: anne(s).id, path: into })).toBe(s);
+    expect(play(s, { t: "sail", ship: anne(s).id, path: into, pay: ["gold", "gold"] })).toBe(s);
+    const paid = play(s, { t: "sail", ship: anne(s).id, path: into, pay: ["wood", "iron"] });
+    expect(anne(paid).pos).toEqual(sq("C4"));
+    expect(paid.players[0].hand).toMatchObject({ wood: 2, iron: 1 });
+    // In and straight back out again: two crossings.
+    s = { ...s, storm: sq("C5") };
+    expect(stormToll(s, anne(s).pos, [sq("C3"), sq("C4"), sq("C3")])).toBe(4);
+  });
+
+  it("only lets a ship reach what it can pay for, and traps a ship with nothing to pay", () => {
+    let s = play(stormy(), { t: "roll", die: 6 });
+    expect(reachable(s, anne(s)).has(`${sq("C4").r},${sq("C4").c}`)).toBe(true);
+    // One card: can't pay to go in.
+    const broke = withHand(s, 0, { wood: 1 });
+    expect(reachable(broke, anne(broke)).has(`${sq("C4").r},${sq("C4").c}`)).toBe(false);
+    // Inside with nothing: trapped, but free to move about within the storm.
+    s = withHand(moveShip(s, 0, sq("C5")), 0, {});
+    const reach = reachable(s, anne(s));
+    expect([...reach.keys()].every((k) => inStorm(s, { r: +k.split(",")[0], c: +k.split(",")[1] }))).toBe(true);
+  });
+
+  it("blocks attacks and treasure across its border", () => {
+    let s = moveShip(moveShip(stormy(), 0, sq("C3")), 1, sq("C4"));
+    expect(attackTargets(s, anne(s))).toEqual([]);
+    // Both inside: fine.
+    s = moveShip(s, 0, sq("C5"));
+    expect(attackTargets(s, anne(s))).toHaveLength(1);
+  });
+
+  it("moves when someone rolls a 1, and they still sail one square", () => {
+    const s = play(stormy(), { t: "roll", die: 1 });
+    expect(s.storm).not.toEqual(sq("C5"));
+    expect(s.notices.some((n) => n.t === "storm")).toBe(true);
+    expect(s.phase).toMatchObject({ roll: 1, moves: 1 });
+  });
+
+  it("stops an island producing when all its ports are in the storm", () => {
+    // Bart's island (tile 4's islet): put the storm over its port, then start Bart's turn.
+    const isl = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "4d")!;
+    let s: GameState = { ...started(), storm: isl.ports[0] };
+    const before = Object.values(s.players[1].hand).reduce((a, b) => a + b, 0);
+    s = play(s, { t: "endTurn" });
+    expect(Object.values(s.players[1].hand).reduce((a, b) => a + b, 0)).toBe(before);
+    expect(points(s, 1)).toBe(2); // it still counts
   });
 });

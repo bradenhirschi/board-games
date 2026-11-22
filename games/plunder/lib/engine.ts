@@ -9,7 +9,7 @@
  * Built so far: setup (players pick a one-skull island and start in its port, three resource cards
  * each), turns (draw a resource per island, roll, sail the fleet, build, bury gold, end the turn),
  * battles (attacking islands from their port and ships next door), a captain without a ship,
- * X-marks-the-spot tokens, Plunder Points and winning. Not yet: the storm, trading, and the Treasure
+ * the storm, X-marks-the-spot tokens, Plunder Points and winning. Not yet: trading, and the Treasure
  * card deck (finding an X only says the cards aren't written yet).
  */
 
@@ -52,6 +52,8 @@ export const MAX_LIVES = 3;
 export const MAX_MASTS = 2;
 export const MAX_CANNONS = 2;
 export const GOLD_TO_BURY = 5;
+/** Cards paid each time a ship sails into or out of the storm. */
+export const STORM_TOLL = 2;
 
 export type Build = "ship" | "mast" | "cannon" | "life";
 export const COSTS: Record<Build, Partial<Hand>> = {
@@ -114,7 +116,8 @@ export type Notice =
   | { t: "treasure"; player: number; at: Pos }
   | { t: "drew"; player: number; cards: Resource[] }
   | Battle
-  | { t: "doubles"; player: number; dice: [number, number] };
+  | { t: "doubles"; player: number; dice: [number, number] }
+  | { t: "storm"; player: number; at: Pos };
 
 /**
  * A player who starts their turn without a ship: they may take a free card (no islands and no
@@ -156,6 +159,8 @@ export type GameState = {
   attacks?: string[];
   /** Set while the current player has no ships (see `Captain`). */
   captain?: Captain | null;
+  /** The centre of the 3×3 storm (it can hang off the board). Missing in games saved before the storm. */
+  storm?: Pos;
   notices: Notice[];
   log: string[];
 };
@@ -163,7 +168,8 @@ export type GameState = {
 export type Action =
   | { t: "pickIsland"; island: string }
   | { t: "roll"; die: number }
-  | { t: "sail"; ship: number; path: Pos[] }
+  /** `pay` is the cards given for the storm: STORM_TOLL for each time the path crosses its border. */
+  | { t: "sail"; ship: number; path: Pos[]; pay?: Resource[] }
   | { t: "build"; item: "ship"; at: Pos }
   | { t: "build"; item: "mast" | "cannon" | "life"; ship: number }
   | { t: "bury" }
@@ -242,32 +248,84 @@ export function movesFor(s: GameState, ship: Ship): number {
   return s.phase.moves + ship.mastMoves;
 }
 
+// ---------------------------------------------------------------------------------------------
+// The storm
+
+/** Is a square inside the 3×3 storm? */
+export function inStorm(s: GameState, p: Pos): boolean {
+  const c = s.storm;
+  return !!c && Math.abs(p.r - c.r) <= 1 && Math.abs(p.c - c.c) <= 1;
+}
+
+/** Are two squares on the same side of the storm's border (both inside, or both outside)? */
+export function sameSide(s: GameState, a: Pos, b: Pos): boolean {
+  return inStorm(s, a) === inStorm(s, b);
+}
+
+/** How many times a route (from `from`) crosses the storm's border. */
+export function stormCrossings(s: GameState, from: Pos, path: Pos[]): number {
+  let n = 0;
+  let at = from;
+  for (const p of path) {
+    if (!sameSide(s, at, p)) n++;
+    at = p;
+  }
+  return n;
+}
+
+/** The cards a route costs in storm tolls. */
+export function stormToll(s: GameState, from: Pos, path: Pos[]): number {
+  return stormCrossings(s, from, path) * STORM_TOLL;
+}
+
+/** Spin the compasses for the storm's centre. At the start it mustn't cover a one-skull island's port. */
+function placeStorm(s: GameState, initial: boolean): GameState {
+  const ports = initial ? startingIslands(s.layout).flatMap((i) => i.ports) : [];
+  let rng = s.rng;
+  let at: Pos;
+  let tries = 0;
+  do {
+    [at, rng] = spin(rng);
+    tries++;
+  } while (ports.some((p) => Math.abs(p.r - at.r) <= 1 && Math.abs(p.c - at.c) <= 1) && tries < 100);
+  return { ...s, storm: at, rng };
+}
+
+const handSize = (h: Hand) => RESOURCES.reduce((n, r) => n + h[r], 0);
+
 /**
- * Every square a ship can reach this turn, with the shortest path to it. Ships sail orthogonally,
+ * Every square a ship can reach this turn, with the path to it. Of the routes that fit in the
+ * moves left, it picks the one crossing the storm's border the fewest times (each crossing costs
+ * STORM_TOLL cards), then the shortest; squares whose toll the player can't pay are left out. Ships sail orthogonally,
  * can't cross land, barriers or the land side of half land, and can't pass through other ships.
  */
 export function reachable(s: GameState, ship: Ship): Map<string, Pos[]> {
   const map = mapOf(s.layout);
   const budget = movesFor(s, ship);
-  const out = new Map<string, Pos[]>();
+  const cards = handSize(s.players[ship.owner].hand);
   const key = (p: Pos) => `${p.r},${p.c}`;
-  let frontier: { p: Pos; path: Pos[] }[] = [{ p: ship.pos, path: [] }];
-  const seen = new Set([key(ship.pos)]);
+  // Best route to each square: fewest crossings, then fewest squares.
+  const best = new Map<string, { path: Pos[]; cross: number }>([[key(ship.pos), { path: [], cross: 0 }]]);
+  let frontier = [{ p: ship.pos, path: [] as Pos[], cross: 0 }];
   for (let d = 0; d < budget; d++) {
-    const nextFrontier: typeof frontier = [];
-    for (const { p, path } of frontier) {
+    const next: typeof frontier = [];
+    for (const { p, path, cross } of frontier) {
       for (const side of SIDES) {
         const q = step(p, side);
-        if (seen.has(key(q)) || !canSail(map, p, side) || shipAt(s, q)) continue;
-        seen.add(key(q));
-        const qPath = [...path, q];
-        out.set(key(q), qPath);
-        nextFrontier.push({ p: q, path: qPath });
+        if (!canSail(map, p, side) || shipAt(s, q)) continue;
+        const c = cross + (sameSide(s, p, q) ? 0 : 1);
+        if (c * STORM_TOLL > cards) continue;
+        const prev = best.get(key(q));
+        if (prev && prev.cross <= c) continue;
+        const entry = { p: q, path: [...path, q], cross: c };
+        best.set(key(q), { path: entry.path, cross: c });
+        next.push(entry);
       }
     }
-    frontier = nextFrontier;
+    frontier = next;
   }
-  return out;
+  best.delete(key(ship.pos));
+  return new Map([...best].map(([k, v]) => [k, v.path]));
 }
 
 /** Plunder Points: one per ship, one per island owned, one per Plunder Point card. */
@@ -291,7 +349,11 @@ export function shipSpots(s: GameState, player: number): Pos[] {
   for (const isl of islandsOf(s.layout)) if (s.owners[isl.id] === player) isl.ports.forEach(add);
   for (const sh of s.ships) {
     if (sh.owner !== player) continue;
-    for (const side of SIDES) if (canSail(map, sh.pos, side)) add(step(sh.pos, side));
+    for (const side of SIDES) {
+      const q = step(sh.pos, side);
+      // Not across the storm's border.
+      if (canSail(map, sh.pos, side) && sameSide(s, sh.pos, q)) add(q);
+    }
   }
   return spots;
 }
@@ -317,7 +379,9 @@ export function attackTargets(s: GameState, ship: Ship): Target[] {
   const out: Target[] = [];
   for (const side of SIDES) {
     const enemy = shipAt(s, step(ship.pos, side));
-    if (enemy && enemy.owner !== ship.owner && canSail(map, ship.pos, side)) out.push({ kind: "ship", id: enemy.id });
+    if (enemy && enemy.owner !== ship.owner && canSail(map, ship.pos, side) && sameSide(s, ship.pos, enemy.pos)) {
+      out.push({ kind: "ship", id: enemy.id });
+    }
   }
   for (const isl of islandsOf(s.layout)) {
     if (isl.kind !== "resource" || s.owners[isl.id] === ship.owner) continue;
@@ -452,6 +516,7 @@ export function newGame(
   const order = Array.from({ length: n }, (_, k) => (first - k + n) % n);
   let s: GameState = {
     version: 1,
+    storm: undefined,
     layout,
     players: setup.map((p) => ({ ...p, hand: emptyHand(), plunderCards: 0 })),
     ships: [],
@@ -467,6 +532,8 @@ export function newGame(
     log: [],
   };
   for (let i = 0; i < n; i++) s = draw(s, i, STARTING_CARDS);
+  // The storm: spun like everything else, but not over a starting island's port.
+  s = placeStorm(s, true);
   return { ...s, notices: [] };
 }
 
@@ -531,7 +598,7 @@ function collectXs(s: GameState, ship: Ship): GameState {
     const onLand = !isSailable(map.squares[x.r]?.[x.c]);
     // From next door only when the X is on land, and never across a barrier or land edge.
     const fromNextDoor = side !== null && onLand && !map.walls.has(edgeKey(ship.pos, side));
-    if (!onIt && !fromNextDoor) continue;
+    if (!onIt && !(fromNextDoor && sameSide(out, ship.pos, x))) continue;
     const [p, rng] = spin(out.rng);
     const xs = out.xs.map((q, k) => (k === i ? p : q));
     out = log(
@@ -582,10 +649,16 @@ export function reducer(s: GameState, a: Action): GameState {
       if (s.phase.t !== "turn" || s.phase.roll !== null) return s;
       if (!Number.isInteger(a.die) || a.die < 1 || a.die > 6) return s;
       const ships = s.ships.map((sh) => (sh.owner === s.turn ? { ...sh, mastMoves: sh.masts } : sh));
-      return log(
+      let out = log(
         { ...s, ships, phase: { t: "turn", roll: a.die, moves: a.die } },
         `${s.players[s.turn].name} rolled ${a.die}.`,
       );
+      // A one moves the storm (and the ship still sails its one square).
+      if (a.die === 1 && s.storm) {
+        out = placeStorm(out, false);
+        out = { ...out, notices: [...out.notices, { t: "storm", player: s.turn, at: out.storm! }] };
+      }
+      return out;
     }
 
     case "sail": {
@@ -600,12 +673,22 @@ export function reducer(s: GameState, a: Action): GameState {
         if (!side || !canSail(map, at, side) || shipAt(s, p)) return s;
         at = p;
       }
+      // Storm tolls: exactly the cards owed, from the player's hand.
+      const toll = stormToll(s, ship.pos, a.path);
+      const cards = a.pay ?? [];
+      if (cards.length !== toll) return s;
+      const cost: Partial<Hand> = {};
+      for (const r of cards) cost[r] = (cost[r] ?? 0) + 1;
+      if (!canAfford(s.players[ship.owner].hand, cost)) return s;
+      const paid = toll
+        ? log(pay(s, ship.owner, cost), `${s.players[ship.owner].name} paid ${toll} cards to the storm.`)
+        : s;
       // Masts' extra squares are used first, then the shared roll.
       const fromMasts = Math.min(ship.mastMoves, a.path.length);
       const moved = { ...ship, pos: at, mastMoves: ship.mastMoves - fromMasts };
       let out: GameState = {
-        ...s,
-        ships: s.ships.map((sh) => (sh.id === ship.id ? moved : sh)),
+        ...paid,
+        ships: paid.ships.map((sh) => (sh.id === ship.id ? moved : sh)),
         phase: { ...s.phase, moves: s.phase.moves - (a.path.length - fromMasts) },
       };
       // Treasure along the way counts too (sailing over an X picks it up).
@@ -812,9 +895,13 @@ export function reducer(s: GameState, a: Action): GameState {
         attacks: [],
         captain: null,
       };
-      // Start of the next turn: one resource card for every island they own.
+      // Start of the next turn: one resource card for every island they own, except islands with
+      // every port inside the storm.
       const owned = Object.values(s.owners).filter((o) => o === turn).length;
-      out = draw(out, turn, owned);
+      const producing = islandsOf(s.layout).filter(
+        (i) => s.owners[i.id] === turn && !(i.ports.length && i.ports.every((p) => inStorm(s, p))),
+      ).length;
+      out = draw(out, turn, producing);
       // No ships: a captain without a ship (a free card if they have no islands or Plunder Point cards).
       if (!out.ships.some((sh) => sh.owner === turn)) {
         const freeCard = owned === 0 && out.players[turn].plunderCards === 0;

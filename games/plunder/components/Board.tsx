@@ -76,7 +76,11 @@ function BoardSvg({ layout, children }: { layout: Placement[]; children?: ReactN
       <rect className="pl-frame" x={-0.5} y={-0.5} width={W + 1} height={H + 1} rx={1.5} />
       <g transform={`translate(${U} ${U})`}>
         <BoardArt layout={layout} />
-        {children}
+        {/* Pieces stay inside the play area (the storm can hang off the board's edge). */}
+        <clipPath id="pl-play-area">
+          <rect width={COLS * U} height={ROWS * U} />
+        </clipPath>
+        <g clipPath="url(#pl-play-area)">{children}</g>
       </g>
       {LABELS.map((l) => (
         <Label key={`${l.x},${l.y}`} {...l} />

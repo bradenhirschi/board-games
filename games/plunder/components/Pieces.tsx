@@ -90,7 +90,7 @@ export function Flag({ at, color }: { at: Pos; color: PlayerColor }) {
 }
 
 /** A highlighted square: where a ship can sail, or where something can be placed. */
-export function SquareMark({ at, kind }: { at: Pos; kind: "reach" | "place" | "start" | "attack" }) {
+export function SquareMark({ at, kind }: { at: Pos; kind: "reach" | "reach-toll" | "place" | "start" | "attack" }) {
   return (
     <rect
       className={`pl-mark pl-mark-${kind}`}
@@ -131,3 +131,19 @@ export function ResourceIcon({ r, size = 18 }: { r: Resource; size?: number }) {
 }
 
 export const RESOURCE_NAMES: Record<Resource, string> = { wood: "Wood", iron: "Iron", rum: "Rum", gold: "Gold" };
+
+/** The storm: a 3×3 square of dark, swirling cloud inside a rope border, centred on `at`. */
+export function StormPiece({ at }: { at: Pos }) {
+  const x = (at.c - 1) * S;
+  const y = (at.r - 1) * S;
+  const size = 3 * S;
+  return (
+    <g className="pl-storm" aria-label="The storm">
+      <rect className="pl-storm-dark" x={x} y={y} width={size} height={size} />
+      <rect className="pl-storm-cloud" x={x} y={y} width={size} height={size} filter="url(#pl-storm-swirl)" />
+      <rect className="pl-storm-rain" x={x} y={y} width={size} height={size} />
+      <rect className="pl-storm-rope" x={x + 0.6} y={y + 0.6} width={size - 1.2} height={size - 1.2} rx={0.8} />
+      <rect className="pl-storm-rope-twist" x={x + 0.6} y={y + 0.6} width={size - 1.2} height={size - 1.2} rx={0.8} />
+    </g>
+  );
+}
