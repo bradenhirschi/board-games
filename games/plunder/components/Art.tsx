@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
-import type { Feature, Square } from "@/games/plunder/lib/tiles";
+import { edgeEnds, portSides, type Feature, type SeaMap, type Side } from "@/games/plunder/lib/tiles";
 
 /**
  * Plunder's sea and island art, drawn as SVG from the square map, one square = S units.
  * Islands are clusters of overlapping circles (with a little seeded jitter so coastlines look
  * organic) run through a "goo" filter that melts them into one smooth blob, layered like the
  * printed tiles: white surf, shallow water, sand, then jungle. The same map always draws the same.
+ *
+ * Ports are beaches: their jungle shrinks and steps back from the open sides, so the anchor sits on
+ * sand facing the water it's entered from. Land barriers are thin sandbars along their edge.
  */
 export const S = 10;
 
@@ -25,18 +28,42 @@ function rng(seed: string) {
 
 type Circle = { x: number; y: number; r: number };
 
+const VEC: Record<Side, { x: number; y: number }> = {
+  N: { x: 0, y: -1 },
+  E: { x: 1, y: 0 },
+  S: { x: 0, y: 1 },
+  W: { x: -1, y: 0 },
+};
+
+/** For a port square, the average direction of its open sides (zero if they cancel out). */
+function openDir(map: SeaMap, x: number, y: number): { x: number; y: number } | null {
+  if (!map.squares[y][x].feature?.port) return null;
+  const sides = portSides(map, { r: y, c: x });
+  const v = sides.reduce((a, s) => ({ x: a.x + VEC[s].x, y: a.y + VEC[s].y }), { x: 0, y: 0 });
+  const len = Math.hypot(v.x, v.y);
+  return len ? { x: v.x / len, y: v.y / len } : { x: 0, y: 0 };
+}
+
 /** The circles for one layer of one island. `size` scales the whole layer (sand 1, jungle smaller). */
-function islandCircles(squares: Square[][], island: string, size: number, layer: string): Circle[] {
+function islandCircles(map: SeaMap, island: string, size: number, layer: string): Circle[] {
   const out: Circle[] = [];
-  const at = (x: number, y: number) => squares[y]?.[x]?.island;
-  squares.forEach((row, y) =>
+  const jungle = layer === "jungle";
+  const at = (x: number, y: number) => map.squares[y]?.[x]?.island;
+  map.squares.forEach((row, y) =>
     row.forEach((sq, x) => {
       if (sq.island !== island) return;
-      const cx = (x + 0.5) * S;
-      const cy = (y + 0.5) * S;
+      let cx = (x + 0.5) * S;
+      let cy = (y + 0.5) * S;
       // Squares that touch a different island keep further back, so the two stay apart.
       const crowded = [at(x + 1, y), at(x - 1, y), at(x, y + 1), at(x, y - 1)].some((i) => i && i !== island);
-      const k = size * (crowded ? 0.8 : 1);
+      let k = size * (crowded ? 0.8 : 1);
+      const open = openDir(map, x, y);
+      if (jungle && open) {
+        // A port is beach: a smaller patch of jungle, pushed away from the water it opens onto.
+        cx -= open.x * 0.2 * S;
+        cy -= open.y * 0.2 * S;
+        k *= 0.78;
+      }
       const rand = rng(`${island}:${x},${y}:${layer}`);
       out.push({ x: cx, y: cy, r: (0.34 + rand() * 0.08) * S * k });
       for (let i = 0; i < 6; i++) {
@@ -46,15 +73,32 @@ function islandCircles(squares: Square[][], island: string, size: number, layer:
       }
       // Bridge to the same island's neighbours so it reads as one landmass, and fill the middle of
       // any 2×2 block of it (otherwise the four squares' circles leave a hole there).
-      const right = at(x + 1, y) === island;
-      const down = at(x, y + 1) === island;
-      if (right) out.push({ x: cx + S / 2 + (rand() - 0.5) * S * 0.2, y: cy, r: (0.32 + rand() * 0.08) * S * size });
-      if (down) out.push({ x: cx, y: cy + S / 2 + (rand() - 0.5) * S * 0.2, r: (0.32 + rand() * 0.08) * S * size });
-      if (right && down && at(x + 1, y + 1) === island) {
-        out.push({ x: cx + S / 2, y: cy + S / 2, r: 0.5 * S * size });
-      }
+      const joins = (x2: number, y2: number) => at(x2, y2) === island;
+      const right = joins(x + 1, y);
+      const down = joins(x, y + 1);
+      const ox = (x + 0.5) * S;
+      const oy = (y + 0.5) * S;
+      if (right) out.push({ x: ox + S / 2 + (rand() - 0.5) * S * 0.2, y: oy, r: (0.32 + rand() * 0.08) * S * size });
+      if (down) out.push({ x: ox, y: oy + S / 2 + (rand() - 0.5) * S * 0.2, r: (0.32 + rand() * 0.08) * S * size });
+      if (right && down && joins(x + 1, y + 1)) out.push({ x: ox + S / 2, y: oy + S / 2, r: 0.5 * S * size });
     }),
   );
+  return out;
+}
+
+/** The circles for a land barrier: a thin sandbar lying along its edge. */
+function barrierCircles(key: string, size: number, layer: string): Circle[] {
+  const [a, b] = edgeEnds(key);
+  const rand = rng(`${key}:${layer}`);
+  const out: Circle[] = [];
+  const n = 7;
+  for (let i = 0; i <= n; i++) {
+    const t = 0.08 + (0.84 * i) / n;
+    const wobble = (rand() - 0.5) * 0.06 * S;
+    const x = (a.c + (b.c - a.c) * t) * S + (a.c === b.c ? wobble : 0);
+    const y = (a.r + (b.r - a.r) * t) * S + (a.r === b.r ? wobble : 0);
+    out.push({ x, y, r: (0.17 + rand() * 0.05) * S * size });
+  }
   return out;
 }
 
@@ -145,28 +189,39 @@ export function SeaArt({ w, h, tileSize }: { w: number; h: number; tileSize?: nu
   );
 }
 
-/** Every island on the map: surf, shallows, sand and jungle. */
-export function IslandsArt({ squares }: { squares: Square[][] }) {
-  const islands = [...new Set(squares.flat().flatMap((s) => (s.island ? [s.island] : [])))];
+/** Every island and land barrier on the map: surf, shallows, sand and jungle. */
+export function IslandsArt({ map }: { map: SeaMap }) {
+  const islands = [...new Set(map.squares.flat().flatMap((s) => (s.island ? [s.island] : [])))];
+  const walls = [...map.walls];
+  const layer = (size: number, name: string, barrierSize: number) => [
+    ...islands.map((id) => <Circles key={id} circles={islandCircles(map, id, size, name)} />),
+    ...walls.map((w) => <Circles key={w} circles={barrierCircles(w, barrierSize, name)} />),
+  ];
   return (
     <g>
       <g filter="url(#pl-surf)" fill="#f4fbff" opacity={0.75}>
-        {islands.map((id) => (
-          <Circles key={id} circles={islandCircles(squares, id, 1.45, "surf")} />
-        ))}
+        {layer(1.45, "surf", 1.7)}
       </g>
       <g filter="url(#pl-surf)" fill="#8fd3df" opacity={0.55}>
-        {islands.map((id) => (
-          <Circles key={id} circles={islandCircles(squares, id, 1.2, "shallow")} />
-        ))}
+        {layer(1.2, "shallow", 1.4)}
       </g>
       {islands.map((id) => (
         <g key={id}>
           <g filter="url(#pl-sand)">
-            <Circles circles={islandCircles(squares, id, 1, "sand")} />
+            <Circles circles={islandCircles(map, id, 1, "sand")} />
           </g>
           <g filter="url(#pl-jungle)">
-            <Circles circles={islandCircles(squares, id, 0.72, "jungle")} />
+            <Circles circles={islandCircles(map, id, 0.72, "jungle")} />
+          </g>
+        </g>
+      ))}
+      {walls.map((w) => (
+        <g key={w}>
+          <g filter="url(#pl-sand)">
+            <Circles circles={barrierCircles(w, 1, "sand")} />
+          </g>
+          <g filter="url(#pl-jungle)">
+            <Circles circles={barrierCircles(w, 0.45, "jungle")} />
           </g>
         </g>
       ))}
@@ -201,42 +256,69 @@ function Skull() {
   );
 }
 
-function Chest() {
+function Barrel() {
   return (
-    <g className="pl-icon-chest">
-      <rect x={-2.3} y={-1.6} width={4.6} height={3.2} rx={0.5} />
-      <path d="M-2.3 -0.3 L2.3 -0.3" />
-      <rect className="pl-chest-lock" x={-0.45} y={-0.7} width={0.9} height={0.9} rx={0.15} />
+    <g className="pl-icon-barrel">
+      <path d="M-1.7 -2.3 Q-2.4 0 -1.7 2.3 L1.7 2.3 Q2.4 0 1.7 -2.3 Z" />
+      <path className="pl-barrel-hoop" d="M-2 -1.1 L2 -1.1 M-2 1.1 L2 1.1" />
     </g>
   );
 }
 
-/** One square's symbols, arranged to share the square when there are several. */
-function FeatureIcons({ f }: { f: Feature }) {
+/**
+ * One square's symbols. In a port the anchor sits toward the open water (upright for a one-way port,
+ * tilted for a port with several ways in) and the skulls or barrel sit back on the island.
+ */
+function FeatureIcons({ f, open }: { f: Feature; open: { x: number; y: number } | null }) {
   const parts: ReactNode[] = [];
   const skulls = f.skulls ?? 0;
   for (let i = 0; i < skulls; i++) parts.push(<Skull key={`s${i}`} />);
-  if (f.chest) parts.push(<Chest key="c" />);
-  if (f.anchor) parts.push(<Anchor key="a" />);
+  if (f.barrel) parts.push(<Barrel key="b" />);
   const n = parts.length;
-  const scale = n === 1 ? 0.72 : n === 2 ? 0.58 : 0.46;
+  const scale = n <= 1 ? 0.62 : n === 2 ? 0.5 : 0.42;
   const gap = 5.2 * scale;
-  return parts.map((p, i) => (
-    <g key={i} transform={`translate(${((i - (n - 1) / 2) * gap).toFixed(2)} 0) scale(${scale})`}>
+  // Open all round (no single direction): put the anchor beside the other symbols instead.
+  const allRound = !!f.port && !!open && open.x === 0 && open.y === 0 && n > 0;
+  const back = allRound
+    ? { x: -0.2 * S, y: 0 }
+    : open && f.port
+      ? { x: -open.x * 0.2 * S, y: -open.y * 0.2 * S }
+      : { x: 0, y: 0 };
+  const icons = parts.map((p, i) => (
+    <g
+      key={i}
+      transform={`translate(${(back.x + (i - (n - 1) / 2) * gap).toFixed(2)} ${back.y.toFixed(2)}) scale(${scale})`}
+    >
       {p}
     </g>
   ));
+  if (f.port) {
+    const to = allRound
+      ? { x: 0.2 * S, y: 0 }
+      : open && n
+        ? { x: open.x * 0.2 * S, y: open.y * 0.2 * S }
+        : { x: 0, y: 0 };
+    icons.push(
+      <g
+        key="anchor"
+        transform={`translate(${to.x.toFixed(2)} ${to.y.toFixed(2)}) rotate(${f.port === "diagonal" ? -40 : 0}) scale(0.62)`}
+      >
+        <Anchor />
+      </g>,
+    );
+  }
+  return icons;
 }
 
-export function FeaturesArt({ squares }: { squares: Square[][] }) {
+export function FeaturesArt({ map }: { map: SeaMap }) {
   return (
     <g>
-      {squares.flatMap((row, y) =>
+      {map.squares.flatMap((row, y) =>
         row.flatMap((sq, x) =>
           sq.feature
             ? [
                 <g key={`${x},${y}`} transform={`translate(${(x + 0.5) * S} ${(y + 0.5) * S})`}>
-                  <FeatureIcons f={sq.feature} />
+                  <FeatureIcons f={sq.feature} open={openDir(map, x, y)} />
                 </g>,
               ]
             : [],
@@ -244,4 +326,52 @@ export function FeaturesArt({ squares }: { squares: Square[][] }) {
       )}
     </g>
   );
+}
+
+/**
+ * A rules diagram over the art: island squares ships can't enter (red), ports (green outline) with an
+ * arrow on each side they can be entered from, and land barriers (thick red edge).
+ */
+export function SailingOverlay({ map }: { map: SeaMap }) {
+  const parts: ReactNode[] = [];
+  map.squares.forEach((row, y) =>
+    row.forEach((sq, x) => {
+      if (sq.island && !sq.feature?.port) {
+        parts.push(<rect key={`b${x},${y}`} className="pl-sail-blocked" x={x * S} y={y * S} width={S} height={S} />);
+      }
+      if (sq.feature?.port) {
+        parts.push(
+          <rect
+            key={`p${x},${y}`}
+            className="pl-sail-port"
+            x={x * S + 0.6}
+            y={y * S + 0.6}
+            width={S - 1.2}
+            height={S - 1.2}
+          />,
+        );
+        for (const side of portSides(map, { r: y, c: x })) {
+          const v = VEC[side];
+          // A small arrowhead just inside the open edge, pointing into the port.
+          const ex = (x + 0.5 + v.x * 0.38) * S;
+          const ey = (y + 0.5 + v.y * 0.38) * S;
+          const tip = { x: ex - v.x * 1.6, y: ey - v.y * 1.6 };
+          const l = { x: ex - v.y * 1.2, y: ey + v.x * 1.2 };
+          const r = { x: ex + v.y * 1.2, y: ey - v.x * 1.2 };
+          parts.push(
+            <path
+              key={`a${x},${y},${side}`}
+              className="pl-sail-entry"
+              d={`M${l.x} ${l.y} L${tip.x} ${tip.y} L${r.x} ${r.y} Z`}
+            />,
+          );
+        }
+      }
+    }),
+  );
+  for (const key of map.walls) {
+    const [a, b] = edgeEnds(key);
+    parts.push(<line key={`w${key}`} className="pl-sail-wall" x1={a.c * S} y1={a.r * S} x2={b.c * S} y2={b.r * S} />);
+  }
+  return <g>{parts}</g>;
 }

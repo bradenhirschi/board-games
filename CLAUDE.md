@@ -50,8 +50,12 @@ rules, how online play works, and the file map; read it first.
   styles never leak between games. The only shared code is `shared/firebase.ts` (Firebase setup
   and sign-in), so one login carries across games. See "Adding a game" in the README.
 - **Games:** Stock Market (`/`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
-  inspired by Poptropica's Skullduggery Island. Plunder is boilerplate so far: keep its names, art
-  and rules the owner's own (no Poptropica names, characters or art).
+  inspired by Poptropica's Skullduggery Island. Keep its names, art and rules the owner's own (no
+  Poptropica names, characters or art). The board is six 6×6 tiles traced from the owner's sample
+  board (`games/plunder/lib/tiles.ts`): island squares block ships except ports (anchors: upright =
+  one entry side, diagonal = any side facing water); land barriers block edges; skulls = resource
+  island, barrel = merchant island. `canSail` encodes this. `/plunder/tiles` shows each tile with a
+  "Show sailing" overlay. Art is SVG generated from the map (`games/plunder/components/Art.tsx`).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;

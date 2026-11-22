@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { COLS, ROWS, parseTile } from "./board";
-import { DEFAULT_LAYOUT, TILES, TILE_SIZE, boardSquares, localName, tileSquares, type Rotation } from "./tiles";
+import {
+  DEFAULT_LAYOUT,
+  TILES,
+  TILE_SIZE,
+  boardMap,
+  canSail,
+  edgeKey,
+  islands,
+  isSailable,
+  portSides,
+  tileMap,
+  type Pos,
+  type Rotation,
+} from "./tiles";
+
+/** Board square by name, like "D8", as a 0-based position. */
+function sq(name: string): Pos {
+  const t = parseTile(name)!;
+  return { r: t.row, c: t.col - 1 };
+}
 
 describe("plunder tiles", () => {
   it("are six well-formed 6×6 maps", () => {
@@ -9,61 +28,120 @@ describe("plunder tiles", () => {
       expect(t.map).toHaveLength(TILE_SIZE);
       for (const line of t.map) expect(line).toMatch(/^[.a-z]{6}$/);
       for (const key of Object.keys(t.features)) expect(key).toMatch(/^[A-F][1-6]$/);
+      for (const b of t.barriers) expect(b.at).toMatch(/^[A-F][1-6]$/);
     }
   });
 
   it("keeps each island's squares connected", () => {
     for (const t of TILES) {
-      const letters = new Set(t.map.join("").replace(/\./g, ""));
-      for (const ch of letters) {
-        const cells = t.map.flatMap((line, r) => [...line].flatMap((c, col) => (c === ch ? [[r, col]] : [])));
-        const seen = new Set([cells[0].join()]);
-        const queue = [cells[0]];
+      for (const isl of islands(tileMap(t))) {
+        const key = (p: Pos) => `${p.r},${p.c}`;
+        const all = new Set(isl.squares.map(key));
+        const seen = new Set([key(isl.squares[0])]);
+        const queue = [isl.squares[0]];
         while (queue.length) {
-          const [r, c] = queue.pop()!;
-          for (const [dr, dc] of [
-            [1, 0],
-            [-1, 0],
-            [0, 1],
-            [0, -1],
+          const p = queue.pop()!;
+          for (const q of [
+            { r: p.r + 1, c: p.c },
+            { r: p.r - 1, c: p.c },
+            { r: p.r, c: p.c + 1 },
+            { r: p.r, c: p.c - 1 },
           ]) {
-            const key = [r + dr, c + dc].join();
-            if (!seen.has(key) && t.map[r + dr]?.[c + dc] === ch) {
-              seen.add(key);
-              queue.push([r + dr, c + dc]);
+            if (all.has(key(q)) && !seen.has(key(q))) {
+              seen.add(key(q));
+              queue.push(q);
             }
           }
         }
-        expect(seen.size, `tile ${t.id} island ${ch}`).toBe(cells.length);
+        expect(seen.size, `tile ${t.id} island ${isl.id}`).toBe(isl.squares.length);
       }
     }
   });
 
-  it("turns a tile clockwise, with its symbols", () => {
+  it("puts ports, skulls and barrels only on islands, and gives every port island a reason to visit", () => {
+    for (const t of TILES) {
+      const map = tileMap(t);
+      map.squares.flat().forEach((s) => {
+        if (s.feature) expect(s.island, `tile ${t.id}: symbol at sea`).not.toBeNull();
+      });
+      for (const isl of islands(map)) {
+        // Normal islands can't be interacted with, so they have no port; the others need one.
+        if (isl.kind === "normal") expect(isl.ports, `tile ${t.id} island ${isl.id}`).toHaveLength(0);
+        else expect(isl.ports.length, `tile ${t.id} island ${isl.id}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("classifies islands from their symbols", () => {
+    const kinds = islands(boardMap()).reduce<Record<string, number>>(
+      (n, i) => ({ ...n, [i.kind]: (n[i.kind] ?? 0) + 1 }),
+      {},
+    );
+    expect(kinds.merchant).toBe(2); // the two barrels: tiles 1 and 5
+    expect(kinds.resource).toBe(9);
+    const crescent = islands(boardMap()).find((i) => i.id === "6b")!;
+    expect(crescent).toMatchObject({ kind: "resource", skulls: 3 });
+  });
+
+  it("turns a tile clockwise with its ports and barriers", () => {
     const t2 = TILES[1];
-    const turned = tileSquares(t2, 90);
-    // D2 (row 3, col 1) moves to row 1, col 2 (B3) after a quarter turn clockwise.
-    expect(turned[1][2].feature).toEqual({ skulls: 3 });
-    expect(turned[1][2].island).toBe("2c");
-    // A half turn sends every square to the opposite one; three quarter turns undo one.
-    const flat = tileSquares(t2);
-    const half = tileSquares(t2, 180);
+    const flat = tileMap(t2);
+    const turned = tileMap(t2, 90);
+    // B2 (row 1, col 1), an upright port opening north, moves to B5 (row 1, col 4) opening east.
+    expect(flat.squares[1][1].feature?.port).toBe("N");
+    expect(turned.squares[1][4].feature?.port).toBe("E");
+    // The barrier on the south side of C5 (row 2, col 4) becomes the west side of E4 (row 4, col 3).
+    expect(flat.walls.has(edgeKey({ r: 2, c: 4 }, "S"))).toBe(true);
+    expect(turned.walls.has(edgeKey({ r: 4, c: 3 }, "W"))).toBe(true);
+    // Four quarter turns come back to the start.
     const n = TILE_SIZE - 1;
-    for (let r = 0; r <= n; r++) for (let c = 0; c <= n; c++) expect(half[r][c]).toEqual(flat[n - r][n - c]);
-    const three = tileSquares(t2, 270 as Rotation);
-    for (let r = 0; r <= n; r++) for (let c = 0; c <= n; c++) expect(three[n - c][r]).toEqual(flat[r][c]);
-    expect(localName(3, 1)).toBe("D2");
+    const half = tileMap(t2, 180);
+    for (let r = 0; r <= n; r++)
+      for (let c = 0; c <= n; c++) expect(half.squares[r][c].island).toBe(flat.squares[n - r][n - c].island);
+    expect(tileMap(t2, 270 as Rotation).walls.size).toBe(flat.walls.size);
   });
 
   it("lays tiles out three across and two down", () => {
-    const board = boardSquares(DEFAULT_LAYOUT);
-    expect(board).toHaveLength(ROWS);
-    for (const row of board) expect(row).toHaveLength(COLS);
-    // Tile 2's three skulls (its D2) land on board square D8.
-    const d8 = parseTile("D8")!;
-    expect(board[d8.row][d8.col - 1].feature).toEqual({ skulls: 3 });
-    // Tile 6's chest (its D3) lands on board square J15.
-    const j15 = parseTile("J15")!;
-    expect(board[j15.row][j15.col - 1].feature?.chest).toBe(true);
+    const map = boardMap(DEFAULT_LAYOUT);
+    expect(map.squares).toHaveLength(ROWS);
+    for (const row of map.squares) expect(row).toHaveLength(COLS);
+    // Tile 6's three skulls (its C5) land on board square I17; tile 5's barrel (its D2) on J8.
+    expect(map.squares[sq("I17").r][sq("I17").c].feature?.skulls).toBe(3);
+    expect(map.squares[sq("J8").r][sq("J8").c].feature?.barrel).toBe(true);
+  });
+});
+
+describe("plunder sailing", () => {
+  const map = boardMap();
+
+  it("sails open water but not onto islands", () => {
+    expect(canSail(map, sq("A1"), "E")).toBe(true);
+    expect(isSailable(map.squares[sq("B4").r][sq("B4").c])).toBe(false); // tile 1's B4 islet
+    expect(canSail(map, sq("B3"), "E")).toBe(false);
+    expect(canSail(map, sq("A1"), "N")).toBe(false); // off the board
+  });
+
+  it("can't cross a land barrier", () => {
+    // Tile 1: a barrier on the east side of D1.
+    expect(canSail(map, sq("D1"), "E")).toBe(false);
+    expect(canSail(map, sq("D2"), "W")).toBe(false);
+    expect(canSail(map, sq("C1"), "E")).toBe(true);
+  });
+
+  it("enters an upright port only from its open side", () => {
+    // Tile 2's B2 (board B8) opens north.
+    expect(portSides(map, sq("B8"))).toEqual(["N"]);
+    expect(canSail(map, sq("A8"), "S")).toBe(true);
+    expect(canSail(map, sq("B7"), "E")).toBe(false);
+    expect(canSail(map, sq("B8"), "N")).toBe(true);
+  });
+
+  it("enters a diagonal port from any side facing water", () => {
+    // Tile 1's B2 islet is its own port, open on all four sides.
+    expect(portSides(map, sq("B2"))).toEqual(["N", "E", "S", "W"]);
+    // Tile 1's D5 port has island to the west and south, so it opens north and east.
+    expect(portSides(map, sq("D5"))).toEqual(["N", "E"]);
+    expect(canSail(map, sq("C5"), "S")).toBe(true);
+    expect(canSail(map, sq("D4"), "E")).toBe(false);
   });
 });

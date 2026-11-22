@@ -296,19 +296,16 @@ body {
   fill: #2b1b0b;
 }
 
-.pl-icon-chest rect {
-  fill: #a3402a;
+.pl-icon-barrel path {
+  fill: #8a5a2b;
   stroke: #2b1b0b;
   stroke-width: 0.35;
 }
 
-.pl-icon-chest path {
+.pl-icon-barrel .pl-barrel-hoop {
+  fill: none;
   stroke: #2b1b0b;
-  stroke-width: 0.35;
-}
-
-.pl-icon-chest .pl-chest-lock {
-  fill: #e0b04a;
+  stroke-width: 0.4;
 }
 
 /* ---- Tile sheet (/plunder/tiles): scrolls, unlike the game screen ---- */
@@ -369,4 +366,38 @@ body {
   font-size: 4.2px;
   font-weight: 700;
   text-anchor: middle;
+}
+
+.pl-sheet-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 max(16px, env(safe-area-inset-right)) 14px max(16px, env(safe-area-inset-left));
+  font-size: 15px;
+}
+
+.pl-sheet-toggle input {
+  margin-top: 3px;
+  accent-color: var(--pl-gold);
+}
+
+.pl-sail-blocked {
+  fill: #e0402a;
+  fill-opacity: 0.38;
+}
+
+.pl-sail-port {
+  fill: none;
+  stroke: #4cd964;
+  stroke-width: 0.6;
+}
+
+.pl-sail-entry {
+  fill: #4cd964;
+}
+
+.pl-sail-wall {
+  stroke: #ff3b30;
+  stroke-width: 1.1;
+  stroke-linecap: round;
 }

@@ -1,13 +1,16 @@
-import { TILES, TILE_ROWS, TILE_SIZE, tileSquares } from "@/games/plunder/lib/tiles";
-import { ArtDefs, FeaturesArt, IslandsArt, S, SeaArt } from "./Art";
+"use client";
+
+import { useState } from "react";
+import { TILES, TILE_ROWS, TILE_SIZE, tileMap } from "@/games/plunder/lib/tiles";
+import { ArtDefs, FeaturesArt, IslandsArt, S, SailingOverlay, SeaArt } from "./Art";
 
 /** Labels sit in a half-square margin around the tile. */
 const M = S * 0.7;
 const SIZE = TILE_SIZE * S;
 
-function TileCard({ id }: { id: number }) {
+function TileCard({ id, sailing }: { id: number; sailing: boolean }) {
   const def = TILES.find((t) => t.id === id)!;
-  const squares = tileSquares(def);
+  const map = tileMap(def);
   return (
     <figure className="pl-tile-card">
       <figcaption>Tile {id}</figcaption>
@@ -17,8 +20,9 @@ function TileCard({ id }: { id: number }) {
         </defs>
         <rect className="pl-sheet-frame" x={-0.4} y={-0.4} width={SIZE + 0.8} height={SIZE + 0.8} />
         <SeaArt w={TILE_SIZE} h={TILE_SIZE} />
-        <IslandsArt squares={squares} />
-        <FeaturesArt squares={squares} />
+        <IslandsArt map={map} />
+        <FeaturesArt map={map} />
+        {sailing && <SailingOverlay map={map} />}
         {Array.from({ length: TILE_SIZE }, (_, i) => (
           <g key={i} className="pl-sheet-label">
             <text x={(i + 0.5) * S} y={-M / 2} dy="0.35em">
@@ -36,6 +40,7 @@ function TileCard({ id }: { id: number }) {
 
 /** Every tile on its own with tile-local coordinates, for checking layouts against the playtest tiles. */
 export default function TileSheet() {
+  const [sailing, setSailing] = useState(false);
   return (
     <main className="pl-sheet">
       <header className="pl-header">
@@ -47,9 +52,13 @@ export default function TileSheet() {
       <p className="pl-sheet-note">
         Squares are named by row (A–F) and column (1–6) within each tile, like &ldquo;Tile 3, C5&rdquo;.
       </p>
+      <label className="pl-sheet-toggle">
+        <input type="checkbox" checked={sailing} onChange={(e) => setSailing(e.target.checked)} /> Show sailing: blocked
+        squares (red), ports and the sides they open to (green), barriers (red edges)
+      </label>
       <div className="pl-sheet-grid">
         {TILES.map((t) => (
-          <TileCard key={t.id} id={t.id} />
+          <TileCard key={t.id} id={t.id} sailing={sailing} />
         ))}
       </div>
     </main>
