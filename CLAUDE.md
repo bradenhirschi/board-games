@@ -28,6 +28,7 @@ rules, how online play works, and the file map; read it first.
   visual work, render it with Playwright (Chromium is preinstalled) and send screenshots or
   mockups. When they ask for a mockup or rendering first, or the change is a big redesign,
   don't commit until they approve. They often reject a version, so make reverting easy.
+- **Say "device" in Plunder's UI text,** never "phone" or "computer": it's cross-platform.
 - **Phones first.** Most play is on iPhones (Brave, Safari, and the installed Home Screen app).
   Check phone layouts at 390×664 (browser) and 390×800 (installed app); desktop at 1440×900.
   Nothing on a phone may need page scrolling, and the main turn button must always be visible.

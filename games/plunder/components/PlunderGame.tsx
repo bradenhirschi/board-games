@@ -270,9 +270,9 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       )}
 
       {covered && (
-        <div className="pl-cover" role="dialog" aria-label="Pass the phone">
+        <div className="pl-cover" role="dialog" aria-label="Pass the device">
           <span className="pl-dot pl-dot-big" style={{ background: COLOR_HEX[me.color] }} />
-          <p className="pl-cover-title">Pass the phone to {me.name}</p>
+          <p className="pl-cover-title">Pass the device to {me.name}</p>
           <button className="pl-btn pl-btn-main" onClick={() => onHolder(current)}>
             I&rsquo;m {me.name}
           </button>

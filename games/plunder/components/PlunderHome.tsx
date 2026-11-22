@@ -65,7 +65,7 @@ export default function PlunderHome() {
           <button
             className="pl-link"
             onClick={() => {
-              if (game.phase.t === "gameOver" || window.confirm("Leave this game? It stays saved on this phone.")) {
+              if (game.phase.t === "gameOver" || window.confirm("Leave this game? It stays saved on this device.")) {
                 setSaved(loadSaved());
                 setGame(null);
               }
