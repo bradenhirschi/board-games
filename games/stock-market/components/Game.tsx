@@ -151,6 +151,9 @@ export interface GameViewProps {
   onQuit: () => void;
   /** Extra items for the top bar (e.g. the room code). */
   headerExtra?: ReactNode;
+  /** Online, for the host: players they may remove from the game (a bot takes over each seat). */
+  kickable?: Player[];
+  onKick?: (playerId: number) => void;
   /** Shown in the player box instead of "Waiting for your turn…". */
   waitingNote?: string;
   /** A short status shown under the turn heading (e.g. "Saving…"). */
@@ -187,6 +190,8 @@ export function GameView({
   roll,
   onQuit,
   headerExtra,
+  kickable,
+  onKick,
   waitingNote,
   statusNote,
 }: GameViewProps) {
@@ -275,13 +280,27 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
+        <GameMenu
+          onQuit={onQuit}
+          target={state.target}
+          round={round}
+          extra={headerExtra}
+          kickable={kickable}
+          onKick={onKick}
+        />
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       {/* Phones: the latest ticker line (tap for the whole log) beside the other players. */}
       {/* Phones: ☰, the other players and the ticker on top; your money and stocks below. */}
       <div className="m-top">
-        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
+        <GameMenu
+          onQuit={onQuit}
+          target={state.target}
+          round={round}
+          extra={headerExtra}
+          kickable={kickable}
+          onKick={onKick}
+        />
         <div className="m-players" role="list">
           {state.players
             .filter((p) => p.id !== viewer.id)
@@ -499,12 +518,16 @@ function GameMenu({
   target,
   round,
   extra,
+  kickable = [],
+  onKick,
 }: {
   onQuit: () => void;
   target: number;
   round: number;
   /** Extra game info (e.g. the online room code). */
   extra?: ReactNode;
+  kickable?: Player[];
+  onKick?: (playerId: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const soundOn = useSoundOn();
@@ -553,6 +576,21 @@ function GameMenu({
                 <span />
               </span>
             </button>
+            {onKick &&
+              kickable.map((p) => (
+                <button
+                  key={p.id}
+                  role="menuitem"
+                  className="menu-item menu-kick"
+                  onClick={() => {
+                    if (!window.confirm(`Remove ${p.name} from the game? A bot will play their seat.`)) return;
+                    setOpen(false);
+                    onKick(p.id);
+                  }}
+                >
+                  Remove {p.name}
+                </button>
+              ))}
             <button
               role="menuitem"
               className="menu-item menu-quit"

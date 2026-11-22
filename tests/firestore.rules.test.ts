@@ -146,3 +146,31 @@ describe("during a game", () => {
     await assertFails(room("amy").update({ version: 6, seats: [] }));
   });
 });
+
+describe("removing a player mid-game", () => {
+  const kicked = {
+    seats: [
+      { uid: "host", name: "Host", isBot: false },
+      { uid: null, name: "Amy", isBot: true },
+      { uid: null, name: "Bot", isBot: true },
+    ],
+    memberUids: ["host"],
+    version: 6,
+    currentUid: null,
+  };
+  it("is allowed for the host", async () => {
+    await seed(playing());
+    await assertSucceeds(room("host").update(kicked));
+  });
+  it("isn't allowed for anyone else", async () => {
+    await seed(playing());
+    await assertFails(room("amy").update({ ...kicked, memberUids: ["amy"] }));
+  });
+  it("can't add members, drop the host, or skip a version", async () => {
+    await seed(playing());
+    await assertFails(room("host").update({ ...kicked, memberUids: ["host", "zed"] }));
+    await assertFails(room("host").update({ ...kicked, memberUids: [] }));
+    await assertFails(room("host").update({ ...kicked, version: 9 }));
+    await assertFails(room("host").update({ ...kicked, seats: kicked.seats.slice(0, 2) }));
+  });
+});

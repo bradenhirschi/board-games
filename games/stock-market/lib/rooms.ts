@@ -11,7 +11,7 @@ import {
   type GameState,
 } from "./engine";
 import { firebase } from "@/shared/firebase";
-import type { Resolved } from "./online";
+import { resolve, type Resolved } from "./online";
 
 /**
  * Online rooms live in Firestore at stockMarketRooms/{code}. The game state is stored as JSON
@@ -217,6 +217,44 @@ export async function submitMove(
       currentUid: seatUid(move.state, room.seats),
     };
     tx.update(roomRef(code), {
+      version: saved.version,
+      stateJson: JSON.stringify(saved.state),
+      replayJson: JSON.stringify(replay),
+      currentUid: saved.currentUid,
+      updatedAt: serverTimestamp(),
+    });
+    return saved;
+  });
+}
+
+/**
+ * The host removes a player mid-game: their seat becomes a bot (saved as a normal move, so every
+ * phone replays it) and their account leaves the room.
+ */
+export async function kickPlayer(code: string, hostUid: string, seat: number): Promise<Room | null> {
+  return runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) return null;
+    const room = parseRoom(snap.data());
+    const kicked = room.seats[seat];
+    if (room.status !== "playing" || !room.state || room.hostUid !== hostUid) return null;
+    if (!kicked?.uid || kicked.uid === hostUid) return null;
+    const move = resolve(room.state, { type: "replaceWithBot", playerId: seat });
+    if (!move) return null;
+    const seats = room.seats.map((s, i) => (i === seat ? { uid: null, name: s.name, isBot: true } : s));
+    const replay: Replay = { from: room.version, by: hostUid, actions: move.actions };
+    const saved: Room = {
+      ...room,
+      seats,
+      memberUids: room.memberUids.filter((u) => u !== kicked.uid),
+      version: room.version + 1,
+      state: move.state,
+      replay,
+      currentUid: seatUid(move.state, seats),
+    };
+    tx.update(roomRef(code), {
+      seats: saved.seats,
+      memberUids: saved.memberUids,
       version: saved.version,
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),

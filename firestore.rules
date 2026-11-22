@@ -60,6 +60,18 @@ service cloud.firestore {
           || resource.data.currentUid == null
         );
 
+      // Game: the host may remove a player (a bot takes their seat). Seats keep their number,
+      // exactly one member leaves, and the host stays.
+      allow update: if signedIn()
+        && resource.data.status == 'playing'
+        && request.auth.uid == resource.data.hostUid
+        && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel'])
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.seats.size() == resource.data.seats.size()
+        && request.resource.data.memberUids.toSet().difference(resource.data.memberUids.toSet()).size() == 0
+        && resource.data.memberUids.toSet().difference(request.resource.data.memberUids.toSet()).size() == 1
+        && request.auth.uid in request.resource.data.memberUids;
+
       allow delete: if signedIn() && request.auth.uid == resource.data.hostUid;
     }
 
