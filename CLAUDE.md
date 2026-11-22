@@ -49,6 +49,9 @@ rules, how online play works, and the file map; read it first.
   `app/(<game>)/` with its **own root layout** (own `<html>`, metadata, icons, and CSS import), so
   styles never leak between games. The only shared code is `shared/firebase.ts` (Firebase setup
   and sign-in), so one login carries across games. See "Adding a game" in the README.
+- **Games:** Stock Market (`/`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
+  inspired by Poptropica's Skullduggery Island. Plunder is boilerplate so far: keep its names, art
+  and rules the owner's own (no Poptropica names, characters or art).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;

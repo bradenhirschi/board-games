@@ -1,0 +1,95 @@
+/* Plunder's styles. Loaded only by app/(plunder)/plunder/layout.tsx; nothing here is shared with other games.
+   Placeholder look: night-sea background, parchment text, gold accents. */
+
+:root {
+  --pl-sea: #14202b;
+  --pl-sea-light: #1f3140;
+  --pl-parchment: #efe2c2;
+  --pl-gold: #d9a441;
+  --pl-blood: #c0503a;
+  --pl-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--pl-sea);
+  color: var(--pl-parchment);
+  font-family: var(--pl-serif);
+  -webkit-text-size-adjust: 100%;
+}
+
+.pl-home {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  text-align: center;
+  background: radial-gradient(ellipse at 50% 30%, var(--pl-sea-light), var(--pl-sea) 70%);
+}
+
+.pl-title {
+  margin: 0;
+  font-size: clamp(48px, 16vw, 96px);
+  letter-spacing: 0.06em;
+  color: var(--pl-gold);
+  text-shadow: 0 3px 0 #000a;
+}
+
+.pl-tagline {
+  margin: 0 0 24px;
+  font-size: 18px;
+  opacity: 0.85;
+}
+
+.pl-account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.pl-account p {
+  margin: 0;
+}
+
+.pl-btn {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 22px;
+  border: 2px solid var(--pl-gold);
+  border-radius: 10px;
+  background: var(--pl-gold);
+  color: var(--pl-sea);
+  cursor: pointer;
+}
+
+.pl-link {
+  font: inherit;
+  border: 0;
+  background: none;
+  color: var(--pl-gold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pl-btn:disabled,
+.pl-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pl-error {
+  color: var(--pl-blood);
+}

@@ -78,6 +78,7 @@ in its own folder; the only shared code is the account (Firebase sign-in), so on
 | `games/stock-market/lib/bot.ts` | Computer player strategy |
 | `games/stock-market/lib/online.ts`, `games/stock-market/lib/rooms.ts` | Online play: resolving moves, rooms in Firestore |
 | `games/stock-market/components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
+| `app/(plunder)/plunder/`, `games/plunder/` | Plunder, a pirate game in progress, served at `/plunder` (boilerplate so far) |
 | `shared/firebase.ts` | Firebase setup and the account: guest sign-in, Google sign-in, sign-out, `useFirebaseUser()` |
 | `firestore.rules` | Who may read and write online rooms (each game has its own collection) |
 
