@@ -278,7 +278,7 @@ export function AnchorShapes() {
 /** The anchor on the board, centred and scaled to icon size. */
 function Anchor() {
   return (
-    <g className="pl-icon-anchor" transform="scale(0.15) translate(-36 -38)">
+    <g className="pl-icon-anchor pl-ink" transform="scale(0.15) translate(-36 -38)">
       <AnchorShapes />
     </g>
   );
@@ -572,7 +572,7 @@ export function SkullShapes() {
 /** The skull on the board, centred and scaled to icon size. */
 function Skull() {
   return (
-    <g className="pl-icon-skull" transform="scale(0.088) translate(-36 -34)">
+    <g className="pl-icon-skull pl-ink" transform="scale(0.088) translate(-36 -34)">
       <SkullShapes />
     </g>
   );
@@ -580,7 +580,7 @@ function Skull() {
 
 function Barrel() {
   return (
-    <g className="pl-icon-barrel">
+    <g className="pl-icon-barrel pl-ink">
       <path d="M-1.7 -2.3 Q-2.4 0 -1.7 2.3 L1.7 2.3 Q2.4 0 1.7 -2.3 Z" />
       <path className="pl-barrel-hoop" d="M-2 -1.1 L2 -1.1 M-2 1.1 L2 1.1" />
     </g>

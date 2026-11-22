@@ -74,7 +74,7 @@ export function ShipPiece({
     // Positioned with a CSS transform (SVG user units), so each step along a route glides.
     <g
       style={{ transform: `translate(${x}px, ${y}px)` }}
-      className={`pl-ship${selected ? " pl-ship-selected" : ""}${ship.docked ? " pl-ship-docked" : ""}`}
+      className={`pl-ship pl-ink${selected ? " pl-ship-selected" : ""}${ship.docked ? " pl-ship-docked" : ""}`}
     >
       {selected && <circle className="pl-ship-ring" r={4.9} />}
       <ellipse className="pl-ship-wake" cx={0.35} cy={0.5} rx={3.1} ry={4.6} />
@@ -116,7 +116,7 @@ const X_POINTS = "30,36 18,24 24,18 36,30 48,18 54,24 42,36 54,48 48,54 36,42 24
 export function XMark({ at }: { at: Pos }) {
   const { x, y } = centre(at);
   return (
-    <g transform={`translate(${x} ${y}) scale(0.16) translate(-36 -36)`} className="pl-x">
+    <g transform={`translate(${x} ${y}) scale(0.16) translate(-36 -36)`} className="pl-x pl-ink">
       <polygon className="pl-x-fill" points={X_POINTS} />
       <polygon className="pl-x-line" points={X_POINTS} />
     </g>
@@ -126,7 +126,7 @@ export function XMark({ at }: { at: Pos }) {
 /** The skull and crossbones as an inline icon, sized to the text around it. */
 export function SkullIcon({ size = "1.1em" }: { size?: string | number }) {
   return (
-    <svg className="pl-skull-icon" viewBox="9 8 54 54" width={size} height={size} aria-hidden="true">
+    <svg className="pl-skull-icon pl-ink" viewBox="9 8 54 54" width={size} height={size} aria-hidden="true">
       <SkullShapes />
     </svg>
   );
@@ -136,10 +136,16 @@ export function SkullIcon({ size = "1.1em" }: { size?: string | number }) {
 export function Flag({ at, color }: { at: Pos; color: PlayerColor }) {
   const { x, y } = centre(at);
   return (
-    <g transform={`translate(${x - 1.5} ${y - 1})`} className="pl-flag">
-      <line x1={0} y1={-3.2} x2={0} y2={2.4} />
-      <path d="M0.2 -3.2 L3.4 -2.2 L0.2 -1 Z" fill={COLOR_HEX[color]} />
-      <ellipse cx={0} cy={2.5} rx={1.1} ry={0.45} />
+    <g transform={`translate(${x - 1.2} ${y - 0.6})`} className="pl-flag pl-ink">
+      <ellipse className="pl-flag-shadow" cx={0.4} cy={2.7} rx={1.3} ry={0.45} />
+      {/* A swallowtail pennant on a pole, inked like the rest of the map. */}
+      <path
+        className="pl-flag-cloth"
+        fill={COLOR_HEX[color]}
+        d="M0.25 -3.6 L4.1 -3.15 L3.0 -2.35 L4.1 -1.55 L0.25 -1.1 Z"
+      />
+      <line className="pl-flag-pole" x1={0} y1={-3.9} x2={0} y2={2.6} />
+      <circle className="pl-flag-knob" cx={0} cy={-4.05} r={0.38} />
     </g>
   );
 }
@@ -161,7 +167,7 @@ export function SquareMark({ at, kind }: { at: Pos; kind: "reach" | "reach-toll"
 /** A resource card's symbol: wood plank, iron ingot, rum bottle, gold coin. */
 export function ResourceIcon({ r, size = 18 }: { r: Resource; size?: number }) {
   return (
-    <svg className={`pl-res-icon pl-res-${r}`} width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+    <svg className={`pl-res-icon pl-ink pl-res-${r}`} width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
       {r === "wood" && (
         <>
           <rect x={2} y={5} width={16} height={10} rx={1.5} />
@@ -206,7 +212,7 @@ export function StormPiece({ at }: { at: Pos }) {
 /** Crossed swords as an inline icon, sized to the text around it. */
 export function SwordsIcon({ size = "1.1em" }: { size?: string | number }) {
   return (
-    <svg className="pl-skull-icon" viewBox="12 9 48 54" width={size} height={size} aria-hidden="true">
+    <svg className="pl-skull-icon pl-ink" viewBox="12 9 48 54" width={size} height={size} aria-hidden="true">
       <SwordsShapes />
     </svg>
   );
