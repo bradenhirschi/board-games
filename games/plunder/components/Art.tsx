@@ -171,15 +171,188 @@ export function placeLayout(layout: Placement[]): Placed[] {
   return layout.map((p, slot) => ({ ...p, x: (slot % 3) * TILE, y: Math.floor(slot / 3) * TILE }));
 }
 
-function Anchor() {
-  const d = "M0 -2.2 L0 2.6 M-1.6 -1 L1.6 -1 M-2.5 1 Q-2.1 2.9 0 2.9 Q2.1 2.9 2.5 1";
+/**
+ * Anchor: OpenMoji's emoji artwork (openmoji.org, CC BY-SA 4.0), kept as-is from
+ * games/plunder/art/anchor.svg, in its own 72-unit square.
+ */
+export function AnchorShapes() {
   return (
-    <g className="pl-icon-anchor">
-      <circle className="pl-icon-under" cx={0} cy={-2.9} r={0.8} />
-      <path className="pl-icon-under" d={d} />
-      <circle cx={0} cy={-2.9} r={0.8} />
-      <path d={d} />
+    <>
+      <path
+        fill="#d0cfce"
+        stroke="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit="10"
+        strokeWidth="2"
+        d="M54.215,34.1095l-5.2701,9.12h3.1702c-2.4101,5.55-7.6001,9.37-13.5801,10.07v-23.88h4c1.2053,0,2.1704-1.0684,1.9747-2.3241 c-0.154-0.9877-1.0771-1.6759-2.0766-1.6759H38.535v-2.41c2.0104-0.891,3.3423-3.0605,2.9227-5.4805 c-0.3413-1.9684-1.8948-3.5908-3.8506-3.9978c-3.2277-0.6717-6.0721,1.7782-6.0721,4.8883c0,2.05,1.24,3.81,3,4.59v2.41h-3.898 c-0.9996,0-1.9227,0.6882-2.0766,1.6759c-0.1958,1.2557,0.7694,2.3241,1.9746,2.3241h4v23.88 c-5.9299-0.71-11.1699-4.56-13.58-10.07h3.1001l-5.2701-9.12l-5.27,9.12h3.28c0,0.24,0.0541,0.4652,0.13,0.71 c2.6723,8.6078,16.5632,15.1685,19.0988,16.3038c0.2569,0.1151,0.5388,0.1164,0.7966,0.0034 c2.5781-1.1294,16.8623-7.7541,19.5846-17.0172h3.08L54.215,34.1095z M36.535,17.4195c0.5501,0,1,0.45,1,1c0,0.55-0.4499,1-1,1 c-0.55,0-1-0.45-1-1C35.535,17.8695,35.985,17.4195,36.535,17.4195z"
+      />
+      <path
+        fill="none"
+        stroke="#000000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit="10"
+        strokeWidth="2"
+        d="M54.215,34.1095l-5.2701,9.12h3.1702c-2.4101,5.55-7.6001,9.37-13.5801,10.07v-23.88h4c1.2053,0,2.1704-1.0684,1.9747-2.3241 c-0.154-0.9877-1.0771-1.6759-2.0766-1.6759H38.535v-2.41c2.0104-0.891,3.3423-3.0605,2.9227-5.4805 c-0.3413-1.9684-1.8948-3.5908-3.8506-3.9978c-3.2277-0.6717-6.0721,1.7782-6.0721,4.8883c0,2.05,1.24,3.81,3,4.59v2.41h-3.898 c-0.9996,0-1.9227,0.6882-2.0766,1.6759c-0.1958,1.2557,0.7694,2.3241,1.9746,2.3241h4v23.88 c-5.9299-0.71-11.1699-4.56-13.58-10.07h3.1001l-5.2701-9.12l-5.27,9.12h3.28c0,0.24,0.0541,0.4652,0.13,0.71 c2.6723,8.6078,16.5632,15.1685,19.0988,16.3038c0.2569,0.1151,0.5388,0.1164,0.7966,0.0034 c2.5781-1.1294,16.8623-7.7541,19.5846-17.0172h3.08L54.215,34.1095z M36.535,17.4195c0.5501,0,1,0.45,1,1c0,0.55-0.4499,1-1,1 c-0.55,0-1-0.45-1-1C35.535,17.8695,35.985,17.4195,36.535,17.4195z"
+      />
+    </>
+  );
+}
+
+/** The anchor on the board, centred and scaled to icon size. */
+function Anchor() {
+  return (
+    <g className="pl-icon-anchor" transform="scale(0.15) translate(-36 -38)">
+      <AnchorShapes />
     </g>
+  );
+}
+
+/**
+ * Crossed swords: OpenMoji's emoji artwork (openmoji.org, CC BY-SA 4.0), kept as-is from
+ * games/plunder/art/crossed-swords.svg. Shown inline (attack and Fight buttons).
+ */
+export function SwordsShapes() {
+  return (
+    <>
+      <path
+        fill="#9b9b9a"
+        d="M29.8689,49.8881s3.8768-.1914,1.57-2.9351A27.3514,27.3514,0,0,1,21.46,41.6161s-3.6038,1.0922-.9827,3.2489A44.5205,44.5205,0,0,1,29.8689,49.8881Z"
+      />
+      <path
+        fill="#d0cfce"
+        d="M43.91,13.2107a25.7734,25.7734,0,0,1-2.7051,9.5749L29.9145,44.6031a22.4062,22.4062,0,0,1-4.52-2.4173L37.2724,20.6822a25.7753,25.7753,0,0,1,6.4619-7.5657"
+      />
+      <path
+        fill="#9b9b9a"
+        d="M18.326,55.9442a1.997,1.997,0,1,0,3.522,1.8837,88.1683,88.1683,0,0,0,3.8491-10.02L24.523,47.18A88.1637,88.1637,0,0,0,18.326,55.9442Z"
+      />
+      <path
+        fill="#9b9b9a"
+        d="M51.5232,44.865c2.6211-2.1567-.9827-3.2489-.9827-3.2489a27.3514,27.3514,0,0,1-9.9791,5.3369c-2.3071,2.7437,1.57,2.9351,1.57,2.9351A44.5205,44.5205,0,0,1,51.5232,44.865Z"
+      />
+      <path
+        fill="#d0cfce"
+        d="M29.2657,14.1165a25.7753,25.7753,0,0,1,6.4619,7.5657L47.6055,43.1858a22.4062,22.4062,0,0,1-4.52,2.4173L31.7947,23.7856A25.7734,25.7734,0,0,1,29.09,14.2107"
+      />
+      <path
+        fill="#9b9b9a"
+        d="M53.674,55.9442a1.997,1.997,0,1,1-3.522,1.8837,88.1683,88.1683,0,0,1-3.8491-10.02L47.477,47.18A88.1637,88.1637,0,0,1,53.674,55.9442Z"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M40.3417,46.5421h0a1.9971,1.9971,0,0,0,1.8836,3.5221"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M51.6174,45.0411a1.997,1.997,0,0,0-1.8836-3.522h0"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M51.6174,45.0411a22.1726,22.1726,0,0,0-9.3921,5.0231"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M40.3417,46.5421a22.1724,22.1724,0,0,0,9.3921-5.023"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M53.674,55.9442a1.997,1.997,0,1,1-3.522,1.8837,88.1683,88.1683,0,0,1-3.8491-10.02L47.477,47.18A88.1637,88.1637,0,0,1,53.674,55.9442Z"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M28.2657,13.1165a25.7753,25.7753,0,0,1,6.4619,7.5657L46.9194,42.7728A22.4041,22.4041,0,0,1,42.4,45.19L30.7947,22.7856A25.7734,25.7734,0,0,1,28.09,13.2107"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M29.7747,50.0642a1.9971,1.9971,0,0,0,1.8836-3.5221h0"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M22.2662,41.5191h0a1.997,1.997,0,1,0-1.8836,3.522"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M29.7747,50.0642a22.1726,22.1726,0,0,0-9.3921-5.0231"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M22.2662,41.5191a22.1724,22.1724,0,0,0,9.3921,5.023"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M37.7047,19.9549a30.83,30.83,0,0,1,6.03-6.8384"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M34.3432,36.0337,29.6005,45.19a22.4041,22.4041,0,0,1-4.52-2.4173l6.36-11.5234"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M43.91,13.2107a25.7734,25.7734,0,0,1-2.7051,9.5749l-.9124,1.7576"
+      />
+      <path
+        fill="none"
+        stroke="#000"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M18.326,55.9442a1.997,1.997,0,1,0,3.522,1.8837,88.1683,88.1683,0,0,0,3.8491-10.02L24.523,47.18A88.1637,88.1637,0,0,0,18.326,55.9442Z"
+      />
+    </>
   );
 }
 

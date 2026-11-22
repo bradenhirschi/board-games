@@ -1,6 +1,6 @@
 import type { PlayerColor, Resource, Ship } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
-import { S, SkullShapes } from "./Art";
+import { S, SkullShapes, SwordsShapes } from "./Art";
 
 /** Player colours, matching the physical game's ships and flags. */
 export const COLOR_HEX: Record<PlayerColor, string> = {
@@ -161,5 +161,14 @@ export function StormPiece({ at }: { at: Pos }) {
       <rect className="pl-storm-rope" x={x + 0.6} y={y + 0.6} width={size - 1.2} height={size - 1.2} rx={0.8} />
       <rect className="pl-storm-rope-twist" x={x + 0.6} y={y + 0.6} width={size - 1.2} height={size - 1.2} rx={0.8} />
     </g>
+  );
+}
+
+/** Crossed swords as an inline icon, sized to the text around it. */
+export function SwordsIcon({ size = "1.1em" }: { size?: string | number }) {
+  return (
+    <svg className="pl-skull-icon" viewBox="12 9 48 54" width={size} height={size} aria-hidden="true">
+      <SwordsShapes />
+    </svg>
   );
 }

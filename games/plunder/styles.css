@@ -261,19 +261,6 @@ body {
   stroke-width: 0.45;
 }
 
-.pl-icon-anchor circle,
-.pl-icon-anchor path {
-  fill: none;
-  stroke: #f3ead6;
-  stroke-width: 0.6;
-  stroke-linecap: round;
-}
-
-.pl-icon-anchor .pl-icon-under {
-  stroke: #2b1b0b;
-  stroke-width: 1.3;
-}
-
 .pl-icon-barrel path {
   fill: #8a5a2b;
   stroke: #2b1b0b;

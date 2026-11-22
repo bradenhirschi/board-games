@@ -103,9 +103,9 @@ one offer a turn.
 - **Resource card counts:** the deck is a placeholder 40 of each resource (wood, iron, rum, gold),
   `CARDS_PER_RESOURCE` in `games/plunder/lib/engine.ts`.
 
-**Art credits:** the skull and crossbones (`games/plunder/art/skull-and-crossbones.svg`) and the X
-(`games/plunder/art/x-mark.svg`, drawn red in the game) are from [OpenMoji](https://openmoji.org),
-licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+**Art credits:** the skull and crossbones, the X (drawn red in the game), the anchor and the crossed
+swords (`games/plunder/art/*.svg`) are from [OpenMoji](https://openmoji.org), licensed
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 ## Where things live
 

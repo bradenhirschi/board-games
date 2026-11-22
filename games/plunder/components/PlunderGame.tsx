@@ -49,6 +49,7 @@ import {
   ShipPiece,
   SkullIcon,
   SquareMark,
+  SwordsIcon,
   StormPiece,
   XMark,
 } from "./Pieces";
@@ -392,7 +393,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
                   disabled={rolling}
                   onClick={() => attack(t)}
                 >
-                  ⚔ {label} <small>{chance}%</small>
+                  <SwordsIcon /> {label} <small>{chance}%</small>
                 </button>
               );
             })}

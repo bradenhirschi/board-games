@@ -15,7 +15,7 @@ import {
   type Hand,
   type Resource,
 } from "@/games/plunder/lib/engine";
-import { COLOR_HEX, RESOURCE_NAMES, ResourceIcon, SkullIcon } from "./Pieces";
+import { COLOR_HEX, RESOURCE_NAMES, ResourceIcon, SkullIcon, SwordsIcon } from "./Pieces";
 
 /**
  * The trading panel, laid out like a phone card-game trade screen: a row of resources to ask for,
@@ -390,7 +390,12 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
                   setBribe({});
                 }}
               />
-              <BigButton icon="⚔" label="Fight" kind="no" onClick={() => onAct({ t: "noBribe" })} />
+              <BigButton
+                icon={<SwordsIcon size={28} />}
+                label="Fight"
+                kind="no"
+                onClick={() => onAct({ t: "noBribe" })}
+              />
             </div>
           </div>
         )}
