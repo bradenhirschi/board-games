@@ -16,9 +16,11 @@ rules, how online play works, and the file map; read it first.
   preview link. The owner merges; never merge yourself.
 - **After a merge:** fast-forward `dev` to `main` (`git fetch origin && git merge --ff-only
   origin/main && git push origin dev`).
-- **Dev preview:** https://stonks-git-dev-bradenhirschi29s-projects.vercel.app (Vercel builds
-  every push to `dev`; it's behind Vercel login). Live site: https://stonks-henna.vercel.app
-  (deploys from `main`).
+- **Dev site:** https://braden-board-games-dev.vercel.app (public; Vercel deploys every push to
+  `dev`). Live site: https://braden-board-games.vercel.app (deploys from `main`). Both use the
+  same Firebase project (same accounts and rooms, and the published `firestore.rules`).
+- **Keep `dev` alive.** It's a permanent branch: never delete it, and recreate it from `main` if
+  it's ever missing.
 - **Firestore rules:** whenever `firestore.rules` changes, tell the owner to publish it in the
   Firebase console (Firestore → Rules → Publish) after merging; the live site uses the published
   copy, not the repo.
