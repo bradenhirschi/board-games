@@ -8,6 +8,13 @@
   --pl-gold: #d9a441;
   --pl-blood: #c0503a;
   --pl-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  /* "Ink on the map": every icon is outlined in one sepia ink with parchment fills, and its
+     outline is the same thickness on screen whatever the icon's size. */
+  --pl-ink: #3b2410;
+  --pl-paper: #f2e6c9;
+  --pl-shade: #cdb98f;
+  --pl-shade-deep: #9a835b;
+  --pl-ink-width: 0.8px;
 }
 
 *,
@@ -1751,4 +1758,138 @@ body {
   gap: 4px;
   font-size: 14px;
   opacity: 0.85;
+}
+
+/* ---- Ink on the map: one treatment for every icon (.pl-ink) ----
+   The OpenMoji artwork keeps its shapes; its black outlines and greys are mapped onto the map's
+   sepia ink and parchment. Colour stays where it means something: player colours, the red X,
+   gold, and the battle dice. */
+
+.pl-ink [stroke="#000" i],
+.pl-ink [stroke="#000000" i] {
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-ink [fill="#fff" i],
+.pl-ink [fill="#ffffff" i] {
+  fill: var(--pl-paper);
+}
+
+.pl-ink [fill="#d0cfce" i] {
+  fill: var(--pl-shade);
+}
+
+.pl-ink [fill="#9b9b9a" i] {
+  fill: var(--pl-shade-deep);
+}
+
+.pl-ink [fill="#3f3f3f" i],
+.pl-ink [fill="#000" i],
+.pl-ink [fill="#000000" i] {
+  fill: var(--pl-ink);
+}
+
+/* Anchors are one solid piece: parchment, so they read on sand and sea alike. */
+.pl-icon-anchor [fill="#d0cfce" i] {
+  fill: var(--pl-paper);
+}
+
+/* Crossed swords: parchment blades, deeper grips. */
+.pl-skull-icon [fill="#d0cfce" i] {
+  fill: var(--pl-paper);
+}
+
+.pl-x .pl-x-line {
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-icon-barrel path {
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-icon-barrel .pl-barrel-hoop {
+  stroke-width: calc(var(--pl-ink-width) * 0.8);
+}
+
+/* The flag: a swallowtail pennant in the owner's colour on an inked pole. */
+.pl-flag .pl-flag-shadow {
+  fill: #0005;
+}
+
+.pl-flag .pl-flag-cloth {
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-flag .pl-flag-pole {
+  stroke: var(--pl-ink);
+  stroke-width: calc(var(--pl-ink-width) * 1.5);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-flag .pl-flag-knob {
+  fill: var(--pl-gold);
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+/* Ships: the hull, sails and spars in the same ink. */
+.pl-ink .pl-ship-hull,
+.pl-ink .pl-ship-sail,
+.pl-ink .pl-ship-cannon,
+.pl-ink .pl-ship-masthead {
+  stroke: var(--pl-ink);
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-ink .pl-ship-yard,
+.pl-ink .pl-ship-bowsprit {
+  stroke: var(--pl-ink);
+}
+
+.pl-ink .pl-ship-life {
+  stroke: var(--pl-ink);
+}
+
+/* Resource icons: the same ink outline, with warmer pewter for iron. */
+.pl-res-icon.pl-ink {
+  stroke: var(--pl-ink);
+}
+
+.pl-res-icon.pl-ink > * {
+  stroke-width: var(--pl-ink-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-res-iron {
+  fill: #aaa293;
+}
+
+/* The die: parchment face, ink pips and edge. */
+.pl-die rect {
+  fill: var(--pl-paper);
+  stroke: var(--pl-ink);
+}
+
+.pl-die circle {
+  fill: var(--pl-ink);
+}
+
+/* Board markings get a thin parchment halo so the ink reads on dark water as well as sand. */
+.pl-icon-anchor.pl-ink,
+.pl-icon-skull.pl-ink,
+.pl-icon-barrel.pl-ink,
+.pl-flag.pl-ink {
+  filter: drop-shadow(0 0 0.6px #f2e6c9e6) drop-shadow(0 0 0.6px #f2e6c9e6);
 }

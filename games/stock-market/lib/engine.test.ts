@@ -403,3 +403,18 @@ describe("sound cues", () => {
     expect(sounds(s)).toEqual(["cash"]);
   });
 });
+
+describe("replaceWithBot", () => {
+  it("hands a seat to a bot, picking an occupation if needed", () => {
+    const g = newGame([
+      { name: "A", isBot: false },
+      { name: "B", isBot: false },
+    ]);
+    const a = reducer(g, { type: "chooseCareer", playerId: 0, career: 1 });
+    const b = reducer(a, { type: "replaceWithBot", playerId: 1 });
+    expect(b.players[1].isBot).toBe(true);
+    expect(b.players[1].career).not.toBeNull();
+    expect(b.phase.t).toBe("preRoll");
+    expect(reducer(b, { type: "replaceWithBot", playerId: 1 })).toBe(b);
+  });
+});

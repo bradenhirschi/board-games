@@ -17,6 +17,7 @@ import {
   type Player,
 } from "@/games/stock-market/lib/engine";
 import { playBell, playCash, playDice, playLoss, setSoundOn, useSoundOn } from "@/games/stock-market/lib/sound";
+import { setAutoRoll, useAutoRoll } from "@/games/stock-market/lib/autoRoll";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt, type StockId } from "@/games/stock-market/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -150,10 +151,32 @@ export interface GameViewProps {
   onQuit: () => void;
   /** Extra items for the top bar (e.g. the room code). */
   headerExtra?: ReactNode;
+  /** Online, for the host: players they may remove from the game (a bot takes over each seat). */
+  kickable?: Player[];
+  onKick?: (playerId: number) => void;
   /** Shown in the player box instead of "Waiting for your turn…". */
   waitingNote?: string;
   /** A short status shown under the turn heading (e.g. "Saving…"). */
   statusNote?: string;
+}
+
+/** The "Auto-roll at work" switch, shown beside "Roll for salary". */
+function AutoRollSwitch() {
+  const on = useAutoRoll();
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      className="auto-roll"
+      onClick={() => setAutoRoll(!on)}
+      title="Roll for salary automatically at the start of your turns while you're working"
+    >
+      <span className={`switch ${on ? "switch-on" : ""}`} aria-hidden>
+        <span />
+      </span>
+      <span>Auto-roll</span>
+    </button>
+  );
 }
 
 /** The game screen: board, dice, the viewer's box, players and ticker. Holds no game logic. */
@@ -167,6 +190,8 @@ export function GameView({
   roll,
   onQuit,
   headerExtra,
+  kickable,
+  onKick,
   waitingNote,
   statusNote,
 }: GameViewProps) {
@@ -215,6 +240,25 @@ export function GameView({
     rungForTurn.current = state.turn;
     playBell();
   }, [myTurnStarts, state.turn]);
+  // Auto-roll at work: a working player's turn rolls for salary by itself (when they've switched it on).
+  const autoRoll = useAutoRoll();
+  const autoRollNow =
+    autoRoll &&
+    canAct &&
+    !rolling &&
+    !viewer.isBot &&
+    current.id === viewer.id &&
+    ph.t === "preRoll" &&
+    current.status === "work" &&
+    current.career !== null &&
+    !mustGoToMarket(current);
+  useEffect(() => {
+    if (!autoRollNow) return;
+    // A short pause so the turn's start (and the bell) registers before the dice go.
+    const t = setTimeout(roll, 700);
+    return () => clearTimeout(t);
+  }, [autoRollNow, roll, state.turn]);
+
   const round = Math.floor((state.turn - 1) / state.players.length) + 1;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
@@ -236,13 +280,27 @@ export function GameView({
           </span>
           {headerExtra}
         </div>
-        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
+        <GameMenu
+          onQuit={onQuit}
+          target={state.target}
+          round={round}
+          extra={headerExtra}
+          kickable={kickable}
+          onKick={onKick}
+        />
       </header>
       {/* Phones: every player as a compact chip (you first); tap one for the details. */}
       {/* Phones: the latest ticker line (tap for the whole log) beside the other players. */}
       {/* Phones: ☰, the other players and the ticker on top; your money and stocks below. */}
       <div className="m-top">
-        <GameMenu onQuit={onQuit} target={state.target} round={round} extra={headerExtra} />
+        <GameMenu
+          onQuit={onQuit}
+          target={state.target}
+          round={round}
+          extra={headerExtra}
+          kickable={kickable}
+          onKick={onKick}
+        />
         <div className="m-players" role="list">
           {state.players
             .filter((p) => p.id !== viewer.id)
@@ -460,12 +518,16 @@ function GameMenu({
   target,
   round,
   extra,
+  kickable = [],
+  onKick,
 }: {
   onQuit: () => void;
   target: number;
   round: number;
   /** Extra game info (e.g. the online room code). */
   extra?: ReactNode;
+  kickable?: Player[];
+  onKick?: (playerId: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const soundOn = useSoundOn();
@@ -514,6 +576,21 @@ function GameMenu({
                 <span />
               </span>
             </button>
+            {onKick &&
+              kickable.map((p) => (
+                <button
+                  key={p.id}
+                  role="menuitem"
+                  className="menu-item menu-kick"
+                  onClick={() => {
+                    if (!window.confirm(`Remove ${p.name} from the game? A bot will play their seat.`)) return;
+                    setOpen(false);
+                    onKick(p.id);
+                  }}
+                >
+                  Remove {p.name}
+                </button>
+              ))}
             <button
               role="menuitem"
               className="menu-item menu-quit"
@@ -736,6 +813,7 @@ function TurnControls({
                 Roll for salary
               </button>
             )}
+            {!must && <AutoRollSwitch />}
             {must && (
               <button className="btn btn-primary" disabled={disabled} onClick={() => setPickingStart(true)}>
                 Play the market →

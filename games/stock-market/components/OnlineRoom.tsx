@@ -21,6 +21,7 @@ import {
   RoomError,
   editLobby,
   joinRoom,
+  kickPlayer,
   startGame,
   submitMove,
   watchRoom,
@@ -62,6 +63,12 @@ export default function OnlineRoom({ code, name, onQuit }: { code: string; name:
 
   if (room.status === "lobby") return <Lobby room={room} uid={uid} name={name} onQuit={onQuit} />;
   return <OnlineGame room={room} uid={uid} onQuit={onQuit} />;
+}
+
+/** Was this account seated when the game screen opened, and isn't any more? Then the host removed it. */
+function useRemoved(room: Room, uid: string): boolean {
+  const [wasSeated] = useState(() => room.memberUids.includes(uid));
+  return wasSeated && !room.memberUids.includes(uid);
 }
 
 function Notice({ title, text, onQuit }: { title: string; text: string; onQuit: () => void }) {
@@ -441,6 +448,21 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
 
   const dispatch = useCallback((action: Action) => void send(action, uid), [send, uid]);
 
+  const isHost = room.hostUid === uid;
+  const kick = useCallback(
+    async (playerId: number) => {
+      setError(null);
+      try {
+        const saved = await kickPlayer(room.code, uid, playerId);
+        if (saved && alive.current) adopt(saved);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't remove that player.");
+      }
+    },
+    [room.code, uid, adopt],
+  );
+  const removed = useRemoved(room, uid);
+
   const roll = useCallback(() => {
     if (rolling || pending) return;
     // Save the roll straight away and keep the dice tumbling until it's saved: the dice are
@@ -472,6 +494,9 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
     return () => clearTimeout(t);
   }, [caughtUp, pending, mySeat, authoritative, known.version, send]);
 
+  if (removed)
+    return <Notice title={`Room ${room.code}`} text="The host removed you from this game." onQuit={onQuit} />;
+
   const viewer: Player =
     mySeat >= 0 ? display.players[mySeat] : (display.players.find((p) => !p.isBot) ?? display.players[display.current]);
   return (
@@ -485,6 +510,12 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
+        kickable={
+          isHost && display.phase.t !== "gameOver"
+            ? display.players.filter((p) => room.seats[p.id]?.uid && room.seats[p.id].uid !== uid)
+            : undefined
+        }
+        onKick={isHost ? (id) => void kick(id) : undefined}
         headerExtra={
           <>
             {" "}

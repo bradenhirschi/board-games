@@ -127,9 +127,10 @@ const BOT_CAREERS = [2, 3];
 /** Policeman (5/9) and Prospector (2/12): the occupations that pay least per throw. */
 const EASY_BOT_CAREERS = [0, 1];
 
+/** The occupation a bot takes for seat `i`. */
+const botCareer = (i: number, level: BotLevel) => (level === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS)[i % 2];
+
 export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel: BotLevel = "normal"): GameState {
-  // Easy bots take the lower-paying occupations; the others the best-paying ones.
-  const botCareers = botLevel === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS;
   return {
     version: 3,
     players: setup.map((p, i) => ({
@@ -138,7 +139,7 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel:
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
-      career: p.isBot ? botCareers[i % botCareers.length] : null,
+      career: p.isBot ? botCareer(i, botLevel) : null,
       status: "work",
       pos: null,
       cash: 0,
@@ -196,7 +197,9 @@ export type Action =
   | { type: "buy"; qty: number }
   | { type: "endTurn" }
   | { type: "forcedSell"; stock: StockId; qty: number }
-  | { type: "goBroke" };
+  | { type: "goBroke" }
+  /** Online: the host removes a player mid-game; a bot plays their seat from here on. */
+  | { type: "replaceWithBot"; playerId: number };
 
 export function reducer(state: GameState, action: Action): GameState {
   const s: GameState = structuredClone(state);
@@ -211,6 +214,22 @@ function apply(s: GameState, a: Action): boolean {
   if (ph.t === "gameOver") return false;
 
   switch (a.type) {
+    case "replaceWithBot": {
+      const kicked = s.players[a.playerId];
+      if (!kicked || kicked.isBot) return false;
+      kicked.isBot = true;
+      log(s, kicked.id, "left the game. A bot plays for them now.");
+      if (kicked.career === null) {
+        kicked.career = botCareer(kicked.id, s.botLevel ?? "normal");
+        log(s, kicked.id, `goes to work as a ${CAREERS[kicked.career].name}`);
+      }
+      if (ph.t === "chooseCareers" && s.players.every((pl) => pl.career !== null)) {
+        s.phase = { t: "preRoll" };
+        log(s, null, `Everyone has a job. ${s.players[s.current].name} rolls first.`);
+      }
+      return true;
+    }
+
     case "chooseCareer": {
       if (ph.t !== "chooseCareers") return false;
       const chooser = s.players[a.playerId];
