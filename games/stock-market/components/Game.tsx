@@ -17,6 +17,7 @@ import {
   type Player,
 } from "@/games/stock-market/lib/engine";
 import { playBell, playCash, playDice, playLoss, setSoundOn, useSoundOn } from "@/games/stock-market/lib/sound";
+import { setAutoRoll, useAutoRoll } from "@/games/stock-market/lib/autoRoll";
 import { STOCKS, STOCK_ORDER, lowestPrice, priceAt, type StockId } from "@/games/stock-market/lib/stocks";
 import Board from "./Board";
 import ZoomableBoard from "./ZoomableBoard";
@@ -156,6 +157,25 @@ export interface GameViewProps {
   statusNote?: string;
 }
 
+/** The "Auto-roll at work" switch, shown beside "Roll for salary". */
+function AutoRollSwitch() {
+  const on = useAutoRoll();
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      className="auto-roll"
+      onClick={() => setAutoRoll(!on)}
+      title="Roll for salary automatically at the start of your turns while you're working"
+    >
+      <span className={`switch ${on ? "switch-on" : ""}`} aria-hidden>
+        <span />
+      </span>
+      <span>Auto-roll</span>
+    </button>
+  );
+}
+
 /** The game screen: board, dice, the viewer's box, players and ticker. Holds no game logic. */
 export function GameView({
   state,
@@ -215,6 +235,25 @@ export function GameView({
     rungForTurn.current = state.turn;
     playBell();
   }, [myTurnStarts, state.turn]);
+  // Auto-roll at work: a working player's turn rolls for salary by itself (when they've switched it on).
+  const autoRoll = useAutoRoll();
+  const autoRollNow =
+    autoRoll &&
+    canAct &&
+    !rolling &&
+    !viewer.isBot &&
+    current.id === viewer.id &&
+    ph.t === "preRoll" &&
+    current.status === "work" &&
+    current.career !== null &&
+    !mustGoToMarket(current);
+  useEffect(() => {
+    if (!autoRollNow) return;
+    // A short pause so the turn's start (and the bell) registers before the dice go.
+    const t = setTimeout(roll, 700);
+    return () => clearTimeout(t);
+  }, [autoRollNow, roll, state.turn]);
+
   const round = Math.floor((state.turn - 1) / state.players.length) + 1;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
@@ -736,6 +775,7 @@ function TurnControls({
                 Roll for salary
               </button>
             )}
+            {!must && <AutoRollSwitch />}
             {must && (
               <button className="btn btn-primary" disabled={disabled} onClick={() => setPickingStart(true)}>
                 Play the market →
