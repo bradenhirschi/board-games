@@ -1,7 +1,12 @@
-import { COLS, ROWS, ROW_LETTERS, gridSize, tilePosition, type Orientation } from "@/games/plunder/lib/board";
+"use client";
+
+import { useState } from "react";
+import { COLS, ROWS, ROW_LETTERS, tilePosition } from "@/games/plunder/lib/board";
 
 /** One tile = U units in the SVG. The border is one tile thick on every side. */
 const U = 10;
+const W = (COLS + 2) * U;
+const H = (ROWS + 2) * U;
 
 function Corner({ x, y }: { x: number; y: number }) {
   const c = U / 2;
@@ -25,51 +30,42 @@ function Label({ x, y, text }: { x: number; y: number; text: string }) {
   );
 }
 
-/** The board's border: numbers 1–18 on two sides, letters A–L on the other two. */
-function BoardSvg({ orientation }: { orientation: Orientation }) {
-  const { w, h } = gridSize(orientation);
-  const W = (w + 2) * U;
-  const H = (h + 2) * U;
+/** Each label lines up with its column or row of tiles, on both sides of the board. */
+const LABELS = [
+  ...Array.from({ length: COLS }, (_, i) => {
+    const col = i + 1;
+    const x = (tilePosition({ col, row: 0 }).x + 1) * U;
+    return [
+      { x, y: 0, text: String(col) },
+      { x, y: H - U, text: String(col) },
+    ];
+  }).flat(),
+  ...ROW_LETTERS.map((text, row) => {
+    const y = (tilePosition({ col: 1, row }).y + 1) * U;
+    return [
+      { x: 0, y, text },
+      { x: W - U, y, text },
+    ];
+  }).flat(),
+];
 
-  // Each label lines up with its column or row of tiles.
-  const numbers = Array.from({ length: COLS }, (_, i) => i + 1);
-  const letters = Array.from({ length: ROWS }, (_, i) => i);
-  const labels: { x: number; y: number; text: string }[] = [];
-  for (const col of numbers) {
-    const p = tilePosition({ col, row: 0 }, orientation);
-    const text = String(col);
-    if (orientation === "landscape") {
-      labels.push({ x: (p.x + 1) * U, y: 0, text }, { x: (p.x + 1) * U, y: H - U, text });
-    } else {
-      labels.push({ x: 0, y: (p.y + 1) * U, text }, { x: W - U, y: (p.y + 1) * U, text });
-    }
-  }
-  for (const row of letters) {
-    const p = tilePosition({ col: 1, row }, orientation);
-    const text = ROW_LETTERS[row];
-    if (orientation === "landscape") {
-      labels.push({ x: 0, y: (p.y + 1) * U, text }, { x: W - U, y: (p.y + 1) * U, text });
-    } else {
-      labels.push({ x: (p.x + 1) * U, y: 0, text }, { x: (p.x + 1) * U, y: H - U, text });
-    }
-  }
-
+function BoardSvg() {
   return (
     <svg
-      className={`pl-board pl-board-${orientation}`}
+      className="pl-board"
       viewBox={`-1 -1 ${W + 2} ${H + 2}`}
       role="img"
       aria-label={`Plunder board, columns 1 to ${COLS}, rows A to ${ROW_LETTERS[ROWS - 1]}`}
     >
       <defs>
-        <radialGradient id={`pl-sea-${orientation}`} cx="50%" cy="45%" r="75%">
+        <radialGradient id="pl-sea" cx="50%" cy="45%" r="75%">
           <stop offset="0%" stopColor="#2c5677" />
           <stop offset="100%" stopColor="#152d44" />
         </radialGradient>
       </defs>
       <rect className="pl-frame" x={-0.5} y={-0.5} width={W + 1} height={H + 1} rx={1.5} />
-      <rect x={U} y={U} width={W - 2 * U} height={H - 2 * U} fill={`url(#pl-sea-${orientation})`} />
-      {labels.map((l) => (
+      <rect x={U} y={U} width={W - 2 * U} height={H - 2 * U} fill="url(#pl-sea)" />
+      {LABELS.map((l) => (
         <Label key={`${l.x},${l.y}`} {...l} />
       ))}
       <Corner x={0} y={0} />
@@ -81,12 +77,27 @@ function BoardSvg({ orientation }: { orientation: Orientation }) {
   );
 }
 
-/** Both orientations are rendered; CSS shows the one that fits the screen's shape. */
+/**
+ * The board, drawn wider than a phone screen so it stays readable. A small button on the edge
+ * slides it to show the left or the right side.
+ */
 export default function Board() {
+  const [side, setSide] = useState<"left" | "right">("left");
+  const toRight = side === "left";
   return (
-    <div className="pl-board-wrap">
-      <BoardSvg orientation="landscape" />
-      <BoardSvg orientation="portrait" />
+    <div className="pl-board-viewport">
+      <div className={`pl-board-track pl-show-${side}`}>
+        <BoardSvg />
+      </div>
+      <button
+        className={`pl-slide pl-slide-${toRight ? "right" : "left"}`}
+        aria-label={toRight ? "Show the right side of the board" : "Show the left side of the board"}
+        onClick={() => setSide(toRight ? "right" : "left")}
+      >
+        <svg viewBox="0 0 10 10" aria-hidden="true">
+          <path d={toRight ? "M3.5 1.5 L7 5 L3.5 8.5" : "M6.5 1.5 L3 5 L6.5 8.5"} />
+        </svg>
+      </button>
     </div>
   );
 }

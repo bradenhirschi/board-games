@@ -8,8 +8,14 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Plunder", statusBarStyle: "black-translucent" },
 };
 
+// One fixed screen: no pinch-zoom, and fill the whole screen under the iPhone notch.
 export const viewport: Viewport = {
   themeColor: "#14202b",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function PlunderLayout({ children }: LayoutProps<"/plunder">) {

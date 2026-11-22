@@ -16,25 +16,41 @@
   box-sizing: border-box;
 }
 
+/* One screen, no scrolling: the page is pinned in place, with no rubber-band bounce. */
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: var(--pl-sea);
   color: var(--pl-parchment);
   font-family: var(--pl-serif);
   -webkit-text-size-adjust: 100%;
 }
 
+body {
+  position: fixed;
+  inset: 0;
+}
+
 .pl-screen {
-  height: 100dvh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-    max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: max(10px, env(safe-area-inset-top)) 0 max(12px, env(safe-area-inset-bottom));
   background: radial-gradient(ellipse at 50% 30%, var(--pl-sea-light), var(--pl-sea) 70%);
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pl-header,
+.pl-controls {
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
 }
 
 .pl-header {
@@ -86,31 +102,80 @@ body {
 
 /* ---- Board ---- */
 
-.pl-board-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* The board is drawn --pl-board-zoom times the screen width so it stays readable on a phone;
+   the track slides to show its left or right side. On wide screens it fits and doesn't slide. */
+.pl-board-viewport {
+  --pl-board-zoom: 1.45;
+  position: relative;
+  flex: none;
+  padding-bottom: 12px; /* room for the board's shadow */
+  margin-bottom: -12px;
+  overflow: hidden;
+}
+
+.pl-board-track {
+  width: calc(var(--pl-board-zoom) * 100%);
+  padding: 0 8px;
+  transition: transform 0.35s ease;
+}
+
+.pl-board-track.pl-show-right {
+  transform: translateX(calc((1 / var(--pl-board-zoom) - 1) * 100%));
 }
 
 .pl-board {
+  display: block;
   width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 6px 14px #0009);
+  height: auto;
+  filter: drop-shadow(0 4px 10px #0009);
 }
 
-/* Show the orientation that fits the screen: the board turned on tall screens. */
-.pl-board-portrait {
-  display: none;
+.pl-slide {
+  position: absolute;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  padding: 8px;
+  border: 1.5px solid #5a3f1c;
+  border-radius: 50%;
+  background: #ecdcb0e6;
+  box-shadow: 0 2px 6px #0008;
+  cursor: pointer;
 }
-@media (max-aspect-ratio: 1/1) {
-  .pl-board-landscape {
+
+.pl-slide-right {
+  right: 12px;
+}
+
+.pl-slide-left {
+  left: 12px;
+}
+
+.pl-slide svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #3b2814;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (min-aspect-ratio: 1/1) {
+  .pl-board-viewport {
+    --pl-board-zoom: 1;
+  }
+  .pl-slide {
     display: none;
   }
-  .pl-board-portrait {
-    display: block;
-  }
+}
+
+/* Everything below the board: where the turn controls will go. */
+.pl-controls {
+  flex: 1;
+  min-height: 0;
 }
 
 .pl-frame {

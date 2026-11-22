@@ -4,7 +4,7 @@ import { useState } from "react";
 import { authErrorMessage, onlineAvailable, signInWithGoogle, signOutUser, useFirebaseUser } from "@/shared/firebase";
 import Board from "./Board";
 
-/** Plunder's screen: a slim header with the shared account, and the board filling the rest. */
+/** Plunder's one-screen layout: slim header, the board, and the controls area below it. Nothing scrolls. */
 export default function PlunderHome() {
   return (
     <main className="pl-screen">
@@ -13,6 +13,7 @@ export default function PlunderHome() {
         {onlineAvailable && <Account />}
       </header>
       <Board />
+      <section className="pl-controls" aria-label="Controls" />
     </main>
   );
 }
