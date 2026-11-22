@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authErrorMessage, onlineAvailable, signInWithGoogle, signOutUser, useFirebaseUser } from "@/shared/firebase";
-import { newGame, randomLayout, type GameState, type PlayerSetup } from "@/games/plunder/lib/engine";
+import { newGame, randomLayout, reducer, type GameState, type PlayerSetup } from "@/games/plunder/lib/engine";
 import PlunderGame, { turnKey } from "./PlunderGame";
 import Setup from "./Setup";
 
@@ -81,7 +81,8 @@ export default function PlunderHome() {
         <PlunderGame
           key={turnKey(game)}
           game={game}
-          onChange={change}
+          onAct={(a) => change(reducer(game, a))}
+          onDismiss={() => change({ ...game, notices: game.notices.slice(1) })}
           onNewGame={() => setGame(null)}
           holder={holder}
           onHolder={setHolder}

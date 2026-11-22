@@ -185,14 +185,17 @@ function Header({
 
 type Props = {
   game: GameState;
+  /** The player using this device (null when only watching): they can act only when the game waits on them. */
+  viewer: number | null;
   /** Start composing (the Trade button was tapped); null when the panel opened for an answer. */
   start: "trade" | null;
   onAct: (a: Action) => void;
   onClose: () => void;
 };
 
-export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
+export default function TradePanel({ game: s, viewer, start, onAct, onClose }: Props) {
   const actor = waitingOn(s);
+  const mineToAct = viewer === actor && !s.players[actor].isBot;
   const t = s.trade ?? null;
   const pa = s.pendingAttack ?? null;
   const me = s.players[actor];
@@ -349,7 +352,7 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
   }
 
   // ---- A bribe to decide (the defender of a pending attack)
-  if (pa?.stage === "bribe" && !t && actor === pa.defender) {
+  if (pa?.stage === "bribe" && !t && actor === pa.defender && mineToAct) {
     const what = pa.target.kind === "ship" ? "your ship" : "your island";
     const handLeft = minus(me.hand, bribe);
     return (
@@ -403,6 +406,20 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
     );
   }
 
+  // Someone else (a bot, or another device online) is deciding on a bribe.
+  if (pa?.stage === "bribe" && !t) {
+    return (
+      <div className="pl-tr" role="status" aria-label="Waiting">
+        <Header
+          color={color(pa.defender)}
+          title={`${name(pa.defender)} is deciding whether to bribe…`}
+          folded
+          onFold={() => {}}
+        />
+      </div>
+    );
+  }
+
   if (!t) return null;
 
   // ---- Someone answering (a person passes the device here; bots answer by themselves)
@@ -419,7 +436,7 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
     </div>
   );
 
-  if (answering && !me.isBot) {
+  if (answering && mineToAct) {
     const canAccept = hasCards(me.hand, t.get);
     const title =
       t.kind === "threat"
@@ -471,7 +488,7 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
   }
 
   // ---- The offerer looks at the answers and picks (or someone else is still answering)
-  const mine = actor === t.from && !me.isBot;
+  const mine = actor === t.from && mineToAct;
   const accepted = t.to.filter((p) => t.answers[p] === "accept");
   return (
     <div className="pl-tr" role="dialog" aria-label="Your offer">

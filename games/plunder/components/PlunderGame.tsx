@@ -25,7 +25,6 @@ import {
   islandsOf,
   points,
   reachable,
-  reducer,
   shipSpots,
   startingIslands,
   type Action,
@@ -64,11 +63,23 @@ function flagSpot(squares: Pos[], ports: Pos[]): Pos {
 
 type Props = {
   game: GameState;
-  onChange: (g: GameState) => void;
+  /** Apply an action (pass-and-play: locally; online: saved to the room). Dice are already filled in. */
+  onAct: (a: Action) => void;
+  /** Dismiss the first notice (notices are local: each device clears its own). */
+  onDismiss: () => void;
   onNewGame: () => void;
-  /** The human who has the phone (after tapping through the hand-over cover). */
-  holder: number | null;
-  onHolder: (player: number) => void;
+  /** Pass-and-play: the person holding the device (after tapping through the hand-over cover). */
+  holder?: number | null;
+  onHolder?: (player: number) => void;
+  /**
+   * Online: the seat this device plays (null when only watching). Left out for pass-and-play,
+   * where the device plays every person and the bots.
+   */
+  seat?: number | null;
+  /** Online: a move is saving or being replayed, so wait before acting. */
+  locked?: boolean;
+  /** Shown in the strip, e.g. the room code. */
+  note?: string;
 };
 
 /** How long a bot pauses before each move, so people can follow it. */
@@ -105,7 +116,20 @@ export function turnKey(g: GameState): string {
   return `${p.t === "pickIsland" ? p.order[p.index] : g.turn}:${p.t}`;
 }
 
-export default function PlunderGame({ game, onChange, onNewGame, holder, onHolder }: Props) {
+export default function PlunderGame({
+  game,
+  onAct,
+  onDismiss,
+  onNewGame,
+  holder = null,
+  onHolder = () => {},
+  seat,
+  locked = false,
+  note,
+}: Props) {
+  const online = seat !== undefined;
+  /** Can the person at this device act for player `p`? */
+  const canControl = (p: number) => (online ? p === seat : !game.players[p].isBot);
   // Each turn starts with the player's first ship selected (this component remounts every turn).
   const [selected, setSelected] = useState<number | null>(
     () => game.ships.find((sh) => sh.owner === game.turn)?.id ?? null,
@@ -138,51 +162,63 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   const [rolling, setRolling] = useState(false);
 
   const s = game;
-  const act = (a: Action) => onChange(reducer(s, a));
+  const act = (a: Action) => {
+    if (!locked) onAct(a);
+  };
   const phase = s.phase;
   const current = phase.t === "pickIsland" ? phase.order[phase.index] : s.turn;
   const me = s.players[current];
   const myShips = s.ships.filter((sh) => sh.owner === current);
   const ship: Ship | undefined = s.ships.find((sh) => sh.id === selected && sh.owner === current) ?? undefined;
-  const isBot = !!me.isBot;
+  // "isBot": the current player isn't played from this device (a bot, or online someone else).
+  const isBot = !canControl(current);
   // Who the game is waiting on: usually the current player, but someone answering an offer or
   // deciding on a bribe acts in the middle of another player's turn.
   const actor = phase.t === "gameOver" ? current : waitingOn(s);
   const actorBot = !!s.players[actor].isBot;
+  // Online, bots are played by any seated device (the room keeps only the first save).
+  const drivesBots = !online || seat !== null;
   const humans = s.players.filter((p) => !p.isBot).length;
   // Cover the screen when the device passes between people. Bots don't need it, nor does a lone human.
-  const covered = !actorBot && phase.t !== "gameOver" && humans > 1 && holder !== actor;
+  const covered = !online && !actorBot && phase.t !== "gameOver" && humans > 1 && holder !== actor;
   const notice: Notice | undefined = covered ? undefined : s.notices[0];
   // News that shows for a moment and moves on: anything from a bot's turn, and finished deals.
-  const passing = !!notice && (!!s.players[notice.player].isBot || notice.t === "deal" || notice.t === "noDeal");
-  const botNotice = notice && s.players[notice.player].isBot;
+  // News about someone not played from this device also passes by on its own.
+  const botNotice = !!notice && !canControl(notice.player) && notice.t !== "drew";
+  const passing = !!notice && (botNotice || notice.t === "deal" || notice.t === "noDeal");
   const negotiating = !!s.trade || s.pendingAttack?.stage === "bribe";
   const [tradeOpen, setTradeOpen] = useState(false);
 
   useEffect(() => {
     if (!passing) return;
-    const t = window.setTimeout(() => onChange({ ...s, notices: s.notices.slice(1) }), BOT_NOTICE_MS[notice!.t]);
+    const t = window.setTimeout(onDismiss, BOT_NOTICE_MS[notice!.t]);
     return () => window.clearTimeout(t);
-  }, [s, passing, notice, onChange]);
+  }, [passing, notice, onDismiss]);
 
   // Bots play by themselves, one visible step at a time (including answering offers on others' turns).
   useEffect(() => {
-    if (!actorBot || phase.t === "gameOver" || rolling || moving || notice) return;
+    if (!actorBot || !drivesBots || locked || phase.t === "gameOver" || rolling || moving || notice) return;
     const a = botAction(s);
     if (!a) return;
-    const t = window.setTimeout(() => {
-      if (a.t === "sail") return animateSail(a.ship, a.path, () => onChange(reducer(s, a)));
-      const filled = fillDice(a, d6);
-      if (filled === a) return onChange(reducer(s, a));
-      // Dice to roll: let them tumble first.
-      setRolling(true);
-      window.setTimeout(() => {
-        setRolling(false);
-        onChange(reducer(s, filled));
-      }, ROLL_MS);
-    }, BOT_STEP_MS);
+    const t = window.setTimeout(
+      () => {
+        // Online, every device animates the bot's move as it arrives, so just send it.
+        if (online) return onAct(fillDice(a, d6));
+        if (a.t === "sail") return animateSail(a.ship, a.path, () => onAct(a));
+        const filled = fillDice(a, d6);
+        if (filled === a) return onAct(a);
+        // Dice to roll: let them tumble first.
+        setRolling(true);
+        window.setTimeout(() => {
+          setRolling(false);
+          onAct(filled);
+        }, ROLL_MS);
+      },
+      // Online, several devices may try to play the bot: spread them out a little.
+      online ? BOT_STEP_MS + Math.random() * 600 : BOT_STEP_MS,
+    );
     return () => window.clearTimeout(t);
-  }, [s, actorBot, phase.t, notice, onChange, rolling, moving]);
+  }, [s, actorBot, drivesBots, locked, online, phase.t, notice, onAct, rolling, moving]);
 
   // A person's attack on a player who chose to fight (or whose bribe was refused): roll it.
   const fight = s.pendingAttack?.stage === "fight" && !isBot && actor === s.turn ? s.pendingAttack : null;
@@ -192,13 +228,13 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       setRolling(true);
       window.setTimeout(() => {
         setRolling(false);
-        onChange(
-          reducer(s, { t: "attack", ship: fight.ship, target: fight.target, attackDie: d6(), defenseDie: d6() }),
-        );
+        act({ t: "attack", ship: fight.ship, target: fight.target, attackDie: d6(), defenseDie: d6() });
       }, ROLL_MS);
     }, 300);
     return () => window.clearTimeout(t);
-  }, [s, fight, rolling, covered, onChange]);
+    // `act` is recreated each render; the fight is keyed by the state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, fight, rolling, covered]);
 
   const reach = useMemo(
     () => (ship && phase.t === "turn" ? reachable(s, ship) : new Map<string, Pos[]>()),
@@ -244,7 +280,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   }
 
   function onSquareTap(p: Pos) {
-    if (covered || isBot || rolling || moving || negotiating || tradeOpen) return;
+    if (covered || isBot || locked || rolling || moving || negotiating || tradeOpen) return;
     if (captainSpots.some((q) => same(q, p))) {
       act({ t: "placeShip", at: p });
       return;
@@ -299,11 +335,21 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     }, ROLL_MS);
   }
 
+  // The cards shown: online, always your own; pass-and-play, the current person's (hidden behind the cover).
+  const viewerHand = online
+    ? seat !== null && seat !== undefined
+      ? s.players[seat].hand
+      : null
+    : covered || isBot
+      ? null
+      : me.hand;
+
   const focus = ship?.pos ?? (phase.t === "turn" && myShips[0] ? myShips[0].pos : null);
 
   // What the strip under the board says.
   let status: string;
-  if (isBot && phase.t !== "gameOver")
+  if (isBot && phase.t !== "gameOver" && !me.isBot) status = `${me.name}'s turn${note ? ` · ${note}` : ""}`;
+  else if (isBot && phase.t !== "gameOver")
     status = rolling ? "Rolling…" : phase.t === "pickIsland" ? "Choosing an island…" : "Thinking…";
   else if (phase.t === "pickIsland") status = "Pick your starting island";
   else if (phase.t === "gameOver") status = `${s.players[phase.winner].name} wins!`;
@@ -381,7 +427,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
             {RESOURCES.map((r) => (
               <span key={r} className="pl-card-count" title={RESOURCE_NAMES[r]}>
                 <ResourceIcon r={r} />
-                <b>{covered || isBot ? "–" : me.hand[r]}</b>
+                <b>{viewerHand ? viewerHand[r] : "–"}</b>
               </span>
             ))}
           </div>
@@ -502,6 +548,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
         <TradePanel
           key={`${actor}:${s.trade?.kind}:${s.trade?.from}:${s.trade ? JSON.stringify(s.trade.answers) : ""}:${tradeOpen}`}
           game={s}
+          viewer={online ? (seat ?? null) : actor}
           start={tradeOpen && !negotiating ? "trade" : null}
           onAct={act}
           onClose={() => setTradeOpen(false)}
@@ -585,9 +632,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
                 : `Nobody took ${s.players[notice.player].name}'s offer`}
         </div>
       )}
-      {notice && !botNotice && !passing && (
-        <NoticeDialog notice={notice} game={s} onOk={() => onChange({ ...s, notices: s.notices.slice(1) })} />
-      )}
+      {notice && !botNotice && !passing && <NoticeDialog notice={notice} game={s} onOk={onDismiss} />}
     </>
   );
 }
