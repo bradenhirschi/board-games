@@ -58,7 +58,7 @@ export default function PlunderHome() {
   }, []);
 
   return (
-    <main className="pl-screen">
+    <main className={`pl-screen${game ? " pl-screen-game" : ""}`}>
       <header className="pl-header">
         <h1 className="pl-title">Plunder</h1>
         {game ? (
