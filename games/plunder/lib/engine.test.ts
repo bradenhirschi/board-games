@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CARDS_PER_RESOURCE,
+  attackTargets,
+  winChance,
   COSTS,
   MAX_SHIPS,
   STARTING_CARDS,
@@ -209,5 +211,177 @@ describe("plunder turns and treasure", () => {
     s = play(s, { t: "sail", ship: ship.id, path: [sq("C2"), sq("C3")] });
     expect(s.notices).toEqual([{ t: "treasure", player: 0, at: sq("C3") }]);
     expect(s.xs[0]).not.toEqual(sq("C3"));
+  });
+});
+
+/** Put a ship somewhere specific (and optionally change it), for setting up battles. */
+function moveShip(s: GameState, owner: number, at: Pos, patch: Partial<GameState["ships"][number]> = {}): GameState {
+  return { ...s, ships: s.ships.map((sh) => (sh.owner === owner ? { ...sh, pos: at, ...patch } : sh)) };
+}
+
+describe("plunder battles", () => {
+  // Anne (player 0) to move, with Bart's ship right next to hers on open water.
+  function facing(): GameState {
+    let s = started();
+    s = moveShip(s, 0, sq("C2"));
+    s = moveShip(s, 1, sq("C3"));
+    return s;
+  }
+  const anne = (s: GameState) => s.ships.find((sh) => sh.owner === 0)!;
+  const bart = (s: GameState) => s.ships.find((sh) => sh.owner === 1)!;
+
+  it("lists ships next door and the island whose port you're in as targets", () => {
+    const s = facing();
+    expect(attackTargets(s, anne(s))).toEqual([{ kind: "ship", id: bart(s).id }]);
+    // Not diagonally.
+    const diag = moveShip(s, 1, sq("D3"));
+    expect(attackTargets(diag, anne(diag))).toEqual([]);
+    // Bart's island (tile 4's islet) can be attacked from its port.
+    const isl = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "4d")!;
+    const inPort = moveShip(moveShip(s, 1, sq("A6")), 0, isl.ports[0]);
+    expect(attackTargets(inPort, anne(inPort))).toEqual([{ kind: "island", id: "4d" }]);
+  });
+
+  it("wins ties, takes a life, and can't attack the same ship twice in a turn", () => {
+    let s = facing();
+    s = play(s, {
+      t: "attack",
+      ship: anne(s).id,
+      target: { kind: "ship", id: bart(s).id },
+      attackDie: 3,
+      defenseDie: 3,
+    });
+    expect(bart(s).lives).toBe(2);
+    expect(s.notices.at(-1)).toMatchObject({ t: "battle", won: true, sunk: null });
+    const again = play(s, {
+      t: "attack",
+      ship: anne(s).id,
+      target: { kind: "ship", id: bart(s).id },
+      attackDie: 6,
+      defenseDie: 1,
+    });
+    expect(again).toBe(s);
+  });
+
+  it("adds cannons: the defender's cannons can beat the attacker", () => {
+    let s = moveShip(facing(), 1, sq("C3"), { cannons: 2 });
+    s = play(s, {
+      t: "attack",
+      ship: anne(s).id,
+      target: { kind: "ship", id: bart(s).id },
+      attackDie: 5,
+      defenseDie: 4,
+    });
+    expect(anne(s).lives).toBe(2);
+    expect(s.notices.at(-1)).toMatchObject({ won: false, attack: { die: 5, bonus: 0 }, defense: { die: 4, bonus: 2 } });
+  });
+
+  it("sinking a ship earns a Plunder Point card", () => {
+    let s = moveShip(facing(), 1, sq("C3"), { lives: 1, masts: 2 });
+    s = play(s, {
+      t: "attack",
+      ship: anne(s).id,
+      target: { kind: "ship", id: bart(s).id },
+      attackDie: 6,
+      defenseDie: 1,
+    });
+    expect(s.ships.some((sh) => sh.owner === 1)).toBe(false);
+    expect(s.players[0].plunderCards).toBe(1);
+    expect(s.notices.at(-1)).toMatchObject({ sunk: "defender", pointTo: 0 });
+  });
+
+  it("losing your last ship ends your turn and hands the defender a card", () => {
+    let s = moveShip(facing(), 0, sq("C2"), { lives: 1 });
+    s = play(s, {
+      t: "attack",
+      ship: anne(s).id,
+      target: { kind: "ship", id: bart(s).id },
+      attackDie: 1,
+      defenseDie: 6,
+    });
+    expect(s.players[1].plunderCards).toBe(1);
+    expect(s.turn).toBe(1);
+  });
+
+  it("conquers an island on a win (skulls add to its roll), and the owner loses its point", () => {
+    let s = started();
+    const isl = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "4d")!;
+    s = moveShip(moveShip(s, 1, sq("A6")), 0, isl.ports[0]);
+    expect(points(s, 1)).toBe(2);
+    // One skull: 4 + 0 vs 3 + 1 is a tie, which goes to the attacker.
+    s = play(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "4d" }, attackDie: 4, defenseDie: 3 });
+    expect(s.owners["4d"]).toBe(0);
+    expect(points(s, 0)).toBe(3);
+    expect(points(s, 1)).toBe(1);
+  });
+
+  it("sinking against an unowned island earns nobody a card", () => {
+    let s = started();
+    const isl = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "5b")!;
+    s = moveShip(s, 0, isl.ports[0], { lives: 1 });
+    s = play(s, { t: "attack", ship: anne(s).id, target: { kind: "island", id: "5b" }, attackDie: 1, defenseDie: 6 });
+    expect(s.players.map((p) => p.plunderCards)).toEqual([0, 0]);
+    expect(s.notices.some((n) => n.t === "battle" && n.sunk === "attacker" && n.pointTo === null)).toBe(true);
+  });
+
+  it("knows the odds", () => {
+    expect(winChance(0, 0)).toBeCloseTo(21 / 36);
+    expect(winChance(2, 0)).toBeGreaterThan(winChance(0, 2));
+  });
+});
+
+describe("plunder captain without a ship", () => {
+  /** Anne sinks; it's her turn again with no ship. */
+  function shipless(): GameState {
+    let s = started();
+    s = { ...s, ships: s.ships.filter((sh) => sh.owner !== 0) };
+    return play(s, { t: "endTurn" }, { t: "endTurn" });
+  }
+
+  it("starts the turn as a captain without a ship", () => {
+    const s = shipless();
+    expect(s.turn).toBe(0);
+    expect(s.captain).toMatchObject({ freeCard: false, rolled: false, acquired: false });
+  });
+
+  it("gets a ship on doubles and places it in an owned port", () => {
+    let s = play(shipless(), { t: "rollDoubles", dice: [4, 4] });
+    expect(s.captain?.acquired).toBe(true);
+    const spot = s.captain!.spots![0];
+    s = play(s, { t: "placeShip", at: spot });
+    expect(s.ships.find((sh) => sh.owner === 0)).toMatchObject({ pos: spot, lives: 3, masts: 0, cannons: 0 });
+    expect(s.captain).toBeNull();
+  });
+
+  it("can roll for doubles only once, then try another way", () => {
+    let s = play(shipless(), { t: "rollDoubles", dice: [2, 5] });
+    expect(s.captain?.acquired).toBe(false);
+    expect(play(s, { t: "rollDoubles", dice: [3, 3] })).toBe(s);
+    s = withHand(s, 0, { gold: 5 });
+    s = play(s, { t: "getShip", via: "gold" });
+    expect(s.players[0].hand.gold).toBe(0);
+    expect(s.captain?.acquired).toBe(true);
+    // Only one ship through this process.
+    expect(play(withHand(s, 0, { gold: 5 }), { t: "getShip", via: "gold" }).captain).toEqual(s.captain);
+  });
+
+  it("can give up an island for a ship", () => {
+    const s = play(shipless(), { t: "getShip", via: { disown: "1a" } });
+    expect(s.owners["1a"]).toBeUndefined();
+    expect(s.captain?.acquired).toBe(true);
+  });
+
+  it("with no islands and no Plunder Point cards takes a free card of their choice", () => {
+    let s = started();
+    s = { ...s, ships: s.ships.filter((sh) => sh.owner !== 0), owners: { "4d": 1 } };
+    s = play(s, { t: "endTurn" }, { t: "endTurn" });
+    expect(s.captain?.freeCard).toBe(true);
+    const rum = s.players[0].hand.rum;
+    s = play(s, { t: "freeCard", resource: "rum" });
+    expect(s.players[0].hand.rum).toBe(rum + 1);
+    expect(play(s, { t: "freeCard", resource: "rum" })).toBe(s);
+    // With no port of their own, the compasses pick where the ship goes.
+    s = play(s, { t: "rollDoubles", dice: [1, 1] });
+    expect(s.captain!.spots!.length).toBeGreaterThan(0);
   });
 });

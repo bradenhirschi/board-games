@@ -3,17 +3,25 @@
  * a time, so the UI can show each move. A bot never sees anything a human couldn't (other players'
  * cards aren't used). Returns null when it isn't a bot's move.
  *
- * Basic strategy for now (no battles, storm or trading exist yet):
+ * Basic strategy for now (no storm or trading exist yet):
  * - Picking an island: the free one-skull island with the most open water around it.
- * - Before rolling: bury gold when it has five, then build a ship (more points and more sailors),
- *   then masts (only before the roll, when they help this turn), then cannons (for battles later).
- * - Sailing: each ship heads for the nearest X it can collect, taking it this turn if it can reach it,
- *   otherwise getting as close as it can. Spare moves go to the next ship.
+ * - Without a ship: take the free card (gold), roll for doubles, then buy a ship if it can.
+ * - Building: bury gold when it has five, repair a damaged ship, build a ship, masts (only before
+ *   the roll, when they help this turn), then cannons.
+ * - Fighting: attacks whenever the odds are good (an island at 50% or better, a ship at 55% or
+ *   better, and only long shots when a damaged ship could sink).
+ * - Sailing: heads for the port of an island worth attacking, or for treasure, taking it this turn
+ *   if it can, otherwise getting as close as it can. Spare moves go to the next ship.
  */
 
 import {
   COSTS,
   GOLD_TO_BURY,
+  MAX_LIVES,
+  attackTargets,
+  defenseBonus,
+  islandsOf,
+  winChance,
   MAX_CANNONS,
   MAX_MASTS,
   MAX_SHIPS,
@@ -85,23 +93,43 @@ function distances(s: GameState, targets: Pos[]): Map<string, number> {
   return dist;
 }
 
+/** Is this battle worth fighting? */
+function worthIt(ship: Ship, chance: number, island: boolean): boolean {
+  // A ship on its last life only takes near-certain fights.
+  if (ship.lives === 1) return chance >= 0.8;
+  return chance >= (island ? 0.5 : 0.55);
+}
+
+/** Ports of islands this ship would like to attack (not already attacked by it this turn). */
+function islandGoals(s: GameState, ship: Ship): Pos[] {
+  return islandsOf(s.layout)
+    .filter((i) => i.kind === "resource" && s.owners[i.id] !== ship.owner)
+    .filter((i) => !(s.attacks ?? []).includes(`${ship.id}>i${i.id}`))
+    .filter((i) => worthIt(ship, winChance(ship.cannons, i.skulls), true))
+    .flatMap((i) => i.ports.filter((p) => !shipAt(s, p)));
+}
+
 /** The best sail for one ship this turn, or null if it has nowhere useful to go. */
 function bestSail(s: GameState, ship: Ship): Pos[] | null {
   const reach = reachable(s, ship);
   if (!reach.size) return null;
-  const targets = s.xs.flatMap((x) => collectSquares(s, x));
+  const xSquares = s.xs.flatMap((x) => collectSquares(s, x));
+  const ports = islandGoals(s, ship);
+  const targets = [...xSquares, ...ports];
   if (!targets.length) return null;
-  const targetKeys = new Set(targets.map(key));
-  // Reachable this turn: the path that collects the most Xs, shortest first.
+  const xKeys = new Set(xSquares.map(key));
+  const portKeys = new Set(ports.map(key));
+  // Reachable this turn: ending in a port worth attacking scores most, then Xs collected on the way.
   let best: Pos[] | null = null;
   let bestScore = 0;
   for (const path of reach.values()) {
-    const hits = new Set(path.filter((p) => targetKeys.has(key(p))).map(key)).size;
-    const score = hits * 100 - path.length;
-    if (hits && score > bestScore) [best, bestScore] = [path, score];
+    const hits = new Set(path.filter((p) => xKeys.has(key(p))).map(key)).size;
+    const port = portKeys.has(key(path[path.length - 1])) ? 1 : 0;
+    const score = port * 250 + hits * 100 - path.length;
+    if ((hits || port) && score > bestScore) [best, bestScore] = [path, score];
   }
   if (best) return best;
-  // Otherwise get as close as possible to the nearest X.
+  // Otherwise get as close as possible to the nearest goal.
   const dist = distances(s, targets);
   const here = dist.get(key(ship.pos)) ?? Infinity;
   let closest: Pos[] | null = null;
@@ -124,8 +152,8 @@ function openness(s: GameState, ports: Pos[]): number {
 }
 
 /**
- * The bot's next action, or null if it isn't a bot's move. A roll comes back as `{ t: "roll", die: 0 }`:
- * the caller rolls the die (so it can animate it) and fills it in.
+ * The bot's next action, or null if it isn't a bot's move. Dice come back as 0 (a roll, an attack's
+ * dice, or rolling for doubles): the caller rolls them (so it can animate them) and fills them in.
  */
 export function botAction(s: GameState): Action | null {
   if (!isBotMove(s)) return null;
@@ -144,8 +172,25 @@ export function botAction(s: GameState): Action | null {
   const hand = s.players[me].hand;
   const ships = s.ships.filter((sh) => sh.owner === me);
 
-  // Building: points first, then a bigger fleet, then upgrades.
+  // A captain without a ship: free card, doubles, then any affordable way to get one.
+  const c = s.captain;
+  if (c && !ships.length) {
+    if (c.freeCard) return { t: "freeCard", resource: "gold" };
+    if (c.spots?.length) return { t: "placeShip", at: c.spots[0] };
+    if (!c.acquired) {
+      if (!c.rolled) return { t: "rollDoubles", dice: [0, 0] };
+      if (canAfford(hand, COSTS.ship)) return { t: "getShip", via: "build" };
+      if (hand.gold >= GOLD_TO_BURY) return { t: "getShip", via: "gold" };
+    }
+    return { t: "endTurn" };
+  }
+
+  // Building: points first, then repairs, then a bigger fleet, then upgrades.
   if (hand.gold >= GOLD_TO_BURY) return { t: "bury" };
+  if (canAfford(hand, COSTS.life)) {
+    const hurt = ships.find((sh) => sh.lives < MAX_LIVES);
+    if (hurt) return { t: "build", item: "life", ship: hurt.id };
+  }
   if (ships.length < MAX_SHIPS && canAfford(hand, COSTS.ship)) {
     const spots = shipSpots(s, me);
     if (spots.length) {
@@ -167,6 +212,16 @@ export function botAction(s: GameState): Action | null {
     if (ship) return { t: "build", item: "cannon", ship: ship.id };
   }
 
+  // Fight anything worth fighting from where the ships are now.
+  for (const ship of ships) {
+    for (const target of attackTargets(s, ship)) {
+      const chance = winChance(ship.cannons, defenseBonus(s, target));
+      if (worthIt(ship, chance, target.kind === "island")) {
+        return { t: "attack", ship: ship.id, target, attackDie: 0, defenseDie: 0 };
+      }
+    }
+  }
+
   if (s.phase.roll === null) return { t: "roll", die: 0 };
 
   // Sailing: the first ship with somewhere useful to go.
@@ -175,4 +230,12 @@ export function botAction(s: GameState): Action | null {
     if (path) return { t: "sail", ship: ship.id, path };
   }
   return { t: "endTurn" };
+}
+
+/** Fill in the dice a bot's action left as 0, using `d6` to roll each one. */
+export function fillDice(a: Action, d6: () => number): Action {
+  if (a.t === "roll") return { ...a, die: d6() };
+  if (a.t === "attack") return { ...a, attackDie: d6(), defenseDie: d6() };
+  if (a.t === "rollDoubles") return { ...a, dice: [d6(), d6()] };
+  return a;
 }

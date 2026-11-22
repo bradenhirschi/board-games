@@ -78,7 +78,7 @@ export function Flag({ at, color }: { at: Pos; color: PlayerColor }) {
 }
 
 /** A highlighted square: where a ship can sail, or where something can be placed. */
-export function SquareMark({ at, kind }: { at: Pos; kind: "reach" | "place" | "start" }) {
+export function SquareMark({ at, kind }: { at: Pos; kind: "reach" | "place" | "start" | "attack" }) {
   return (
     <rect
       className={`pl-mark pl-mark-${kind}`}

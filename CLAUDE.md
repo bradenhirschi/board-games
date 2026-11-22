@@ -68,7 +68,9 @@ rules, how online play works, and the file map; read it first.
   a seeded generator in the state). Status and open questions are in the README's Plunder section.
   Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
   an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
-  sailing over an X collects it (several per turn is fine); the first turn has no resource draw.
+  sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
+  attacking costs no moves and can happen before the roll; ships built after the roll can't sail
+  but can attack; the app rolls islands' defence; sinking against an unowned island gives no card.
   Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 

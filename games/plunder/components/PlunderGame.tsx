@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { botAction } from "@/games/plunder/lib/bot";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { botAction, fillDice } from "@/games/plunder/lib/bot";
+import { tileName } from "@/games/plunder/lib/board";
 import {
   COSTS,
   GOLD_TO_BURY,
@@ -11,7 +12,10 @@ import {
   MAX_SHIPS,
   RESOURCES,
   WIN_POINTS,
+  attackTargets,
   canAfford,
+  defenseBonus,
+  winChance,
   islandsOf,
   points,
   reachable,
@@ -19,11 +23,14 @@ import {
   shipSpots,
   startingIslands,
   type Action,
+  type Battle,
   type Build,
   type GameState,
   type Notice,
   type Resource,
   type Ship,
+  type ShipVia,
+  type Target,
 } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
@@ -48,8 +55,15 @@ type Props = {
 
 /** How long a bot pauses before each move, so people can follow it. */
 const BOT_STEP_MS = 750;
-/** How long a bot's treasure find stays on screen. */
-const BOT_NOTICE_MS = 1600;
+/** How long a bot's news stays on screen before it carries on. */
+const BOT_NOTICE_MS: Record<Notice["t"], number> = { treasure: 1600, battle: 2600, doubles: 1600, drew: 0 };
+/** How long dice tumble before they land. */
+const ROLL_MS = 550;
+
+const d6 = () => 1 + Math.floor(Math.random() * 6);
+
+/** A board square's name, like "C7". */
+const squareName = (p: Pos) => tileName({ col: p.c + 1, row: p.r });
 
 /**
  * The game on one phone screen: the board on top, then a strip with whose turn it is, their cards
@@ -64,7 +78,11 @@ export function turnKey(g: GameState): string {
 }
 
 export default function PlunderGame({ game, onChange, onNewGame, holder, onHolder }: Props) {
-  const [selected, setSelected] = useState<number | null>(null);
+  // Each turn starts with the player's first ship selected (this component remounts every turn).
+  const [selected, setSelected] = useState<number | null>(
+    () => game.ships.find((sh) => sh.owner === game.turn)?.id ?? null,
+  );
+  const [otherWays, setOtherWays] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [rolling, setRolling] = useState(false);
@@ -87,23 +105,21 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   useEffect(() => {
     if (!isBot || phase.t === "gameOver" || rolling) return;
     if (notice) {
-      // A bot's treasure find shows for a moment; what it drew stays private and moves on at once.
-      const t = window.setTimeout(
-        () => onChange({ ...s, notices: s.notices.slice(1) }),
-        notice.t === "treasure" ? BOT_NOTICE_MS : 0,
-      );
+      // A bot's news (treasure, battles, doubles) shows for a moment; what it drew stays private.
+      const t = window.setTimeout(() => onChange({ ...s, notices: s.notices.slice(1) }), BOT_NOTICE_MS[notice.t]);
       return () => window.clearTimeout(t);
     }
     const a = botAction(s);
     if (!a) return;
     const t = window.setTimeout(() => {
-      if (a.t === "roll") {
-        setRolling(true);
-        window.setTimeout(() => {
-          setRolling(false);
-          onChange(reducer(s, { t: "roll", die: 1 + Math.floor(Math.random() * 6) }));
-        }, 550);
-      } else onChange(reducer(s, a));
+      const filled = fillDice(a, d6);
+      if (filled === a) return onChange(reducer(s, a));
+      // Dice to roll: let them tumble first.
+      setRolling(true);
+      window.setTimeout(() => {
+        setRolling(false);
+        onChange(reducer(s, filled));
+      }, ROLL_MS);
     }, BOT_STEP_MS);
     return () => window.clearTimeout(t);
   }, [s, isBot, phase.t, notice, onChange, rolling]);
@@ -118,9 +134,46 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     [s, phase.t],
   );
   const allIslands = useMemo(() => islandsOf(s.layout), [s.layout]);
+  const targets = useMemo(() => (ship && !isBot ? attackTargets(s, ship) : []), [s, ship, isBot]);
+  // A captain without a ship (and not yet back on the water).
+  const captain = phase.t === "turn" && !myShips.length ? (s.captain ?? null) : null;
+  const captainSpots = captain?.spots ?? [];
+
+  /** Where a target is on the board: the enemy ship's square, or the island's squares. */
+  function targetSquares(t: Target): Pos[] {
+    if (t.kind === "ship") return s.ships.filter((sh) => sh.id === t.id).map((sh) => sh.pos);
+    return allIslands.find((i) => i.id === t.id)?.squares ?? [];
+  }
+
+  function attack(t: Target) {
+    if (!ship || rolling) return;
+    setRolling(true);
+    window.setTimeout(() => {
+      setRolling(false);
+      act({ t: "attack", ship: ship.id, target: t, attackDie: d6(), defenseDie: d6() });
+    }, ROLL_MS);
+  }
+
+  function rollDoubles() {
+    setRolling(true);
+    window.setTimeout(() => {
+      setRolling(false);
+      act({ t: "rollDoubles", dice: [d6(), d6()] });
+    }, ROLL_MS);
+  }
 
   function onSquareTap(p: Pos) {
-    if (covered || isBot) return;
+    if (covered || isBot || rolling) return;
+    if (captainSpots.some((q) => same(q, p))) {
+      act({ t: "placeShip", at: p });
+      return;
+    }
+    // Tapping something you can attack attacks it.
+    const target = targets.find((t) => targetSquares(t).some((q) => same(q, p)));
+    if (target) {
+      attack(target);
+      return;
+    }
     if (phase.t === "pickIsland") {
       const isl = startIsles.find((i) => i.squares.some((q) => same(q, p)) || i.ports.some((q) => same(q, p)));
       if (isl) act({ t: "pickIsland", island: isl.id });
@@ -147,9 +200,9 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     setRolling(true);
     window.setTimeout(() => {
       setRolling(false);
-      act({ t: "roll", die: 1 + Math.floor(Math.random() * 6) });
+      act({ t: "roll", die: d6() });
       if (!selected && myShips.length) setSelected(myShips[0].id);
-    }, 550);
+    }, ROLL_MS);
   }
 
   const focus = ship?.pos ?? (phase.t === "turn" && myShips[0] ? myShips[0].pos : null);
@@ -160,7 +213,10 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     status = rolling ? "Rolling…" : phase.t === "pickIsland" ? "Choosing an island…" : "Thinking…";
   else if (phase.t === "pickIsland") status = "Pick your starting island";
   else if (phase.t === "gameOver") status = `${s.players[phase.winner].name} wins!`;
-  else if (placing) status = "Tap a green square for your new ship";
+  else if (rolling) status = "Rolling…";
+  else if (placing || captainSpots.length) status = "Tap a green square for your new ship";
+  else if (captain)
+    status = !captain.rolled ? "No ship! Roll doubles for a free one" : "No doubles. Get a ship another way?";
   else if (phase.roll === null) status = "Roll to sail, or build first";
   else if (!myShips.length) status = "No ships to sail";
   else if (!ship) status = "Tap one of your ships";
@@ -185,9 +241,12 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
         {[...reach.values()].map((path) => (
           <SquareMark key={`r${key(path[path.length - 1])}`} at={path[path.length - 1]} kind="reach" />
         ))}
-        {spots.map((p) => (
+        {[...spots, ...captainSpots].map((p) => (
           <SquareMark key={`p${key(p)}`} at={p} kind="place" />
         ))}
+        {targets.flatMap((t) =>
+          targetSquares(t).map((p) => <SquareMark key={`a${t.kind}${t.id}${key(p)}`} at={p} kind="attack" />),
+        )}
         {s.xs.map((x, i) => (
           <XMark key={`x${i}`} at={x} />
         ))}
@@ -205,7 +264,8 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           </span>
           {phase.t === "turn" && phase.roll !== null && <Die value={phase.roll} />}
         </div>
-        <p className="pl-status">{status}</p>
+        {/* While there's something to attack, the attack buttons say it all (and the space is needed). */}
+        {!(targets.length > 0 && !placing) && <p className="pl-status">{status}</p>}
 
         {phase.t !== "pickIsland" && (
           <div className="pl-hand" aria-label="Your cards">
@@ -218,7 +278,50 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           </div>
         )}
 
-        {phase.t === "turn" && !isBot && (
+        {targets.length > 0 && !placing && (
+          <div className="pl-attacks">
+            {targets.map((t) => {
+              const chance = Math.round(winChance(ship!.cannons, defenseBonus(s, t)) * 100);
+              const isl = t.kind === "island" ? allIslands.find((i) => i.id === t.id) : undefined;
+              const owner = t.kind === "ship" ? s.ships.find((sh) => sh.id === t.id)!.owner : s.owners[t.id];
+              const label =
+                t.kind === "ship"
+                  ? `${s.players[owner!].name}'s ship`
+                  : `${owner === undefined ? "Island" : `${s.players[owner].name}'s island`} (${isl?.skulls ?? 0}☠)`;
+              return (
+                <button
+                  key={`${t.kind}${t.id}`}
+                  className="pl-btn pl-btn-attack"
+                  disabled={rolling}
+                  onClick={() => attack(t)}
+                >
+                  ⚔ {label} <small>{chance}%</small>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {captain && !isBot && !captainSpots.length && (
+          <div className="pl-actions">
+            {!captain.acquired && (
+              <button className="pl-btn" onClick={() => setOtherWays(true)}>
+                Other ways
+              </button>
+            )}
+            {!captain.rolled && !captain.acquired ? (
+              <button className="pl-btn pl-btn-main" disabled={rolling} onClick={rollDoubles}>
+                {rolling ? "Rolling…" : "Roll for doubles"}
+              </button>
+            ) : (
+              <button className="pl-btn pl-btn-main" onClick={() => act({ t: "endTurn" })}>
+                End turn
+              </button>
+            )}
+          </div>
+        )}
+
+        {phase.t === "turn" && !isBot && !captain && (
           <div className="pl-actions">
             {placing ? (
               <button className="pl-btn pl-btn-wide" onClick={() => setPlacing(false)}>
@@ -279,9 +382,36 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
         </div>
       )}
 
+      {captain?.freeCard && !isBot && !covered && !notice && (
+        <FreeCardDialog onPick={(r) => act({ t: "freeCard", resource: r })} />
+      )}
+
+      {otherWays && captain && !captain.acquired && (
+        <OtherWaysSheet
+          game={s}
+          player={current}
+          onPick={(via) => {
+            setOtherWays(false);
+            act({ t: "getShip", via });
+          }}
+          onClose={() => setOtherWays(false)}
+        />
+      )}
+
       {notice && botNotice && notice.t === "treasure" && (
         <div className="pl-toast" role="status">
           {s.players[notice.player].name} found a Treasure card
+        </div>
+      )}
+      {notice && botNotice && notice.t === "doubles" && (
+        <div className="pl-toast" role="status">
+          {s.players[notice.player].name} rolled {notice.dice[0]} and {notice.dice[1]}
+          {notice.dice[0] === notice.dice[1] ? ": doubles!" : ""}
+        </div>
+      )}
+      {notice && botNotice && notice.t === "battle" && (
+        <div className="pl-sheet-backdrop pl-centered pl-passive">
+          <BattleCard battle={notice} game={s} />
         </div>
       )}
       {notice && !botNotice && (
@@ -291,7 +421,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   );
 }
 
-function Die({ value }: { value: number }) {
+function Die({ value, kind }: { value: number; kind?: "attack" | "defense" }) {
   const pips: Record<number, [number, number][]> = {
     1: [[5, 5]],
     2: [
@@ -326,7 +456,7 @@ function Die({ value }: { value: number }) {
     ],
   };
   return (
-    <svg className="pl-die" viewBox="0 0 10 10" aria-label={`Rolled ${value}`}>
+    <svg className={`pl-die${kind ? ` pl-die-${kind}` : ""}`} viewBox="0 0 10 10" aria-label={`Rolled ${value}`}>
       <rect x={0.4} y={0.4} width={9.2} height={9.2} rx={1.8} />
       {pips[value].map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r={0.95} />
@@ -444,11 +574,193 @@ function BuildSheet({
   );
 }
 
-function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState; onOk: () => void }) {
+/** A battle's dice and outcome, told from the attacker's side. */
+function BattleCard({ battle: b, game, children }: { battle: Battle; game: GameState; children?: ReactNode }) {
+  const name = (p: number | null) => (p === null ? "The island" : game.players[p].name);
+  const attacker = game.players[b.player];
+  const isle = b.target.kind === "island";
+  const defenderLabel = isle
+    ? b.defender === null
+      ? "Unowned island"
+      : `${name(b.defender)}'s island`
+    : `${name(b.defender)}'s ship`;
+  let outcome: string;
+  if (b.won) {
+    if (isle) outcome = `${attacker.name} conquers the island!`;
+    else if (b.sunk) outcome = `${attacker.name} sinks ${name(b.defender)}'s ship and gains a Plunder Point!`;
+    else outcome = `${name(b.defender)}'s ship loses a life.`;
+  } else if (b.sunk) {
+    outcome =
+      b.pointTo === null
+        ? `${attacker.name}'s ship sinks.`
+        : `${attacker.name}'s ship sinks. ${name(b.pointTo)} gains a Plunder Point!`;
+  } else outcome = `${attacker.name}'s ship loses a life.`;
+  const total = (side: Battle["attack"]) => side.die + side.bonus;
+  return (
+    <div className="pl-dialog pl-battle" role="alertdialog">
+      <p className="pl-dialog-title">{b.won ? "Victory!" : "Defeated!"}</p>
+      <div className="pl-battle-sides">
+        <div>
+          <small>{attacker.name}</small>
+          <Die value={b.attack.die} kind="attack" />
+          <span>
+            {b.attack.bonus ? `+${b.attack.bonus} cannon${b.attack.bonus > 1 ? "s" : ""} = ` : ""}
+            <b>{total(b.attack)}</b>
+          </span>
+        </div>
+        <span className="pl-battle-vs">vs</span>
+        <div>
+          <small>{defenderLabel}</small>
+          <Die value={b.defense.die} kind="defense" />
+          <span>
+            {b.defense.bonus
+              ? `+${b.defense.bonus} ${isle ? "skull" : "cannon"}${b.defense.bonus > 1 ? "s" : ""} = `
+              : ""}
+            <b>{total(b.defense)}</b>
+          </span>
+        </div>
+      </div>
+      {total(b.attack) === total(b.defense) && <p className="pl-battle-tie">Ties go to the attacker.</p>}
+      <p>{outcome}</p>
+      {children}
+    </div>
+  );
+}
+
+/** A captain with no islands and no Plunder Point cards picks a free resource card. */
+function FreeCardDialog({ onPick }: { onPick: (r: Resource) => void }) {
   return (
     <div className="pl-sheet-backdrop pl-centered">
       <div className="pl-dialog" role="alertdialog">
-        {notice.t === "treasure" ? (
+        <p className="pl-dialog-title">Take a free card</p>
+        <p>No ships, islands or Plunder Points: choose any resource card.</p>
+        <div className="pl-hand">
+          {RESOURCES.map((r) => (
+            <button key={r} className="pl-card-count pl-card-pick" onClick={() => onPick(r)}>
+              <ResourceIcon r={r} />
+              {RESOURCE_NAMES[r]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Ways for a captain without a ship to get one besides doubles. */
+function OtherWaysSheet({
+  game,
+  player,
+  onPick,
+  onClose,
+}: {
+  game: GameState;
+  player: number;
+  onPick: (via: ShipVia) => void;
+  onClose: () => void;
+}) {
+  const me = game.players[player];
+  const owned = islandsOf(game.layout).filter((i) => game.owners[i.id] === player);
+  return (
+    <div className="pl-sheet-backdrop" onClick={onClose}>
+      <div className="pl-build" role="dialog" aria-label="Get a ship" onClick={(e) => e.stopPropagation()}>
+        <div className="pl-build-head">
+          <b>Get a ship</b>
+          <div className="pl-hand pl-hand-small">
+            {RESOURCES.map((r) => (
+              <span key={r} className="pl-card-count">
+                <ResourceIcon r={r} size={15} />
+                <b>{me.hand[r]}</b>
+              </span>
+            ))}
+          </div>
+          <button className="pl-close" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="pl-build-row">
+          <div className="pl-build-text">
+            <b>Build one</b> <Cost cost={COSTS.ship} />
+          </div>
+          <button
+            className="pl-btn pl-btn-small"
+            disabled={!canAfford(me.hand, COSTS.ship)}
+            onClick={() => onPick("build")}
+          >
+            {canAfford(me.hand, COSTS.ship) ? "Build" : "Not enough"}
+          </button>
+        </div>
+        <div className="pl-build-row">
+          <div className="pl-build-text">
+            <b>Pay gold</b> <Cost cost={{ gold: GOLD_TO_BURY }} />
+          </div>
+          <button className="pl-btn pl-btn-small" disabled={me.hand.gold < GOLD_TO_BURY} onClick={() => onPick("gold")}>
+            {me.hand.gold < GOLD_TO_BURY ? "Not enough" : "Pay"}
+          </button>
+        </div>
+        <div className="pl-build-row">
+          <div className="pl-build-text">
+            <b>Trade a Plunder Point card</b>
+            <small>You have {me.plunderCards}</small>
+          </div>
+          <button className="pl-btn pl-btn-small" disabled={me.plunderCards < 1} onClick={() => onPick("plunder")}>
+            {me.plunderCards < 1 ? "None" : "Trade"}
+          </button>
+        </div>
+        <div className="pl-build-row">
+          <div className="pl-build-text">
+            <b>Give up an island</b>
+            <small>Remove your flag from one of your islands</small>
+          </div>
+          {!owned.length && (
+            <button className="pl-btn pl-btn-small" disabled>
+              None
+            </button>
+          )}
+        </div>
+        {owned.length > 0 && (
+          <div className="pl-build-ships">
+            {owned.map((i) => (
+              <button key={i.id} className="pl-chip" onClick={() => onPick({ disown: i.id })}>
+                Island at {squareName(i.squares[0])} ({i.skulls}☠)
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState; onOk: () => void }) {
+  if (notice.t === "battle") {
+    return (
+      <div className="pl-sheet-backdrop pl-centered">
+        <BattleCard battle={notice} game={game}>
+          <button className="pl-btn pl-btn-main pl-btn-wide" onClick={onOk}>
+            OK
+          </button>
+        </BattleCard>
+      </div>
+    );
+  }
+  return (
+    <div className="pl-sheet-backdrop pl-centered">
+      <div className="pl-dialog" role="alertdialog">
+        {notice.t === "doubles" ? (
+          <>
+            <p className="pl-dialog-title">{notice.dice[0] === notice.dice[1] ? "Doubles!" : "No doubles"}</p>
+            <div className="pl-battle-dice">
+              <Die value={notice.dice[0]} />
+              <Die value={notice.dice[1]} />
+            </div>
+            <p>
+              {notice.dice[0] === notice.dice[1]
+                ? "You get a new ship. Tap a green square to place it."
+                : "You can still get a ship another way, or end your turn."}
+            </p>
+          </>
+        ) : notice.t === "treasure" ? (
           <>
             <p className="pl-dialog-title">Treasure!</p>
             <p>

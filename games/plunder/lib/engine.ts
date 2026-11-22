@@ -8,8 +8,9 @@
  *
  * Built so far: setup (players pick a one-skull island and start in its port, three resource cards
  * each), turns (draw a resource per island, roll, sail the fleet, build, bury gold, end the turn),
- * X-marks-the-spot tokens, Plunder Points and winning. Not yet: battles and conquering islands, the
- * storm, trading, and the Treasure card deck (finding an X only says the cards aren't written yet).
+ * battles (attacking islands from their port and ships next door), a captain without a ship,
+ * X-marks-the-spot tokens, Plunder Points and winning. Not yet: the storm, trading, and the Treasure
+ * card deck (finding an X only says the cards aren't written yet).
  */
 
 import { COLS, ROWS } from "./board";
@@ -84,8 +85,55 @@ export type Phase =
   | { t: "turn"; roll: number | null; moves: number }
   | { t: "gameOver"; winner: number };
 
+/** What a battle was fought over. */
+export type Target = { kind: "ship"; id: number } | { kind: "island"; id: string };
+
+/** One side of a battle: the die rolled and the bonus added (cannons, or the island's skulls). */
+export type BattleSide = { die: number; bonus: number };
+
+export type Battle = {
+  t: "battle";
+  /** The attacking player. */
+  player: number;
+  /** Who was attacked: a ship's owner, an island's owner, or null for an unowned island. */
+  defender: number | null;
+  target: Target;
+  at: Pos;
+  attack: BattleSide;
+  defense: BattleSide;
+  /** Ties go to the attacker. */
+  won: boolean;
+  /** A ship that sank: the attacker's (lost) or the defender's (won). */
+  sunk: "attacker" | "defender" | null;
+  /** Who got a Plunder Point card for it, if anyone. */
+  pointTo: number | null;
+};
+
 /** Something the player should be told about (shown as a message, then cleared by the UI). */
-export type Notice = { t: "treasure"; player: number; at: Pos } | { t: "drew"; player: number; cards: Resource[] };
+export type Notice =
+  | { t: "treasure"; player: number; at: Pos }
+  | { t: "drew"; player: number; cards: Resource[] }
+  | Battle
+  | { t: "doubles"; player: number; dice: [number, number] };
+
+/**
+ * A player who starts their turn without a ship: they may take a free card (no islands and no
+ * Plunder Point cards), roll two dice for a free ship on doubles, or get one another way. Only one
+ * ship comes from this; once placed, the turn carries on as normal.
+ */
+export type Captain = {
+  /** Owed one free resource card of their choosing. */
+  freeCard: boolean;
+  /** Has rolled for doubles this turn. */
+  rolled: boolean;
+  /** Has gained their one ship (placed, or waiting in `spots` to be placed). */
+  acquired: boolean;
+  /** Where the new ship can be placed, while it waits to be placed. */
+  spots: Pos[] | null;
+};
+
+/** Ways a shipless captain can get a ship other than doubles. */
+export type ShipVia = "build" | "plunder" | "gold" | { disown: string };
 
 export type GameState = {
   version: 1;
@@ -104,6 +152,10 @@ export type GameState = {
   phase: Phase;
   /** Seeded random generator state, for shuffles and compass spins. */
   rng: number;
+  /** This turn's battles, as "shipId>target", so a ship can't attack the same thing twice. */
+  attacks?: string[];
+  /** Set while the current player has no ships (see `Captain`). */
+  captain?: Captain | null;
   notices: Notice[];
   log: string[];
 };
@@ -115,6 +167,11 @@ export type Action =
   | { t: "build"; item: "ship"; at: Pos }
   | { t: "build"; item: "mast" | "cannon" | "life"; ship: number }
   | { t: "bury" }
+  | { t: "attack"; ship: number; target: Target; attackDie: number; defenseDie: number }
+  | { t: "freeCard"; resource: Resource }
+  | { t: "rollDoubles"; dice: [number, number] }
+  | { t: "getShip"; via: ShipVia }
+  | { t: "placeShip"; at: Pos }
   | { t: "endTurn" }
   | { t: "clearNotices" };
 
@@ -240,6 +297,85 @@ export function shipSpots(s: GameState, player: number): Pos[] {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Battles
+
+const targetKey = (t: Target) => (t.kind === "ship" ? `s${t.id}` : `i${t.id}`);
+
+/** Has this ship already attacked this target this turn? */
+export function attackedAlready(s: GameState, ship: number, t: Target): boolean {
+  return (s.attacks ?? []).includes(`${ship}>${targetKey(t)}`);
+}
+
+/**
+ * Everything a ship can attack right now: enemy ships next to it (not diagonally, not across land or
+ * a barrier, docked or not), and the resource island whose port it's in (unless it already owns it).
+ * Merchant and normal islands can't be attacked. Each target only once per ship per turn.
+ */
+export function attackTargets(s: GameState, ship: Ship): Target[] {
+  if (s.phase.t !== "turn" || ship.owner !== s.turn) return [];
+  const map = mapOf(s.layout);
+  const out: Target[] = [];
+  for (const side of SIDES) {
+    const enemy = shipAt(s, step(ship.pos, side));
+    if (enemy && enemy.owner !== ship.owner && canSail(map, ship.pos, side)) out.push({ kind: "ship", id: enemy.id });
+  }
+  for (const isl of islandsOf(s.layout)) {
+    if (isl.kind !== "resource" || s.owners[isl.id] === ship.owner) continue;
+    if (isl.ports.some((p) => same(p, ship.pos))) out.push({ kind: "island", id: isl.id });
+  }
+  return out.filter((t) => !attackedAlready(s, ship.id, t));
+}
+
+/** The defender's bonus: the defending ship's cannons, or the island's skulls. */
+export function defenseBonus(s: GameState, t: Target): number {
+  if (t.kind === "ship") return s.ships.find((sh) => sh.id === t.id)?.cannons ?? 0;
+  return islandsOf(s.layout).find((i) => i.id === t.id)?.skulls ?? 0;
+}
+
+/** The chance an attack wins: die + attack bonus beats or ties die + defence bonus. */
+export function winChance(attackBonus: number, defenseBonus: number): number {
+  let wins = 0;
+  for (let a = 1; a <= 6; a++) for (let d = 1; d <= 6; d++) if (a + attackBonus >= d + defenseBonus) wins++;
+  return wins / 36;
+}
+
+/** Take a life from a ship; at no lives it sinks (its masts and cannons go back to the supply). */
+function hit(s: GameState, shipId: number): [GameState, boolean] {
+  const ship = s.ships.find((sh) => sh.id === shipId)!;
+  if (ship.lives > 1) {
+    return [{ ...s, ships: s.ships.map((sh) => (sh.id === shipId ? { ...sh, lives: sh.lives - 1 } : sh)) }, false];
+  }
+  return [{ ...s, ships: s.ships.filter((sh) => sh.id !== shipId) }, true];
+}
+
+function givePlunderCard(s: GameState, player: number): GameState {
+  return { ...s, players: s.players.map((p, i) => (i === player ? { ...p, plunderCards: p.plunderCards + 1 } : p)) };
+}
+
+/**
+ * Where a shipless captain's new ship can go: an empty port of an island they own; if there's none,
+ * the compasses pick a square (`spin`), and if that's land or taken, any open square next to it.
+ */
+function captainSpots(s: GameState, player: number): [Pos[], number] {
+  const map = mapOf(s.layout);
+  const open = (p: Pos) => isSailable(map.squares[p.r]?.[p.c]) && !shipAt(s, p);
+  const ports = islandsOf(s.layout)
+    .filter((i) => s.owners[i.id] === player)
+    .flatMap((i) => i.ports)
+    .filter(open);
+  if (ports.length) return [ports, s.rng];
+  let rng = s.rng;
+  for (let tries = 0; tries < 50; tries++) {
+    let p: Pos;
+    [p, rng] = spin(rng);
+    if (open(p)) return [[p], rng];
+    const around = SIDES.map((side) => step(p, side)).filter(open);
+    if (around.length) return [around, rng];
+  }
+  return [[], rng];
+}
+
+// ---------------------------------------------------------------------------------------------
 // Cards
 
 function emptyHand(): Hand {
@@ -352,12 +488,36 @@ function log(s: GameState, line: string): GameState {
   return { ...s, log: [...s.log, line] };
 }
 
+/** The first player to reach ten points wins at once (the current player first, then the rest in turn order). */
 function checkWin(s: GameState): GameState {
   if (s.phase.t === "gameOver") return s;
-  const p = s.turn;
-  if (points(s, p) >= WIN_POINTS)
-    return log({ ...s, phase: { t: "gameOver", winner: p } }, `${s.players[p].name} wins!`);
+  const n = s.players.length;
+  for (let k = 0; k < n; k++) {
+    const p = (s.turn + k) % n;
+    if (points(s, p) >= WIN_POINTS)
+      return log({ ...s, phase: { t: "gameOver", winner: p } }, `${s.players[p].name} wins!`);
+  }
   return s;
+}
+
+/** Take one card of a chosen resource: from its face-up pile, or out of the deck if the pile is empty. */
+function takeCard(s: GameState, player: number, r: Resource): GameState {
+  const piles = { ...s.piles };
+  let deck = s.deck;
+  if (piles[r] > 0) piles[r]--;
+  else {
+    const i = deck.lastIndexOf(r);
+    if (i < 0) return s;
+    deck = [...deck.slice(0, i), ...deck.slice(i + 1)];
+  }
+  const players = s.players.map((p, i) => (i === player ? { ...p, hand: { ...p.hand, [r]: p.hand[r] + 1 } } : p));
+  return { ...s, piles, deck, players };
+}
+
+/** A shipless captain gets their one ship: work out where it can be placed. */
+function acquireShip(s: GameState): GameState {
+  const [spots, rng] = captainSpots(s, s.turn);
+  return { ...s, rng, captain: { ...s.captain!, acquired: true, spots } };
 }
 
 /** Collect any X the ship is on, or next to when the X is on land. */
@@ -461,7 +621,9 @@ export function reducer(s: GameState, a: Action): GameState {
       const cost = COSTS[a.item];
       if (!canAfford(s.players[player].hand, cost)) return s;
       if (a.item === "ship") {
-        if (s.ships.filter((sh) => sh.owner === player).length >= MAX_SHIPS) return s;
+        const fleet = s.ships.filter((sh) => sh.owner === player).length;
+        // A captain without a ship builds through `getShip` instead.
+        if (fleet === 0 || fleet >= MAX_SHIPS) return s;
         if (!shipSpots(s, player).some((p) => same(p, a.at))) return s;
         const ship: Ship = {
           id: s.nextShipId,
@@ -509,14 +671,155 @@ export function reducer(s: GameState, a: Action): GameState {
       return checkWin(log(out, `${s.players[player].name} buried treasure for a Plunder Point.`));
     }
 
+    case "attack": {
+      if (s.phase.t !== "turn") return s;
+      const ship = s.ships.find((sh) => sh.id === a.ship);
+      if (!ship || ship.owner !== s.turn) return s;
+      if (!attackTargets(s, ship).some((t) => targetKey(t) === targetKey(a.target))) return s;
+      const ok = (d: number) => Number.isInteger(d) && d >= 1 && d <= 6;
+      if (!ok(a.attackDie) || !ok(a.defenseDie)) return s;
+      const attacker = ship.owner;
+      const attack = { die: a.attackDie, bonus: ship.cannons };
+      const defense = { die: a.defenseDie, bonus: defenseBonus(s, a.target) };
+      const won = attack.die + attack.bonus >= defense.die + defense.bonus;
+      let out: GameState = { ...s, attacks: [...(s.attacks ?? []), `${ship.id}>${targetKey(a.target)}`] };
+      let defender: number | null;
+      let at: Pos;
+      let sunk: Battle["sunk"] = null;
+      let pointTo: number | null = null;
+      let didSink = false;
+      const name = (p: number | null) => (p === null ? "an unowned island" : s.players[p].name);
+      if (a.target.kind === "ship") {
+        const targetId = a.target.id;
+        const target = s.ships.find((sh) => sh.id === targetId)!;
+        defender = target.owner;
+        at = target.pos;
+        if (won) {
+          [out, didSink] = hit(out, target.id);
+          if (didSink) [sunk, pointTo] = ["defender", attacker];
+        } else {
+          [out, didSink] = hit(out, ship.id);
+          if (didSink) [sunk, pointTo] = ["attacker", defender];
+        }
+        out = log(out, `${name(attacker)} attacked ${name(defender)}'s ship and ${won ? "won" : "lost"}.`);
+      } else {
+        const islandId = a.target.id;
+        defender = s.owners[islandId] ?? null;
+        at = ship.pos;
+        if (won) {
+          out = { ...out, owners: { ...out.owners, [islandId]: attacker } };
+          out = log(out, `${name(attacker)} conquered an island${defender === null ? "" : ` from ${name(defender)}`}.`);
+        } else {
+          [out, didSink] = hit(out, ship.id);
+          // Sinking against an unowned island earns nobody a card.
+          if (didSink) [sunk, pointTo] = ["attacker", defender];
+          out = log(out, `${name(attacker)} attacked ${name(defender)} and was driven off.`);
+        }
+      }
+      if (pointTo !== null) out = givePlunderCard(out, pointTo);
+      const battle: Battle = {
+        t: "battle",
+        player: attacker,
+        defender,
+        target: a.target,
+        at,
+        attack,
+        defense,
+        won,
+        sunk,
+        pointTo,
+      };
+      out = checkWin({ ...out, notices: [...out.notices, battle] });
+      // A turn ends when your last ship sinks.
+      if (out.phase.t === "turn" && !out.ships.some((sh) => sh.owner === attacker))
+        out = reducer(out, { t: "endTurn" });
+      return out;
+    }
+
+    case "freeCard": {
+      if (s.phase.t !== "turn" || !s.captain?.freeCard) return s;
+      return { ...takeCard(s, s.turn, a.resource), captain: { ...s.captain, freeCard: false } };
+    }
+
+    case "rollDoubles": {
+      const c = s.captain;
+      if (s.phase.t !== "turn" || !c || c.rolled || c.acquired) return s;
+      const [d1, d2] = a.dice;
+      if (![d1, d2].every((d) => Number.isInteger(d) && d >= 1 && d <= 6)) return s;
+      let out: GameState = {
+        ...s,
+        captain: { ...c, rolled: true },
+        notices: [...s.notices, { t: "doubles", player: s.turn, dice: [d1, d2] }],
+      };
+      if (d1 === d2) out = acquireShip(log(out, `${s.players[s.turn].name} rolled doubles for a new ship.`));
+      return out;
+    }
+
+    case "getShip": {
+      const c = s.captain;
+      if (s.phase.t !== "turn" || !c || c.acquired) return s;
+      const player = s.turn;
+      const me = s.players[player];
+      let out: GameState;
+      if (a.via === "build") {
+        if (!canAfford(me.hand, COSTS.ship)) return s;
+        out = pay(s, player, COSTS.ship);
+      } else if (a.via === "gold") {
+        if (me.hand.gold < GOLD_TO_BURY) return s;
+        out = pay(s, player, { gold: GOLD_TO_BURY });
+      } else if (a.via === "plunder") {
+        if (me.plunderCards < 1) return s;
+        out = {
+          ...s,
+          players: s.players.map((p, i) => (i === player ? { ...p, plunderCards: p.plunderCards - 1 } : p)),
+        };
+      } else {
+        if (s.owners[a.via.disown] !== player) return s;
+        const owners = { ...s.owners };
+        delete owners[a.via.disown];
+        out = { ...s, owners };
+      }
+      return acquireShip(log(out, `${me.name} got a new ship.`));
+    }
+
+    case "placeShip": {
+      const c = s.captain;
+      if (s.phase.t !== "turn" || !c?.spots || !c.spots.some((p) => same(p, a.at))) return s;
+      const ship: Ship = {
+        id: s.nextShipId,
+        owner: s.turn,
+        pos: a.at,
+        lives: MAX_LIVES,
+        masts: 0,
+        cannons: 0,
+        mastMoves: 0,
+        docked: s.phase.roll !== null,
+      };
+      // With a ship in play, the turn carries on like any other.
+      const out: GameState = { ...s, ships: [...s.ships, ship], nextShipId: s.nextShipId + 1, captain: null };
+      return checkWin(collectXs(out, ship));
+    }
+
     case "endTurn": {
       if (s.phase.t !== "turn") return s;
       const turn = (s.turn + 1) % s.players.length;
       const ships = s.ships.map((sh) => ({ ...sh, mastMoves: 0, docked: false }));
-      let out: GameState = { ...s, ships, turn, phase: { t: "turn", roll: null, moves: 0 } };
+      let out: GameState = {
+        ...s,
+        ships,
+        turn,
+        phase: { t: "turn", roll: null, moves: 0 },
+        attacks: [],
+        captain: null,
+      };
       // Start of the next turn: one resource card for every island they own.
       const owned = Object.values(s.owners).filter((o) => o === turn).length;
       out = draw(out, turn, owned);
+      // No ships: a captain without a ship (a free card if they have no islands or Plunder Point cards).
+      if (!out.ships.some((sh) => sh.owner === turn)) {
+        const freeCard = owned === 0 && out.players[turn].plunderCards === 0;
+        out = { ...out, captain: { freeCard, rolled: false, acquired: false, spots: null } };
+      }
       return out;
     }
   }

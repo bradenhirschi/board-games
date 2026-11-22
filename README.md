@@ -71,14 +71,18 @@ for 2–6 players, any of them bots; no online play yet.
 picks first, the last to pick starts); a ship in each player's port and three resource cards each;
 turns (a resource card per owned island, roll, sail the fleet with one shared roll plus a square per
 mast, build ships/masts/cannons/lives, bury five gold for a Plunder Point, end turn);
+battles (attack a resource island from its port, or an enemy ship next door: die + cannons vs die +
+cannons or skulls, ties to the attacker; the loser loses a life; sinking a ship earns a Plunder Point
+card; attacking costs no moves, and each ship can attack each target once a turn); a captain without
+a ship (free card if no islands or Plunder Points, roll for doubles, or build / pay 5 gold / trade a
+Plunder Point card / give up an island; one ship per turn this way);
 X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
 Plunder Points (ships + islands + Plunder Point cards) and winning at 10. Basic bots
-(`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, build ships, masts and
-cannons, and hunt treasure.
+(`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
+when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
 
-**Not built yet:** battles and conquering islands, the storm, trading/threatening/bribing/treaties,
-merchant-island swaps, a captain without a ship, smarter bots (they'll need to fight and trade),
-online play.
+**Not built yet:** the storm, trading/threatening/bribing/treaties, merchant-island swaps, smarter
+bots (trading, avoiding danger), online play.
 
 **Not decided yet** (placeholders in the code):
 
