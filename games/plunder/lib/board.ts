@@ -1,6 +1,6 @@
 /**
  * Plunder's board geometry. Tiles are addressed by column number (1–18) and row letter (A–L),
- * written like "C7". As on the playtest board, 1 is on the right, 18 on the left, A at the bottom.
+ * written like "C7". Rotated from the playtest board: 1 is on the left, 18 on the right, A at the top.
  */
 
 export const COLS = 18;
@@ -23,5 +23,5 @@ export function parseTile(name: string): Tile | null {
 
 /** Where a tile sits on screen, in tile units from the top-left of the play area. */
 export function tilePosition({ col, row }: Tile): { x: number; y: number } {
-  return { x: COLS - col, y: ROWS - 1 - row };
+  return { x: col - 1, y: row };
 }
