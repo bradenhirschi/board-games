@@ -2,9 +2,12 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import { COLS, ROWS, ROW_LETTERS, tilePosition } from "@/games/plunder/lib/board";
+import { TILE_SIZE, boardSquares } from "@/games/plunder/lib/tiles";
+import { ArtDefs, FeaturesArt, IslandsArt, S, SeaArt } from "./Art";
 
-/** One tile = U units in the SVG. The border is one tile thick on every side. */
-const U = 10;
+/** One square = U units in the SVG. The border is one square thick on every side. */
+const U = S;
+const SQUARES = boardSquares();
 const W = (COLS + 2) * U;
 const H = (ROWS + 2) * U;
 
@@ -58,13 +61,14 @@ function BoardSvg() {
       aria-label={`Plunder board, columns 1 to ${COLS}, rows A to ${ROW_LETTERS[ROWS - 1]}`}
     >
       <defs>
-        <radialGradient id="pl-sea" cx="50%" cy="45%" r="75%">
-          <stop offset="0%" stopColor="#2c5677" />
-          <stop offset="100%" stopColor="#152d44" />
-        </radialGradient>
+        <ArtDefs />
       </defs>
       <rect className="pl-frame" x={-0.5} y={-0.5} width={W + 1} height={H + 1} rx={1.5} />
-      <rect x={U} y={U} width={W - 2 * U} height={H - 2 * U} fill="url(#pl-sea)" />
+      <g transform={`translate(${U} ${U})`}>
+        <SeaArt w={COLS} h={ROWS} tileSize={TILE_SIZE} />
+        <IslandsArt squares={SQUARES} />
+        <FeaturesArt squares={SQUARES} />
+      </g>
       {LABELS.map((l) => (
         <Label key={`${l.x},${l.y}`} {...l} />
       ))}
