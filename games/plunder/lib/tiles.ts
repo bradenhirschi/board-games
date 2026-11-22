@@ -40,7 +40,8 @@ export type Barrier = { at: string; side: Side };
  * A symbol painted on the tile's art, placed exactly where it is on the sample board (tile units:
  * 10 per square, from the tile's top-left). Gameplay uses `features`; these are only for drawing.
  */
-export type IconKind = "anchor" | "anchor-tilted" | "skull" | "barrel";
+/** Anchors aren't listed: they're drawn on the port squares (see Art.tsx). */
+export type IconKind = "skull" | "barrel";
 export type Icon = { kind: IconKind; x: number; y: number };
 
 export type TileDef = {
@@ -74,9 +75,6 @@ export const TILES: TileDef[] = [
     ],
     icons: [
       { kind: "skull", x: 12.5, y: 12.5 },
-      { kind: "anchor-tilted", x: 16.2, y: 16.2 },
-      { kind: "anchor-tilted", x: 44.2, y: 34.9 },
-      { kind: "anchor-tilted", x: 37.3, y: 46.3 },
       { kind: "barrel", x: 45.6, y: 45.3 },
     ],
   },
@@ -109,12 +107,9 @@ export const TILES: TileDef[] = [
       { at: "D2", side: "S" },
     ],
     icons: [
-      { kind: "anchor", x: 15.9, y: 14.6 },
       { kind: "skull", x: 23.4, y: 15.9 },
       { kind: "skull", x: 26.4, y: 15.9 },
-      { kind: "anchor-tilted", x: 23.9, y: 26.4 },
       { kind: "skull", x: 33.2, y: 46.4 },
-      { kind: "anchor-tilted", x: 37.6, y: 43.4 },
     ],
   },
   {
@@ -137,8 +132,6 @@ export const TILES: TileDef[] = [
     icons: [
       { kind: "skull", x: 33.2, y: 12.7 },
       { kind: "skull", x: 35.2, y: 12.7 },
-      { kind: "anchor-tilted", x: 44.0, y: 15.5 },
-      { kind: "anchor", x: 24.2, y: 43.4 },
       { kind: "skull", x: 26.4, y: 46.7 },
     ],
   },
@@ -161,12 +154,9 @@ export const TILES: TileDef[] = [
     },
     barriers: [],
     icons: [
-      { kind: "anchor-tilted", x: 27.3, y: 15.1 },
-      { kind: "anchor-tilted", x: 44.8, y: 14.3 },
       { kind: "skull", x: 33.8, y: 25.5 },
       { kind: "skull", x: 36.8, y: 25.5 },
       { kind: "skull", x: 15.3, y: 42.3 },
-      { kind: "anchor", x: 15.1, y: 47.4 },
     ],
   },
   {
@@ -189,10 +179,7 @@ export const TILES: TileDef[] = [
     barriers: [],
     icons: [
       { kind: "skull", x: 44.9, y: 15.1 },
-      { kind: "anchor", x: 45.9, y: 24.2 },
-      { kind: "anchor-tilted", x: 15.9, y: 25.0 },
       { kind: "barrel", x: 12.9, y: 32.4 },
-      { kind: "anchor", x: 15.7, y: 37.4 },
     ],
   },
   {
@@ -218,12 +205,9 @@ export const TILES: TileDef[] = [
       { at: "B2", side: "E" },
     ],
     icons: [
-      { kind: "anchor", x: 36.5, y: 24.2 },
       { kind: "skull", x: 44.8, y: 22.3 },
       { kind: "skull", x: 44.8, y: 25.3 },
       { kind: "skull", x: 44.8, y: 28.3 },
-      { kind: "anchor-tilted", x: 45.6, y: 36.3 },
-      { kind: "anchor", x: 14.7, y: 42.9 },
       { kind: "skull", x: 14.8, y: 48.1 },
     ],
   },

@@ -5,10 +5,12 @@ import {
   TILE_SIZE,
   edgeEnds,
   portSides,
+  tileMap,
   type IconKind,
   type Placement,
   type SeaMap,
   type Side,
+  type TileDef,
 } from "@/games/plunder/lib/tiles";
 
 /**
@@ -152,17 +154,90 @@ export function IslandsArt({ placed }: { placed: Placed[] }) {
       <Layer placed={placed} part="land" className="pl-surf" filter="url(#pl-soft)" />
       <Layer placed={placed} part="land" className="pl-sand" filter="url(#pl-sand-tex)" />
       <Layer placed={placed} part="jungle" className="pl-jungle" filter="url(#pl-jungle-tex)" />
-      {placed.flatMap((p) =>
-        (TILES.find((t) => t.id === p.tile)?.icons ?? []).map((icon, i) => {
-          const at = turnPoint(p, icon.x, icon.y);
-          return (
-            <g key={`${p.tile}-${i}`} transform={`translate(${at.x.toFixed(2)} ${at.y.toFixed(2)})`}>
+      {placed.flatMap((p) => {
+        const def = TILES.find((t) => t.id === p.tile);
+        if (!def) return [];
+        const icons = sideBySide(def.icons.map((icon) => ({ kind: icon.kind, ...turnPoint(p, icon.x, icon.y) })));
+        return [
+          ...portAnchors(def, p),
+          ...icons.map((icon, i) => (
+            <g key={`${p.tile}-${i}`} transform={`translate(${icon.x.toFixed(2)} ${icon.y.toFixed(2)})`}>
               <IconArt kind={icon.kind} />
             </g>
-          );
-        }),
-      )}
+          )),
+        ];
+      })}
     </g>
+  );
+}
+
+/**
+ * Skulls on one island sit in a row, never a column: a group of skulls that ends up stacked top to
+ * bottom (as printed, or once its tile is turned) is laid out left to right around the same centre.
+ */
+function sideBySide<T extends { kind: IconKind; x: number; y: number }>(icons: T[]): T[] {
+  const out = [...icons];
+  const skulls = out.map((ic, i) => ({ ic, i })).filter(({ ic }) => ic.kind === "skull");
+  const seen = new Set<number>();
+  for (const { i } of skulls) {
+    if (seen.has(i)) continue;
+    // A group: skulls within a few units of each other (their printed spacing is about 3).
+    const group = [i];
+    seen.add(i);
+    for (let k = 0; k < group.length; k++) {
+      for (const { ic, i: j } of skulls) {
+        if (!seen.has(j) && Math.hypot(ic.x - out[group[k]].x, ic.y - out[group[k]].y) < 4.5) {
+          seen.add(j);
+          group.push(j);
+        }
+      }
+    }
+    if (group.length < 2) continue;
+    const xs = group.map((j) => out[j].x);
+    const ys = group.map((j) => out[j].y);
+    if (Math.max(...ys) - Math.min(...ys) <= Math.max(...xs) - Math.min(...xs)) continue;
+    const cx = xs.reduce((a, b) => a + b, 0) / group.length;
+    const cy = ys.reduce((a, b) => a + b, 0) / group.length;
+    // Turn the column a quarter turn about its centre: top to bottom becomes left to right.
+    for (const j of group) out[j] = { ...out[j], x: cx + (out[j].y - cy), y: cy - (out[j].x - cx) };
+  }
+  return out;
+}
+
+const SIDE_VEC: Record<Side, { x: number; y: number }> = {
+  N: { x: 0, y: -1 },
+  E: { x: 1, y: 0 },
+  S: { x: 0, y: 1 },
+  W: { x: -1, y: 0 },
+};
+
+/**
+ * An anchor in each port square of a placed tile, turned so its top points at the land the port
+ * is moored to (between its land sides: land west and south points to half past seven), sitting
+ * in the water half of the square.
+ */
+function portAnchors(def: TileDef, p: Placed) {
+  const map = tileMap(def, p.rotation);
+  return map.squares.flatMap((row, r) =>
+    row.flatMap((sq, c) => {
+      if (!sq.feature?.port) return [];
+      const v = (sq.half ?? []).reduce((a, side) => ({ x: a.x + SIDE_VEC[side].x, y: a.y + SIDE_VEC[side].y }), {
+        x: 0,
+        y: 0,
+      });
+      // SVG turns clockwise: the anchor's top (straight up) turns to face v.
+      const angle = v.x || v.y ? (Math.atan2(v.x, -v.y) * 180) / Math.PI : 0;
+      // It sits in the water half of the square, its top reaching to the land (and clear of any
+      // skulls or barrel on the land side).
+      const len = Math.hypot(v.x, v.y) || 1;
+      const x = p.x + (c + 0.5 - (v.x / len) * 0.18) * S;
+      const y = p.y + (r + 0.5 - (v.y / len) * 0.18) * S;
+      return [
+        <g key={`anchor-${p.tile}-${r}-${c}`} transform={`translate(${x} ${y}) rotate(${angle.toFixed(1)}) scale(0.5)`}>
+          <Anchor />
+        </g>,
+      ];
+    }),
   );
 }
 
@@ -520,15 +595,9 @@ function IconArt({ kind }: { kind: IconKind }) {
         <Skull />
       </g>
     );
-  if (kind === "barrel")
-    return (
-      <g transform="scale(0.58)">
-        <Barrel />
-      </g>
-    );
   return (
-    <g transform={`rotate(${kind === "anchor-tilted" ? -40 : 0}) scale(0.5)`}>
-      <Anchor />
+    <g transform="scale(0.58)">
+      <Barrel />
     </g>
   );
 }
