@@ -52,9 +52,10 @@ rules, how online play works, and the file map; read it first.
 - **Games:** Stock Market (`/`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
   inspired by Poptropica's Skullduggery Island. Keep its names, art and rules the owner's own (no
   Poptropica names, characters or art). The board is six 6×6 tiles traced from the owner's sample
-  board (`games/plunder/lib/tiles.ts`): island squares block ships except ports (anchors: upright =
-  one entry side, diagonal = any side facing water); land barriers block edges; skulls = resource
-  island, barrel = merchant island. `canSail` encodes this. `/plunder/tiles` shows each tile with a
+  board (`games/plunder/lib/tiles.ts`). Islands are made of full-land squares (block ships),
+  half-land squares (sailable, but the land sides can't be crossed) and edges (block crossing);
+  free-standing land barriers are edges too. Ports (anchors) are where ships dock: an upright anchor
+  ends up with one way in, a diagonal one with several. Skulls = resource island, barrel = merchant. `canSail` encodes this. `/plunder/tiles` shows each tile with a
   "Show sailing" overlay. Art is SVG generated from the map (`games/plunder/components/Art.tsx`).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 

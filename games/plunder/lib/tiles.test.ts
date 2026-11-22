@@ -26,7 +26,16 @@ describe("plunder tiles", () => {
     expect(TILES.map((t) => t.id)).toEqual([1, 2, 3, 4, 5, 6]);
     for (const t of TILES) {
       expect(t.map).toHaveLength(TILE_SIZE);
-      for (const line of t.map) expect(line).toMatch(/^[.a-z]{6}$/);
+      for (const line of t.map) expect(line).toMatch(/^[.a-zA-Z]{6}$/);
+      // Half-land squares say which sides their land is on.
+      t.map.forEach((line, r) =>
+        [...line].forEach((ch, c) => {
+          const half = t.features[`${"ABCDEF"[r]}${c + 1}`]?.half;
+          if (ch !== "." && ch === ch.toUpperCase())
+            expect(half?.length, `tile ${t.id} ${"ABCDEF"[r]}${c + 1}`).toBeGreaterThan(0);
+          else expect(half).toBeUndefined();
+        }),
+      );
       for (const key of Object.keys(t.features)) expect(key).toMatch(/^[A-F][1-6]$/);
       for (const b of t.barriers) expect(b.at).toMatch(/^[A-F][1-6]$/);
     }
@@ -58,17 +67,33 @@ describe("plunder tiles", () => {
     }
   });
 
-  it("puts ports, skulls and barrels only on islands, and gives every port island a reason to visit", () => {
+  it("puts skulls and barrels on islands, ports beside them, and gives every port island a reason to visit", () => {
     for (const t of TILES) {
       const map = tileMap(t);
       map.squares.flat().forEach((s) => {
-        if (s.feature) expect(s.island, `tile ${t.id}: symbol at sea`).not.toBeNull();
+        if (s.feature?.skulls || s.feature?.barrel) expect(s.island, `tile ${t.id}: symbol at sea`).not.toBeNull();
       });
       for (const isl of islands(map)) {
         // Normal islands can't be interacted with, so they have no port; the others need one.
         if (isl.kind === "normal") expect(isl.ports, `tile ${t.id} island ${isl.id}`).toHaveLength(0);
         else expect(isl.ports.length, `tile ${t.id} island ${isl.id}`).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it("gives upright anchors one way in and diagonal anchors several", () => {
+    for (const t of TILES) {
+      const map = tileMap(t);
+      map.squares.forEach((row, r) =>
+        row.forEach((sq, c) => {
+          const port = sq.feature?.port;
+          if (!port) return;
+          const n = portSides(map, { r, c }).length;
+          const where = `tile ${t.id} ${"ABCDEF"[r]}${c + 1}`;
+          if (port === "diagonal") expect(n, where).toBeGreaterThanOrEqual(2);
+          else expect(n, where).toBe(1);
+        }),
+      );
     }
   });
 
@@ -87,9 +112,12 @@ describe("plunder tiles", () => {
     const t2 = TILES[1];
     const flat = tileMap(t2);
     const turned = tileMap(t2, 90);
-    // B2 (row 1, col 1), an upright port opening north, moves to B5 (row 1, col 4) opening east.
+    // B2 (row 1, col 1), an upright port opening north, moves to B5 (row 1, col 4) opening east,
+    // and C3's half land (north and east) turns to face east and south.
     expect(flat.squares[1][1].feature?.port).toBe("N");
     expect(turned.squares[1][4].feature?.port).toBe("E");
+    expect(flat.squares[2][2].half).toEqual(["N", "E"]);
+    expect(turned.squares[2][3].half).toEqual(["E", "S"]);
     // The barrier on the south side of C5 (row 2, col 4) becomes the west side of E4 (row 4, col 3).
     expect(flat.walls.has(edgeKey({ r: 2, c: 4 }, "S"))).toBe(true);
     expect(turned.walls.has(edgeKey({ r: 4, c: 3 }, "W"))).toBe(true);
@@ -134,6 +162,19 @@ describe("plunder sailing", () => {
     expect(canSail(map, sq("A8"), "S")).toBe(true);
     expect(canSail(map, sq("B7"), "E")).toBe(false);
     expect(canSail(map, sq("B8"), "N")).toBe(true);
+  });
+
+  it("sails the water side of half land but never across its land", () => {
+    // Tile 2's big island: C2 (board C8) has land on its north side, C3 (board C9) north and east.
+    expect(isSailable(map.squares[sq("C8").r][sq("C8").c])).toBe(true);
+    expect(canSail(map, sq("D8"), "N")).toBe(true); // into C8 from the open water below
+    expect(canSail(map, sq("C8"), "N")).toBe(false); // across its land into the bay
+    expect(canSail(map, sq("C8"), "E")).toBe(true); // along the water side into C9
+    expect(canSail(map, sq("C9"), "E")).toBe(false); // the island's edge on the C9|C10 line
+    // The bay B8 opens only north: an edge to the west, C8's land to the south, B9's land east.
+    expect(portSides(map, sq("B8"))).toEqual(["N"]);
+    // C9's diagonal port opens south and west.
+    expect(portSides(map, sq("C9"))).toEqual(["S", "W"]);
   });
 
   it("enters a diagonal port from any side facing water", () => {
