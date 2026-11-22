@@ -177,6 +177,16 @@ describe("plunder sailing", () => {
     expect(portSides(map, sq("C9"))).toEqual(["S", "W"]);
   });
 
+  it("opens tile 4's and tile 6's ports where their islands leave water", () => {
+    // Tile 4 (bottom-left): ports in the water above the big island, at its B3 and B5 (board H3, H5).
+    expect(portSides(map, sq("H3"))).toEqual(["N", "W"]);
+    expect(portSides(map, sq("H5"))).toEqual(["N", "E"]);
+    // Tile 6 (bottom-right): the crescent's bay at its C4 (board I16) opens west only; the half-land
+    // port at its D5 (board J17) opens south and east.
+    expect(portSides(map, sq("I16"))).toEqual(["W"]);
+    expect(portSides(map, sq("J17"))).toEqual(["E", "S"]);
+  });
+
   it("enters a diagonal port from any side facing water", () => {
     // Tile 1's B2 islet is its own port, open on all four sides.
     expect(portSides(map, sq("B2"))).toEqual(["N", "E", "S", "W"]);

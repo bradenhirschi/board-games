@@ -113,13 +113,14 @@ export const TILES: TileDef[] = [
     id: 4,
     map: [
       ".a....", //
-      "..bbb.",
+      "...b..",
       "c.bbb.",
       "......",
       ".d...e",
       "...f..",
     ],
     features: {
+      // The big island is B4 and C3–C5; its two ports are in the water above it, at B3 and B5.
       B3: { port: "diagonal" },
       B5: { port: "diagonal" },
       C4: { skulls: 2 },
@@ -150,15 +151,17 @@ export const TILES: TileDef[] = [
     map: [
       "a.....", //
       "...bb.",
-      "...bb.",
-      "c..bb.",
+      "....b.",
+      "c..bB.",
       ".d...e",
       "......",
     ],
     features: {
+      // The crescent: B4, B5, C5 and D4 are full land, D5 is half land (north and west), and it wraps
+      // around an open-water bay at C4 whose port can only be entered from the west.
       C4: { port: "W" },
       C5: { skulls: 3 },
-      D5: { port: "diagonal" },
+      D5: { half: ["N", "W"], port: "diagonal" },
       E2: { skulls: 1, port: "N" },
     },
     barriers: [
