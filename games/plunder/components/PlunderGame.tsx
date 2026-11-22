@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { botAction, fillDice } from "@/games/plunder/lib/bot";
 import { tileName } from "@/games/plunder/lib/board";
 import {
@@ -59,6 +59,8 @@ const BOT_STEP_MS = 750;
 const BOT_NOTICE_MS: Record<Notice["t"], number> = { treasure: 1600, battle: 2600, doubles: 1600, drew: 0 };
 /** How long dice tumble before they land. */
 const ROLL_MS = 550;
+/** How long a ship takes to sail one square. */
+const SAIL_STEP_MS = 190;
 
 const d6 = () => 1 + Math.floor(Math.random() * 6);
 
@@ -83,6 +85,24 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     () => game.ships.find((sh) => sh.owner === game.turn)?.id ?? null,
   );
   const [otherWays, setOtherWays] = useState(false);
+  /** A ship sailing along its route, square by square: where it is drawn right now. */
+  const [moving, setMoving] = useState<{ ship: number; pos: Pos } | null>(null);
+  const sailTimer = useRef<number | null>(null);
+  useEffect(() => () => window.clearInterval(sailTimer.current ?? undefined), []);
+
+  /** Show a ship sailing its route one square at a time, then apply the move. */
+  function animateSail(shipId: number, path: Pos[], done: () => void) {
+    let i = 0;
+    setMoving({ ship: shipId, pos: path[0] });
+    sailTimer.current = window.setInterval(() => {
+      i++;
+      if (i < path.length) return setMoving({ ship: shipId, pos: path[i] });
+      window.clearInterval(sailTimer.current ?? undefined);
+      sailTimer.current = null;
+      done();
+      setMoving(null);
+    }, SAIL_STEP_MS);
+  }
   const [placing, setPlacing] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [rolling, setRolling] = useState(false);
@@ -103,7 +123,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
 
   // Bots play by themselves, one visible step at a time.
   useEffect(() => {
-    if (!isBot || phase.t === "gameOver" || rolling) return;
+    if (!isBot || phase.t === "gameOver" || rolling || moving) return;
     if (notice) {
       // A bot's news (treasure, battles, doubles) shows for a moment; what it drew stays private.
       const t = window.setTimeout(() => onChange({ ...s, notices: s.notices.slice(1) }), BOT_NOTICE_MS[notice.t]);
@@ -112,6 +132,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     const a = botAction(s);
     if (!a) return;
     const t = window.setTimeout(() => {
+      if (a.t === "sail") return animateSail(a.ship, a.path, () => onChange(reducer(s, a)));
       const filled = fillDice(a, d6);
       if (filled === a) return onChange(reducer(s, a));
       // Dice to roll: let them tumble first.
@@ -122,7 +143,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       }, ROLL_MS);
     }, BOT_STEP_MS);
     return () => window.clearTimeout(t);
-  }, [s, isBot, phase.t, notice, onChange, rolling]);
+  }, [s, isBot, phase.t, notice, onChange, rolling, moving]);
 
   const reach = useMemo(
     () => (ship && phase.t === "turn" ? reachable(s, ship) : new Map<string, Pos[]>()),
@@ -163,7 +184,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   }
 
   function onSquareTap(p: Pos) {
-    if (covered || isBot || rolling) return;
+    if (covered || isBot || rolling || moving) return;
     if (captainSpots.some((q) => same(q, p))) {
       act({ t: "placeShip", at: p });
       return;
@@ -193,7 +214,10 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       return;
     }
     const path = reach.get(key(p));
-    if (ship && path) act({ t: "sail", ship: ship.id, path });
+    if (ship && path) {
+      const id = ship.id;
+      animateSail(id, path, () => act({ t: "sail", ship: id, path }));
+    }
   }
 
   function roll() {
@@ -238,7 +262,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           ) : null,
         )}
         {startIsles.map((isl) => isl.ports.map((p) => <SquareMark key={`s${key(p)}`} at={p} kind="start" />))}
-        {[...reach.values()].map((path) => (
+        {[...(moving ? [] : reach.values())].map((path) => (
           <SquareMark key={`r${key(path[path.length - 1])}`} at={path[path.length - 1]} kind="reach" />
         ))}
         {[...spots, ...captainSpots].map((p) => (
@@ -251,7 +275,13 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           <XMark key={`x${i}`} at={x} />
         ))}
         {s.ships.map((sh) => (
-          <ShipPiece key={sh.id} ship={sh} color={s.players[sh.owner].color} selected={sh.id === ship?.id} />
+          <ShipPiece
+            key={sh.id}
+            ship={sh}
+            color={s.players[sh.owner].color}
+            selected={sh.id === ship?.id}
+            at={moving?.ship === sh.id ? moving.pos : undefined}
+          />
         ))}
       </Board>
 

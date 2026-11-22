@@ -15,11 +15,23 @@ export const COLOR_HEX: Record<PlayerColor, string> = {
 const centre = (p: Pos) => ({ x: (p.c + 0.5) * S, y: (p.r + 0.5) * S });
 
 /** A ship from above, in its owner's colour, with a peg for each life, its masts and its cannons. */
-export function ShipPiece({ ship, color, selected }: { ship: Ship; color: PlayerColor; selected?: boolean }) {
-  const { x, y } = centre(ship.pos);
+export function ShipPiece({
+  ship,
+  color,
+  selected,
+  at,
+}: {
+  ship: Ship;
+  color: PlayerColor;
+  selected?: boolean;
+  /** Draw it here instead of at `ship.pos` (while it's sailing along its route). */
+  at?: Pos;
+}) {
+  const { x, y } = centre(at ?? ship.pos);
   return (
+    // Positioned with a CSS transform (SVG user units), so each step along a route glides.
     <g
-      transform={`translate(${x} ${y})`}
+      style={{ transform: `translate(${x}px, ${y}px)` }}
       className={`pl-ship${selected ? " pl-ship-selected" : ""}${ship.docked ? " pl-ship-docked" : ""}`}
     >
       {selected && <circle className="pl-ship-ring" r={4.9} />}
