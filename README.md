@@ -103,6 +103,9 @@ one offer a turn.
 - **Resource card counts:** the deck is a placeholder 40 of each resource (wood, iron, rum, gold),
   `CARDS_PER_RESOURCE` in `games/plunder/lib/engine.ts`.
 
+**Art credits:** the skull and crossbones (`games/plunder/art/skull-and-crossbones.svg`) is from
+[OpenMoji](https://openmoji.org), licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+
 ## Where things live
 
 The repo is set up to hold several board games. Each game has its own design (no shared styles) and lives
