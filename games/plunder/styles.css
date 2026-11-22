@@ -394,11 +394,6 @@ body {
 
 /* ---- Game: pieces on the board ---- */
 
-.pl-ship-hull {
-  stroke: #1b120a;
-  stroke-width: 0.4;
-}
-
 .pl-ship-ring {
   fill: #f4d03f33;
   stroke: #f4d03f;
@@ -407,26 +402,6 @@ body {
 
 .pl-ship-docked {
   opacity: 0.7;
-}
-
-.pl-ship-cannon {
-  fill: #1e1e1e;
-}
-
-.pl-ship-mast {
-  fill: #f1ead8;
-  stroke: #2b1b0b;
-  stroke-width: 0.15;
-}
-
-.pl-ship-life {
-  fill: #e74c3c;
-  stroke: #2b1b0b;
-  stroke-width: 0.2;
-}
-
-.pl-ship-life.lost {
-  fill: #0006;
 }
 
 .pl-x-fill {
@@ -1532,4 +1507,86 @@ body {
 /* Cards that are just shown (not tappable) look normal, not disabled. */
 .pl-tr-card.pl-tr-static:disabled {
   opacity: 1;
+}
+
+/* ---- Ships: wooden hull from above, sails in the owner's colour ---- */
+
+.pl-ship-wake {
+  fill: #0b1e2e;
+  opacity: 0.35;
+}
+
+.pl-ship-bowsprit {
+  stroke: #4a2e14;
+  stroke-width: 0.45;
+  stroke-linecap: round;
+}
+
+.pl-ship-hull {
+  fill: #7a4a22;
+  stroke: #2b1607;
+  stroke-width: 0.35;
+}
+
+.pl-ship-rail {
+  fill: none;
+  stroke-width: 0.45;
+  stroke-opacity: 0.85;
+}
+
+.pl-ship-deck {
+  fill: #b27a45;
+}
+
+.pl-ship-planks {
+  fill: none;
+  stroke: #8a5a2e;
+  stroke-width: 0.12;
+}
+
+.pl-ship-cannon {
+  fill: #3a3f44;
+  stroke: #15181a;
+  stroke-width: 0.12;
+}
+
+.pl-ship-sail {
+  stroke: #15100b;
+  stroke-width: 0.22;
+  stroke-linejoin: round;
+}
+
+.pl-ship-sail-shade {
+  fill: #000;
+  opacity: 0.22;
+}
+
+.pl-ship-yard {
+  stroke: #3a2410;
+  stroke-width: 0.3;
+  stroke-linecap: round;
+}
+
+.pl-ship-masthead {
+  fill: #6b4220;
+  stroke: #2b1607;
+  stroke-width: 0.15;
+}
+
+.pl-ship-life {
+  fill: #e74c3c;
+  stroke: #2b1607;
+  stroke-width: 0.15;
+}
+
+.pl-ship-life.lost {
+  fill: #2b1607;
+  opacity: 0.45;
+}
+
+.pl-ship-sail-seam {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: 0.25;
+  stroke-width: 0.12;
 }

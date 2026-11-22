@@ -14,7 +14,36 @@ export const COLOR_HEX: Record<PlayerColor, string> = {
 
 const centre = (p: Pos) => ({ x: (p.c + 0.5) * S, y: (p.r + 0.5) * S });
 
-/** A ship from above, in its owner's colour, with a peg for each life, its masts and its cannons. */
+/** A sail across the deck at height `y`: a billowing curve with a yard (spar) and a shaded half. */
+function Sail({ y, width, color }: { y: number; width: number; color: string }) {
+  const w = width / 2;
+  return (
+    <g transform={`translate(0 ${y})`}>
+      {/* A full sheet billowing forward from its yard. */}
+      <path
+        className="pl-ship-sail"
+        fill={color}
+        d={`M${-w} 0.1 C${-w * 0.75} -1.9 ${w * 0.75} -1.9 ${w} 0.1 C${w * 0.5} -0.45 ${-w * 0.5} -0.45 ${-w} 0.1 Z`}
+      />
+      <path
+        className="pl-ship-sail-shade"
+        d={`M0 -1.4 C${w * 0.45} -1.42 ${w * 0.8} -1.0 ${w} 0.1 C${w * 0.55} -0.38 ${w * 0.25} -0.34 0 -0.33 Z`}
+      />
+      <path
+        className="pl-ship-sail-seam"
+        d={`M${-w * 0.33} -1.05 Q${-w * 0.3} -0.6 ${-w * 0.28} -0.36 M${w * 0.33} -1.05 Q${w * 0.3} -0.6 ${w * 0.28} -0.36`}
+      />
+      <line className="pl-ship-yard" x1={-w - 0.25} y1={0} x2={w + 0.25} y2={0} />
+      <circle className="pl-ship-masthead" r={0.42} />
+    </g>
+  );
+}
+
+/**
+ * A ship from above, bow up: a wooden hull with deck planks, rails and a bowsprit, and sails in its
+ * owner's colour (one main sail, plus one for each mast built). Cannons poke out of the sides; the
+ * lives show as pegs on the stern deck.
+ */
 export function ShipPiece({
   ship,
   color,
@@ -28,6 +57,19 @@ export function ShipPiece({
   at?: Pos;
 }) {
   const { x, y } = centre(at ?? ship.pos);
+  const hex = COLOR_HEX[color];
+  const hull =
+    "M0 -4.5 C2.2 -3.4 2.75 -1.4 2.7 1.6 C2.65 3.3 2.1 4.2 1.2 4.3 L-1.2 4.3 C-2.1 4.2 -2.65 3.3 -2.7 1.6 C-2.75 -1.4 -2.2 -3.4 0 -4.5 Z";
+  const deck =
+    "M0 -3.6 C1.65 -2.7 2.05 -1.2 2.0 1.5 C1.95 2.8 1.6 3.45 0.95 3.5 L-0.95 3.5 C-1.6 3.45 -1.95 2.8 -2.0 1.5 C-2.05 -1.2 -1.65 -2.7 0 -3.6 Z";
+  // Sails, bow to stern: the main sail amidships, then the masts' sails fore and aft.
+  const sails = [
+    { y: 0.9, w: 7.2 },
+    { y: -1.7, w: 5.6 },
+    { y: 2.75, w: 5.8 },
+  ].slice(0, 1 + ship.masts);
+  // Cannons: a pair (one each side) per cannon.
+  const guns = [-0.9, 1.1].slice(0, ship.cannons);
   return (
     // Positioned with a CSS transform (SVG user units), so each step along a route glides.
     <g
@@ -35,33 +77,30 @@ export function ShipPiece({
       className={`pl-ship${selected ? " pl-ship-selected" : ""}${ship.docked ? " pl-ship-docked" : ""}`}
     >
       {selected && <circle className="pl-ship-ring" r={4.9} />}
-      <path
-        className="pl-ship-hull"
-        fill={COLOR_HEX[color]}
-        d="M0 -4.3 C2.7 -2.9 3.1 -0.4 2.9 3.6 L-2.9 3.6 C-3.1 -0.4 -2.7 -2.9 0 -4.3 Z"
-      />
-      {Array.from({ length: ship.cannons }, (_, i) => (
-        <rect
-          key={`c${i}`}
-          className="pl-ship-cannon"
-          x={i === 0 ? -3.9 : 2.7}
-          y={0.2}
-          width={1.2}
-          height={1.6}
-          rx={0.3}
-        />
+      <ellipse className="pl-ship-wake" cx={0.35} cy={0.5} rx={3.1} ry={4.6} />
+      <line className="pl-ship-bowsprit" x1={0} y1={-4.2} x2={0} y2={-5.3} />
+      {guns.map((gy) => (
+        <g key={gy}>
+          <rect className="pl-ship-cannon" x={-3.35} y={gy - 0.32} width={1.1} height={0.64} rx={0.25} />
+          <rect className="pl-ship-cannon" x={2.25} y={gy - 0.32} width={1.1} height={0.64} rx={0.25} />
+        </g>
       ))}
-      {Array.from({ length: ship.masts }, (_, i) => (
-        <rect key={`m${i}`} className="pl-ship-mast" x={-2} y={-2.3 + i * 1.5} width={4} height={0.7} rx={0.3} />
-      ))}
+      <path className="pl-ship-hull" d={hull} />
+      <path className="pl-ship-deck" d={deck} />
+      <path className="pl-ship-planks" d="M-1 -2.9 V3.4 M0 -3.5 V3.5 M1 -2.9 V3.4" />
+      {/* The owner's colour runs along the rail too, so it shows even under full sail. */}
+      <path className="pl-ship-rail" stroke={hex} d={hull} />
       {Array.from({ length: 3 }, (_, i) => (
         <circle
           key={`l${i}`}
           className={i < ship.lives ? "pl-ship-life" : "pl-ship-life lost"}
-          cx={(i - 1) * 1.6}
-          cy={2.2}
-          r={0.65}
+          cx={(i - 1) * 0.95}
+          cy={3.75}
+          r={0.42}
         />
+      ))}
+      {sails.map((sl) => (
+        <Sail key={sl.y} y={sl.y} width={sl.w} color={hex} />
       ))}
     </g>
   );
