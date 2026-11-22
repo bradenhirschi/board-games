@@ -28,6 +28,7 @@ rules, how online play works, and the file map; read it first.
   visual work, render it with Playwright (Chromium is preinstalled) and send screenshots or
   mockups. When they ask for a mockup or rendering first, or the change is a big redesign,
   don't commit until they approve. They often reject a version, so make reverting easy.
+- **Say "device" in Plunder's UI text,** never "phone" or "computer": it's cross-platform.
 - **Phones first.** Most play is on iPhones (Brave, Safari, and the installed Home Screen app).
   Check phone layouts at 390×664 (browser) and 390×800 (installed app); desktop at 1440×900.
   Nothing on a phone may need page scrolling, and the main turn button must always be visible.
@@ -49,6 +50,36 @@ rules, how online play works, and the file map; read it first.
   `app/(<game>)/` with its **own root layout** (own `<html>`, metadata, icons, and CSS import), so
   styles never leak between games. The only shared code is `shared/firebase.ts` (Firebase setup
   and sign-in), so one login carries across games. See "Adding a game" in the README.
+- **Games:** Stock Market (`/`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
+  inspired by Poptropica's Skullduggery Island. Keep its names, art and rules the owner's own (no
+  Poptropica names, characters or art). The board is six 6×6 tiles traced from the owner's sample
+  board (`games/plunder/lib/tiles.ts`). Islands are made of full-land squares (block ships),
+  half-land squares (sailable, but the land sides can't be crossed) and edges (block crossing);
+  free-standing land barriers are edges too. Ports (anchors) are where ships dock: an upright anchor
+  ends up with one way in, a diagonal one with several; anchor squares are always half land (some
+  land and some water). Skulls = resource island, barrel = merchant. The gameplay map is a first
+  guess the owner will correct. The island **art is traced** from the owner's sample board
+  (`games/plunder/art/sample-board.webp`) by `scripts/trace-plunder-tiles.py` into
+  `games/plunder/lib/tileArt.ts` (generated, Prettier-ignored); icons are placed per tile in
+  `tiles.ts` (`icons`). The owner wants a 1:1 graphical match with the sample: compare silhouettes
+  against it when changing the art. `canSail` encodes this. `/plunder/tiles` shows each tile with a
+  "Show sailing" overlay. `games/plunder/components/Art.tsx` draws it. Rules engine:
+  `games/plunder/lib/engine.ts` (pure reducer like Stock Market's; dice on actions, other luck from
+  a seeded generator in the state). Status and open questions are in the README's Plunder section.
+  Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
+  an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
+  sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
+  attacking costs no moves and can happen before the roll; ships built after the roll can't sail
+  but can attack; the app rolls islands' defence; sinking against an unowned island gives no card.
+  Trading follows the printed rules: offers go to every eligible player, each answers in seat order
+  (pass the device), the offerer picks among those who accepted; counters go back and forth; only
+  the current player starts trades, bribes come from the player being attacked; treaties are
+  enforced. `waitingOn(state)` says who must act. The trading panel (`components/Trade.tsx`) copies
+  the owner's reference layout (want row, two give/get rows, hand, big buttons on the right).
+  Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
+  Online: `lib/online.ts` (resolve/replay, notices are local to each device), `lib/rooms.ts`
+  (`plunderRooms`, same pattern and rules as Stock Market's), `components/Online.tsx` (start, lobby,
+  game wrapper). `PlunderGame` takes `seat` online (left out for pass-and-play) and `onAct`.
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;

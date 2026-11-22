@@ -62,6 +62,60 @@ npx firebase emulators:start --project demo-stock-market --only auth,firestore
 NEXT_PUBLIC_FIREBASE_EMULATORS=1 npm run dev
 ```
 
+## Plunder (in progress)
+
+A pirate board game at `/plunder`, built from the owner's rules document. 2–6 players, any of them
+bots: pass-and-play on one device, or online (each player on their own device).
+
+**Built so far:** a shuffled, randomly turned board; picking one-skull starting islands (highest roll
+picks first, the last to pick starts); a ship in each player's port and three resource cards each;
+turns (a resource card per owned island, roll, sail the fleet with one shared roll plus a square per
+mast, build ships/masts/cannons/lives, bury five gold for a Plunder Point, end turn);
+battles (attack a resource island from its port, or an enemy ship next door: die + cannons vs die +
+cannons or skulls, ties to the attacker; the loser loses a life; sinking a ship earns a Plunder Point
+card; attacking costs no moves, and each ship can attack each target once a turn); a captain without
+a ship (free card if no islands or Plunder Points, roll for doubles, or build / pay 5 gold / trade a
+Plunder Point card / give up an island; one ship per turn this way);
+the storm (a 3×3 square, first placed off the one-skull islands' ports; rolling a 1 moves it and you
+still sail 1; sailing in or out costs 2 cards of your choice, so a ship with nothing to pay is trapped;
+no attacks, treasure or new-ship placement across its edge; islands with every port inside give no
+card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
+Plunder Points (ships + islands + Plunder Point cards) and winning at 10. Basic bots
+(`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
+when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
+
+Trading: the current player offers a trade to everyone they may trade with (ship in their port or
+they in yours, ships side by side, or anyone when either is docked at a merchant island; not through
+a port the storm covers or across its edge); each answers in turn (passing the device), accepting,
+declining or countering, and the offerer picks one who accepted. Counter-offers can go back and
+forth. Merchant islands swap any two cards for one. Threats (a demand to a player in your port or
+beside you) and bribes (offered by a player you attack, before the dice; raise after a refusal, or
+fight) work the same way. Any deal that goes through makes a treaty for the rest of the turn: no
+attacks between those two. Bots answer by what they need, counter, bribe when it matters and make
+one offer a turn.
+
+**Online play** works like Stock Market's: rooms in Firestore at `plunderRooms/{code}`
+(`games/plunder/lib/rooms.ts`), joined by code or invite link (`/plunder?room=CODE`). The device the
+game waits on applies the move with the shared rules and saves the new state plus the actions it
+applied, in a transaction; every other device replays them (other players' ships sail square by
+square, and each device shows the news itself: battles, treasure, its own card draws). The game can
+wait on someone mid-turn (answering a trade, deciding on a bribe), and `currentUid` follows that.
+Bots are played by any seated device; the room keeps the first save. Saved states hold no notices
+(`games/plunder/lib/online.ts`).
+
+**Not built yet:** smarter bots and difficulty levels.
+
+**Not decided yet** (placeholders in the code):
+
+- **Treasure cards:** the deck hasn't been written. Finding an X just shows a "Treasure cards
+  haven't been made yet" message and moves the X.
+- **Resource card counts:** the deck is a placeholder 40 of each resource (wood, iron, rum, gold),
+  `CARDS_PER_RESOURCE` in `games/plunder/lib/engine.ts`.
+
+**Art credits:** the skull and crossbones, the X (drawn red in the game), the anchor and the crossed
+swords (`games/plunder/art/*.svg`) are from [OpenMoji](https://openmoji.org), licensed
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+
 ## Where things live
 
 The repo is set up to hold several board games. Each game has its own design (no shared styles) and lives
@@ -78,6 +132,9 @@ in its own folder; the only shared code is the account (Firebase sign-in), so on
 | `games/stock-market/lib/bot.ts` | Computer player strategy |
 | `games/stock-market/lib/online.ts`, `games/stock-market/lib/rooms.ts` | Online play: resolving moves, rooms in Firestore |
 | `games/stock-market/components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
+| `app/(plunder)/plunder/`, `games/plunder/` | Plunder, a pirate game in progress, served at `/plunder` (`/plunder/tiles` shows each tile) |
+| `games/plunder/lib/tiles.ts` | Plunder's six board tiles: gameplay map (land, half land, edges, ports, skulls, barrels) and icon positions |
+| `games/plunder/lib/tileArt.ts` | Plunder's island outlines, traced from `games/plunder/art/sample-board.webp` by `scripts/trace-plunder-tiles.py` (generated; rerun the script to change) |
 | `shared/firebase.ts` | Firebase setup and the account: guest sign-in, Google sign-in, sign-out, `useFirebaseUser()` |
 | `firestore.rules` | Who may read and write online rooms (each game has its own collection) |
 
