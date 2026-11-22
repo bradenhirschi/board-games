@@ -132,6 +132,8 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     }, SAIL_STEP_MS);
   }
   const [placing, setPlacing] = useState(false);
+  /** An upgrade chosen in the build sheet, waiting for the player to tap the ship it goes on. */
+  const [upgrading, setUpgrading] = useState<"mast" | "cannon" | "life" | null>(null);
   const [buildOpen, setBuildOpen] = useState(false);
   const [rolling, setRolling] = useState(false);
 
@@ -203,6 +205,8 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
     [s, ship, phase.t],
   );
   const spots = useMemo(() => (placing ? shipSpots(s, current) : []), [s, placing, current]);
+  // The player's ships that can take the chosen upgrade.
+  const upgradable = upgrading ? myShips.filter((sh) => canUpgrade(sh, upgrading)) : [];
   const startIsles = useMemo(
     () => (phase.t === "pickIsland" ? startingIslands(s.layout).filter((i) => s.owners[i.id] === undefined) : []),
     [s, phase.t],
@@ -257,6 +261,14 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
       return;
     }
     if (phase.t !== "turn") return;
+    if (upgrading) {
+      const target = upgradable.find((sh) => same(sh.pos, p));
+      if (target) {
+        act({ t: "build", item: upgrading, ship: target.id });
+        setUpgrading(null);
+      }
+      return;
+    }
     if (placing) {
       if (spots.some((q) => same(q, p))) {
         act({ t: "build", item: "ship", at: p });
@@ -296,6 +308,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
   else if (phase.t === "pickIsland") status = "Pick your starting island";
   else if (phase.t === "gameOver") status = `${s.players[phase.winner].name} wins!`;
   else if (rolling) status = "Rolling…";
+  else if (upgrading) status = `Tap a ship to give it ${upgrading === "life" ? "an extra life" : `a ${upgrading}`}`;
   else if (placing || captainSpots.length) status = "Tap a green square for your new ship";
   else if (captain)
     status = !captain.rolled ? "No ship! Roll doubles for a free one" : "No doubles. Get a ship another way?";
@@ -328,6 +341,9 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
             kind={ship && stormToll(s, ship.pos, path) ? "reach-toll" : "reach"}
           />
         ))}
+        {upgradable.map((sh) => (
+          <SquareMark key={`u${sh.id}`} at={sh.pos} kind="place" />
+        ))}
         {[...spots, ...captainSpots].map((p) => (
           <SquareMark key={`p${key(p)}`} at={p} kind="place" />
         ))}
@@ -358,7 +374,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           {phase.t === "turn" && phase.roll !== null && <Die value={phase.roll} />}
         </div>
         {/* While there's something to attack, the attack buttons say it all (and the space is needed). */}
-        {!(targets.length > 0 && !placing) && <p className="pl-status">{status}</p>}
+        {!(targets.length > 0 && !placing && !upgrading) && <p className="pl-status">{status}</p>}
 
         {phase.t !== "pickIsland" && (
           <div className="pl-hand" aria-label="Your cards">
@@ -371,7 +387,7 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
           </div>
         )}
 
-        {targets.length > 0 && !placing && (
+        {targets.length > 0 && !placing && !upgrading && (
           <div className="pl-attacks">
             {targets.map((t) => {
               const chance = Math.round(winChance(ship!.cannons, defenseBonus(s, t)) * 100);
@@ -421,8 +437,14 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
 
         {phase.t === "turn" && !isBot && !captain && (
           <div className="pl-actions">
-            {placing ? (
-              <button className="pl-btn pl-btn-wide" onClick={() => setPlacing(false)}>
+            {placing || upgrading ? (
+              <button
+                className="pl-btn pl-btn-wide"
+                onClick={() => {
+                  setPlacing(false);
+                  setUpgrading(null);
+                }}
+              >
                 Cancel
               </button>
             ) : (
@@ -465,14 +487,11 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
         <BuildSheet
           game={s}
           player={current}
-          ship={ship ?? myShips[0]}
           ships={myShips}
-          onPickShip={(id) => setSelected(id)}
-          onBuild={(item, target) => {
-            if (item === "ship") {
-              setBuildOpen(false);
-              setPlacing(true);
-            } else if (target) act({ t: "build", item, ship: target.id });
+          onBuild={(item) => {
+            setBuildOpen(false);
+            if (item === "ship") setPlacing(true);
+            else setUpgrading(item);
           }}
           onBury={() => act({ t: "bury" })}
           onClose={() => setBuildOpen(false)}
@@ -634,22 +653,25 @@ const BUILD_ITEMS: { item: Build; name: string; what: string }[] = [
   { item: "life", name: "Life", what: "Restore a life" },
 ];
 
+/** Can this ship take another of this upgrade? */
+function canUpgrade(ship: Ship, item: "mast" | "cannon" | "life"): boolean {
+  if (item === "mast") return ship.masts < MAX_MASTS;
+  if (item === "cannon") return ship.cannons < MAX_CANNONS;
+  return ship.lives < MAX_LIVES;
+}
+
 function BuildSheet({
   game,
   player,
-  ship,
   ships,
-  onPickShip,
   onBuild,
   onBury,
   onClose,
 }: {
   game: GameState;
   player: number;
-  ship: Ship | undefined;
   ships: Ship[];
-  onPickShip: (id: number) => void;
-  onBuild: (item: Build, ship: Ship | undefined) => void;
+  onBuild: (item: Build) => void;
   onBury: () => void;
   onClose: () => void;
 }) {
@@ -659,10 +681,15 @@ function BuildSheet({
       if (ships.length >= MAX_SHIPS) return `${MAX_SHIPS} ships max`;
       if (!shipSpots(game, player).length) return "Nowhere to place it";
     } else {
-      if (!ship) return "No ship";
-      if (item === "mast" && ship.masts >= MAX_MASTS) return `${MAX_MASTS} masts max`;
-      if (item === "cannon" && ship.cannons >= MAX_CANNONS) return `${MAX_CANNONS} cannons max`;
-      if (item === "life" && ship.lives >= MAX_LIVES) return "Lives full";
+      // An upgrade needs at least one ship with room for it (the player then taps which).
+      if (!ships.length) return "No ship";
+      if (!ships.some((sh) => canUpgrade(sh, item))) {
+        return item === "mast"
+          ? `${MAX_MASTS} masts max`
+          : item === "cannon"
+            ? `${MAX_CANNONS} cannons max`
+            : "Lives full";
+      }
     }
     if (!canAfford(hand, COSTS[item])) return "Not enough";
     return null;
@@ -684,20 +711,6 @@ function BuildSheet({
             ×
           </button>
         </div>
-        {ships.length > 1 && (
-          <div className="pl-build-ships">
-            Upgrades for:
-            {ships.map((sh, i) => (
-              <button
-                key={sh.id}
-                className={`pl-chip${sh.id === ship?.id ? " on" : ""}`}
-                onClick={() => onPickShip(sh.id)}
-              >
-                Ship {i + 1}
-              </button>
-            ))}
-          </div>
-        )}
         {BUILD_ITEMS.map(({ item, name, what }) => {
           const blocked = why(item);
           return (
@@ -706,7 +719,7 @@ function BuildSheet({
                 <b>{name}</b> <Cost cost={COSTS[item]} />
                 <small>{what}</small>
               </div>
-              <button className="pl-btn pl-btn-small" disabled={!!blocked} onClick={() => onBuild(item, ship)}>
+              <button className="pl-btn pl-btn-small" disabled={!!blocked} onClick={() => onBuild(item)}>
                 {blocked ?? (item === "ship" ? "Place" : "Build")}
               </button>
             </div>
