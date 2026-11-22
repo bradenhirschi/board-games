@@ -87,8 +87,8 @@ export const TILES: TileDef[] = [
       ".Bb...",
       ".BB...",
       "......",
-      "...c..",
-      ".d...e",
+      "...C..",
+      ".d...E",
     ],
     features: {
       // The big island: B3 is full land; B2, C2 and C3 are half land, and a strip of land runs down
@@ -97,6 +97,8 @@ export const TILES: TileDef[] = [
       B3: { skulls: 2 },
       C2: { half: ["N"] },
       C3: { half: ["N", "E"], port: "diagonal" },
+      E4: { half: ["W", "S"] },
+      F6: { half: ["W", "N"] },
     },
     barriers: [
       { at: "C3", side: "E" },
@@ -116,15 +118,15 @@ export const TILES: TileDef[] = [
     id: 3,
     map: [
       "......", //
-      "a..bB.",
+      "a..BB.",
       "..c...",
       "....d.",
       "e.F...",
       "....g.",
     ],
     features: {
-      B4: { skulls: 2 },
-      B5: { half: ["N"], port: "diagonal" },
+      B4: { half: ["N"], skulls: 2 },
+      B5: { half: ["N", "E"], port: "diagonal" },
       // A sandy island around a little lagoon that opens north.
       E3: { half: ["E", "S", "W"], skulls: 1, port: "upright" },
     },
@@ -170,15 +172,16 @@ export const TILES: TileDef[] = [
       "......", //
       "..a.b.",
       ".C..B.",
-      ".Cc...",
+      ".C....",
       "...d..",
-      "..e..f",
+      "..E..f",
     ],
     features: {
       B5: { skulls: 1 },
-      C5: { half: ["S", "W"], port: "upright" },
+      C5: { half: ["N", "W", "S"], port: "upright" },
       C2: { half: ["W"], port: "diagonal" },
       D2: { half: ["N", "E", "W"], barrel: true, port: "upright" },
+      F3: { half: ["W"] },
     },
     barriers: [],
     icons: [

@@ -187,6 +187,24 @@ describe("plunder sailing", () => {
     expect(portSides(map, sq("J17"))).toEqual(["E", "S"]);
   });
 
+  it("follows the owner's corrections to tiles 2, 3 and 5", () => {
+    const half = (name: string) => map.squares[sq(name).r][sq(name).c].half;
+    // Tile 2 (top-middle): its E4 (board E10) and F6 (board F12).
+    expect(half("E10")).toEqual(["W", "S"]);
+    expect(half("F12")).toEqual(["W", "N"]);
+    // Tile 3 (top-right): its B4 (board B16) and B5 (board B17).
+    expect(half("B16")).toEqual(["N"]);
+    expect(half("B17")).toEqual(["N", "E"]);
+    // Tile 5 (bottom-middle): its C5 (board I11) opens east only; D3 (board J9) is open water;
+    // F3 (board L9) is blocked to the west.
+    expect(half("I11")).toEqual(["N", "W", "S"]);
+    expect(portSides(map, sq("I11"))).toEqual(["E"]);
+    expect(map.squares[sq("J9").r][sq("J9").c].island).toBeNull();
+    expect(half("L9")).toEqual(["W"]);
+    expect(canSail(map, sq("L8"), "E")).toBe(false);
+    expect(canSail(map, sq("K9"), "S")).toBe(true);
+  });
+
   it("enters a diagonal port from any side facing water", () => {
     // Tile 1's B2 islet is half land (jungle to the west) with its port on the water side.
     expect(portSides(map, sq("B2"))).toEqual(["N", "E", "S"]);
