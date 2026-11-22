@@ -33,7 +33,7 @@ the start screen for a summary of the rules. Everything in the rulebook is in:
 
 Games save automatically in the browser, so a refresh doesn't lose them.
 
-The quotation board prices in `lib/stocks.ts` are copied row for row from the playtest board.
+The quotation board prices in `games/stock-market/lib/stocks.ts` are copied row for row from the playtest board.
 
 ```bash
 npm test      # rules engine tests + simulated bot games
@@ -53,7 +53,7 @@ phones. It runs on Firebase's free Spark plan with no game server:
 - **`firestore.rules`** limits who may write: only seated players, one version at a time, on their own turn or
   a bot's turn. Players' phones roll the dice, so a determined player
   could cheat; fine among friends.
-- The Firebase web config lives in `lib/firebase.ts` (public values).
+- The Firebase web config lives in `shared/firebase.ts` (public values).
 
 ```bash
 npm run test:rules   # security rules tests against the Firestore emulator
@@ -64,14 +64,30 @@ NEXT_PUBLIC_FIREBASE_EMULATORS=1 npm run dev
 
 ## Where things live
 
-| File | What it holds |
-| --- | --- |
-| `lib/stocks.ts` | The eight companies (names, colors) and their quotation board price ladders |
-| `lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
-| `lib/engine.ts` | All game rules: state, turn phases and actions |
-| `lib/bot.ts` | Computer player strategy |
-| `lib/online.ts`, `lib/rooms.ts`, `lib/firebase.ts` | Online play: resolving moves, rooms in Firestore, sign-in |
-| `firestore.rules` | Who may read and write online rooms |
-| `components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
+The repo is set up to hold several board games. Each game has its own design (no shared styles) and lives
+in its own folder; the only shared code is the account (Firebase sign-in), so one login works in every game.
 
-To rename companies or tweak a square, edit `lib/stocks.ts` or `lib/board.ts`. The board redraws from that data.
+| Path | What it holds |
+| --- | --- |
+| `app/(stock-market)/` | Stock Market's pages: its own root layout (`<html>`, metadata, icons), served at `/` for now |
+| `app/manifest.ts` | The site's Home Screen app manifest (one per site) |
+| `games/stock-market/styles.css` | All of Stock Market's styles, loaded only by its layout |
+| `games/stock-market/lib/stocks.ts` | The eight companies (names, colors) and their quotation board price ladders |
+| `games/stock-market/lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
+| `games/stock-market/lib/engine.ts` | All game rules: state, turn phases and actions |
+| `games/stock-market/lib/bot.ts` | Computer player strategy |
+| `games/stock-market/lib/online.ts`, `games/stock-market/lib/rooms.ts` | Online play: resolving moves, rooms in Firestore |
+| `games/stock-market/components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
+| `shared/firebase.ts` | Firebase setup and the account: guest sign-in, Google sign-in, sign-out, `useFirebaseUser()` |
+| `firestore.rules` | Who may read and write online rooms (each game has its own collection) |
+
+To rename companies or tweak a square, edit `games/stock-market/lib/stocks.ts` or `games/stock-market/lib/board.ts`.
+The board redraws from that data.
+
+### Adding a game
+
+1. Put its code in `games/<game>/` (rules, components, `styles.css`).
+2. Give it a route group with its own root layout, e.g. `app/(<game>)/<game>/layout.tsx` and `page.tsx`. The layout
+   renders its own `<html>`/`<body>` and imports only that game's CSS, so no styles leak between games (moving
+   between games is a full page load).
+3. Use `shared/firebase.ts` for sign-in; give online rooms their own Firestore collection and rules.

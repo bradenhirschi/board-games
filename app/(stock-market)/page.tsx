@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import LocalGame, { SAVE_KEY } from "@/components/Game";
-import OnlineRoom from "@/components/OnlineRoom";
+import LocalGame, { SAVE_KEY } from "@/games/stock-market/components/Game";
+import OnlineRoom from "@/games/stock-market/components/OnlineRoom";
 import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
@@ -15,7 +15,7 @@ import {
   BOT_LEVELS,
   BOT_LEVEL_NAMES,
   type BotLevel,
-} from "@/lib/engine";
+} from "@/games/stock-market/lib/engine";
 import {
   authErrorMessage,
   ensureUser,
@@ -23,8 +23,8 @@ import {
   signInWithGoogle,
   signOutUser,
   useFirebaseUser,
-} from "@/lib/firebase";
-import { createRoom, normalizeCode } from "@/lib/rooms";
+} from "@/shared/firebase";
+import { createRoom, normalizeCode } from "@/games/stock-market/lib/rooms";
 
 const NAME_KEY = "stock-market:name";
 const LAST_ROOM_KEY = "stock-market:last-room";

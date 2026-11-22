@@ -14,9 +14,9 @@ import {
   type Career,
   type Lane,
   type Side,
-} from "@/lib/board";
-import type { Player, Pos } from "@/lib/engine";
-import { STOCKS, lowestPrice } from "@/lib/stocks";
+} from "@/games/stock-market/lib/board";
+import type { Player, Pos } from "@/games/stock-market/lib/engine";
+import { STOCKS, lowestPrice } from "@/games/stock-market/lib/stocks";
 import PriceTracker from "./PriceTracker";
 import { Die } from "./Dice";
 

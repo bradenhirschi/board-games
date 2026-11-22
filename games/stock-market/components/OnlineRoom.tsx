@@ -14,10 +14,19 @@ import {
   BOT_LEVELS,
   BOT_LEVEL_NAMES,
   type BotLevel,
-} from "@/lib/engine";
-import { ensureUser } from "@/lib/firebase";
-import { botDecision, isBotTurn, resolve, type Decision } from "@/lib/online";
-import { RoomError, editLobby, joinRoom, startGame, submitMove, watchRoom, type Replay, type Room } from "@/lib/rooms";
+} from "@/games/stock-market/lib/engine";
+import { ensureUser } from "@/shared/firebase";
+import { botDecision, isBotTurn, resolve, type Decision } from "@/games/stock-market/lib/online";
+import {
+  RoomError,
+  editLobby,
+  joinRoom,
+  startGame,
+  submitMove,
+  watchRoom,
+  type Replay,
+  type Room,
+} from "@/games/stock-market/lib/rooms";
 import { BOT_THINK_MS, GameView, STEP_MS, animateRoll } from "./Game";
 
 const TARGETS = [25_000, 50_000, 100_000, 250_000];

@@ -10,7 +10,7 @@ import {
   type BotLevel,
   type GameState,
 } from "./engine";
-import { firebase } from "./firebase";
+import { firebase } from "@/shared/firebase";
 import type { Resolved } from "./online";
 
 /**
