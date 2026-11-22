@@ -62,6 +62,29 @@ npx firebase emulators:start --project demo-stock-market --only auth,firestore
 NEXT_PUBLIC_FIREBASE_EMULATORS=1 npm run dev
 ```
 
+## Plunder (in progress)
+
+A pirate board game at `/plunder`, built from the owner's rules document. Pass-and-play on one phone
+for 2–5 players; no bots or online play yet.
+
+**Built so far:** a shuffled, randomly turned board; picking one-skull starting islands (highest roll
+picks first, the last to pick starts); a ship in each player's port and three resource cards each;
+turns (a resource card per owned island, roll, sail the fleet with one shared roll plus a square per
+mast, build ships/masts/cannons/lives, bury five gold for a Plunder Point, end turn);
+X-marks-the-spot tokens; Plunder Points (ships + islands + Plunder Point cards) and winning at 10.
+
+**Not built yet:** battles and conquering islands, the storm, trading/threatening/bribing/treaties,
+merchant-island swaps, a captain without a ship, bots, online play.
+
+**Not decided yet** (placeholders in the code):
+
+- **Treasure cards:** the deck hasn't been written. Finding an X just shows a "Treasure cards
+  haven't been made yet" message and moves the X.
+- **Resource card counts:** the deck is a placeholder 40 of each resource (wood, iron, rum, gold),
+  `CARDS_PER_RESOURCE` in `games/plunder/lib/engine.ts`.
+- **Six players:** every player starts on a one-skull island and the board has five, so the game
+  allows up to 5 players for now.
+
 ## Where things live
 
 The repo is set up to hold several board games. Each game has its own design (no shared styles) and lives

@@ -62,7 +62,11 @@ rules, how online play works, and the file map; read it first.
   `games/plunder/lib/tileArt.ts` (generated, Prettier-ignored); icons are placed per tile in
   `tiles.ts` (`icons`). The owner wants a 1:1 graphical match with the sample: compare silhouettes
   against it when changing the art. `canSail` encodes this. `/plunder/tiles` shows each tile with a
-  "Show sailing" overlay. `games/plunder/components/Art.tsx` draws it.
+  "Show sailing" overlay. `games/plunder/components/Art.tsx` draws it. Rules engine:
+  `games/plunder/lib/engine.ts` (pure reducer like Stock Market's; dice on actions, other luck from
+  a seeded generator in the state). Status and open questions are in the README's Plunder section.
+  Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
+  an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3.
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;
