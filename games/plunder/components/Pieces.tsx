@@ -1,6 +1,6 @@
 import type { PlayerColor, Resource, Ship } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
-import { S } from "./Art";
+import { S, SkullShapes } from "./Art";
 
 /** Player colours, matching the physical game's ships and flags. */
 export const COLOR_HEX: Record<PlayerColor, string> = {
@@ -67,13 +67,29 @@ export function ShipPiece({
   );
 }
 
-/** An X-marks-the-spot token. */
+/**
+ * The X-marks-the-spot cross: OpenMoji's "heavy multiplication x" (openmoji.org, CC BY-SA 4.0),
+ * from games/plunder/art/x-mark.svg, in red. Its 72-unit square, with the cross from 18 to 54.
+ */
+const X_POINTS = "30,36 18,24 24,18 36,30 48,18 54,24 42,36 54,48 48,54 36,42 24,54 18,48";
+
+/** An X-marks-the-spot token on the board. */
 export function XMark({ at }: { at: Pos }) {
   const { x, y } = centre(at);
   return (
-    <g transform={`translate(${x} ${y})`} className="pl-x">
-      <path d="M-2.6 -2.6 L2.6 2.6 M2.6 -2.6 L-2.6 2.6" />
+    <g transform={`translate(${x} ${y}) scale(0.16) translate(-36 -36)`} className="pl-x">
+      <polygon className="pl-x-fill" points={X_POINTS} />
+      <polygon className="pl-x-line" points={X_POINTS} />
     </g>
+  );
+}
+
+/** The skull and crossbones as an inline icon, sized to the text around it. */
+export function SkullIcon({ size = "1.1em" }: { size?: string | number }) {
+  return (
+    <svg className="pl-skull-icon" viewBox="9 8 54 54" width={size} height={size} aria-hidden="true">
+      <SkullShapes />
+    </svg>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   RESOURCES,
   atMerchant,
@@ -15,7 +15,7 @@ import {
   type Hand,
   type Resource,
 } from "@/games/plunder/lib/engine";
-import { COLOR_HEX, RESOURCE_NAMES, ResourceIcon } from "./Pieces";
+import { COLOR_HEX, RESOURCE_NAMES, ResourceIcon, SkullIcon } from "./Pieces";
 
 /**
  * The trading panel, laid out like a phone card-game trade screen: a row of resources to ask for,
@@ -147,7 +147,7 @@ function BigButton({
   disabled,
   kind,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -236,7 +236,7 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
                     aria-selected={c.mode === "threat"}
                     onClick={() => set({ mode: "threat", give: {}, threatTo: threatened[0] })}
                   >
-                    ☠ Threaten
+                    <SkullIcon /> Threaten
                   </button>
                 </div>
               )}
@@ -313,7 +313,7 @@ export default function TradePanel({ game: s, start, onAct, onClose }: Props) {
               )}
               {c.mode === "threat" && (
                 <BigButton
-                  icon="☠"
+                  icon={<SkullIcon size={28} />}
                   label="Threaten"
                   kind="ok"
                   disabled={!cardCount(c.want) || c.threatTo === null}

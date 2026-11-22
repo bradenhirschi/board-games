@@ -41,7 +41,17 @@ import {
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
 import TradePanel from "./Trade";
-import { COLOR_HEX, Flag, RESOURCE_NAMES, ResourceIcon, ShipPiece, SquareMark, StormPiece, XMark } from "./Pieces";
+import {
+  COLOR_HEX,
+  Flag,
+  RESOURCE_NAMES,
+  ResourceIcon,
+  ShipPiece,
+  SkullIcon,
+  SquareMark,
+  StormPiece,
+  XMark,
+} from "./Pieces";
 
 const same = (a: Pos, b: Pos) => a.r === b.r && a.c === b.c;
 const key = (p: Pos) => `${p.r},${p.c}`;
@@ -367,9 +377,14 @@ export default function PlunderGame({ game, onChange, onNewGame, holder, onHolde
               const isl = t.kind === "island" ? allIslands.find((i) => i.id === t.id) : undefined;
               const owner = t.kind === "ship" ? s.ships.find((sh) => sh.id === t.id)!.owner : s.owners[t.id];
               const label =
-                t.kind === "ship"
-                  ? `${s.players[owner!].name}'s ship`
-                  : `${owner === undefined ? "Island" : `${s.players[owner].name}'s island`} (${isl?.skulls ?? 0}☠)`;
+                t.kind === "ship" ? (
+                  `${s.players[owner!].name}'s ship`
+                ) : (
+                  <>
+                    {owner === undefined ? "Island" : `${s.players[owner].name}'s island`} ({isl?.skulls ?? 0}
+                    <SkullIcon />)
+                  </>
+                );
               return (
                 <button
                   key={`${t.kind}${t.id}`}
@@ -926,7 +941,8 @@ function OtherWaysSheet({
           <div className="pl-build-ships">
             {owned.map((i) => (
               <button key={i.id} className="pl-chip" onClick={() => onPick({ disown: i.id })}>
-                Island at {squareName(i.squares[0])} ({i.skulls}☠)
+                Island at {squareName(i.squares[0])} ({i.skulls}
+                <SkullIcon />)
               </button>
             ))}
           </div>

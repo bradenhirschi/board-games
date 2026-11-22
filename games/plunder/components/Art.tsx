@@ -185,11 +185,12 @@ function Anchor() {
 
 /**
  * Skull and crossbones: OpenMoji's emoji artwork (openmoji.org, CC BY-SA 4.0), kept as-is from
- * games/plunder/art/skull-and-crossbones.svg. Its 72-unit square is centred and scaled to icon size.
+ * games/plunder/art/skull-and-crossbones.svg, in its own 72-unit square. Used on the board (`Skull`)
+ * and inline in text (`SkullIcon` in Pieces.tsx), so both are identical.
  */
-function Skull() {
+export function SkullShapes() {
   return (
-    <g className="pl-icon-skull" transform="scale(0.088) translate(-36 -34)">
+    <>
       <path
         fill="#FFFFFF"
         d="M40.5261,16.9202c-1.4058-0.4271-2.8669-0.6444-4.3361-0.6449h-0.0302 c-1.0484,0.0035-2.0939,0.1118-3.1208,0.3233c-3.6363,0.783-6.8667,2.8547-9.0952,5.8328 c-1.6956,2.2231-2.8175,4.8296-3.2665,7.5892c-0.9016,5.1673,0.5755,10.4656,4.0203,14.4212l0.1114,0.1248 c0.8836,0.9967,2.0939,2.3619,2.0939,3.8143l-0.0184,4.1778c0,0.4626-0.375,0.8376-0.8376,0.8376l0,0 c1.8614,0.9501,3.8344,1.6637,5.873,2.1241c3.1924,0.7191,6.5139,0.6284,9.6622-0.2638 C44.2751,42.5448,43.5639,29.2676,40.5261,16.9202z"
@@ -316,6 +317,15 @@ function Skull() {
         strokeWidth="2"
         d="M52.4968,47.0821 c1.4533,1.4439,2.4367,2.4179,2.7444,2.7162c0.6553-1.3027,2.133-1.943,3.4588-1.5463c1.3739,0.4111,2.157,1.8078,2.036,2.9537 c-0.1677,1.5889-2.11,3.0402-4.4383,2.5565c0.4057,1.5126,0.0682,3.0622-0.9331,3.9948c-1.6539,1.5404-4.3294,0.6137-4.9897-0.9177 c-0.469-1.0879-0.1927-2.2976,1.4383-3.5051c-0.2579-0.25-0.9912-0.9755-2.0786-2.055"
       />
+    </>
+  );
+}
+
+/** The skull on the board, centred and scaled to icon size. */
+function Skull() {
+  return (
+    <g className="pl-icon-skull" transform="scale(0.088) translate(-36 -34)">
+      <SkullShapes />
     </g>
   );
 }
