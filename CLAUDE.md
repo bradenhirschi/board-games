@@ -66,7 +66,9 @@ rules, how online play works, and the file map; read it first.
   `games/plunder/lib/engine.ts` (pure reducer like Stock Market's; dice on actions, other luck from
   a seeded generator in the state). Status and open questions are in the README's Plunder section.
   Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
-  an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3.
+  an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
+  sailing over an X collects it (several per turn is fine); the first turn has no resource draw.
+  Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
 - Stock Market paths below are relative to `games/stock-market/` unless they start with `app/`.
 
 - `lib/engine.ts`: pure rules reducer over a serialisable `GameState` (no clocks or randomness;

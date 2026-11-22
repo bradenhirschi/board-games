@@ -97,7 +97,8 @@ export const TILES: TileDef[] = [
       B3: { skulls: 2 },
       C2: { half: ["N"] },
       C3: { half: ["N", "E"], port: "diagonal" },
-      E4: { half: ["W", "S"] },
+      // A one-skull island, its own port (no anchor on the print yet), opening north and east.
+      E4: { half: ["W", "S"], skulls: 1, port: "diagonal" },
       F6: { half: ["W", "N"] },
     },
     barriers: [
@@ -112,6 +113,8 @@ export const TILES: TileDef[] = [
       { kind: "skull", x: 23.4, y: 15.9 },
       { kind: "skull", x: 26.4, y: 15.9 },
       { kind: "anchor-tilted", x: 23.9, y: 26.4 },
+      { kind: "skull", x: 33.2, y: 46.4 },
+      { kind: "anchor-tilted", x: 37.6, y: 43.4 },
     ],
   },
   {

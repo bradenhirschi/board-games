@@ -28,8 +28,8 @@ import {
 } from "./tiles";
 
 export const MIN_PLAYERS = 2;
-/** Every player starts on a one-skull island, and the board has five. */
-export const MAX_PLAYERS = 5;
+/** Every player starts on a one-skull island, and the board has six. */
+export const MAX_PLAYERS = 6;
 export const WIN_POINTS = 10;
 
 export const PLAYER_COLORS = ["red", "purple", "yellow", "green", "grey", "brown"] as const;
@@ -60,7 +60,7 @@ export const COSTS: Record<Build, Partial<Hand>> = {
   life: { wood: 1, iron: 1, rum: 1, gold: 1 },
 };
 
-export type PlayerSetup = { name: string; color: PlayerColor };
+export type PlayerSetup = { name: string; color: PlayerColor; isBot?: boolean };
 
 export type Player = PlayerSetup & { hand: Hand; plunderCards: number };
 
@@ -414,9 +414,8 @@ export function reducer(s: GameState, a: Action): GameState {
       out = log(out, `${s.players[player].name} claimed an island.`);
       const index = s.phase.index + 1;
       if (index < s.phase.order.length) return { ...out, turn: s.phase.order[index], phase: { ...s.phase, index } };
-      // The last to pick goes first, starting their turn like any other: a card per island owned.
-      out = { ...out, turn: player, phase: { t: "turn", roll: null, moves: 0 } };
-      return draw(out, player, Object.values(out.owners).filter((o) => o === player).length);
+      // The last to pick goes first. No resource draw on this very first turn: everyone has their three.
+      return { ...out, turn: player, phase: { t: "turn", roll: null, moves: 0 } };
     }
 
     case "roll": {

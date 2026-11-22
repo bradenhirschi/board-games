@@ -69,15 +69,15 @@ describe("plunder setup", () => {
     ).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
-  it("offers the five one-skull islands to start on", () => {
+  it("offers the six one-skull islands to start on", () => {
     expect(
       startingIslands(DEFAULT_LAYOUT)
         .map((i) => i.id)
         .sort(),
-    ).toEqual(["1a", "3f", "4d", "5b", "6d"]);
+    ).toEqual(["1a", "2c", "3f", "4d", "5b", "6d"]);
   });
 
-  it("picks islands highest roll first; the last to pick starts, drawing a card for their island", () => {
+  it("picks islands highest roll first; the last to pick starts, without drawing on that first turn", () => {
     let s = newGame(setup, 42, DEFAULT_LAYOUT, [2, 6]);
     expect(s.phase).toMatchObject({ t: "pickIsland", order: [1, 0] });
     s = play(s, { t: "pickIsland", island: "1a" });
@@ -87,7 +87,7 @@ describe("plunder setup", () => {
     s = play(s, { t: "pickIsland", island: "4d" });
     expect(s.phase).toEqual({ t: "turn", roll: null, moves: 0 });
     expect(s.turn).toBe(0);
-    expect(Object.values(s.players[0].hand).reduce((a, b) => a + b, 0)).toBe(STARTING_CARDS + 1);
+    expect(Object.values(s.players[0].hand).reduce((a, b) => a + b, 0)).toBe(STARTING_CARDS);
   });
 });
 

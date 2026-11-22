@@ -20,19 +20,19 @@ export default function Setup({
 }) {
   const [players, setPlayers] = useState<PlayerSetup[]>([
     { name: "Player 1", color: "red" },
-    { name: "Player 2", color: "purple" },
+    { name: "Bot 1", color: "purple", isBot: true },
   ]);
   const used = new Set(players.map((p) => p.color));
   const update = (i: number, patch: Partial<PlayerSetup>) =>
     setPlayers((ps) => ps.map((p, k) => (k === i ? { ...p, ...patch } : p)));
   const add = () => {
     const color = PLAYER_COLORS.find((c) => !used.has(c)) as PlayerColor;
-    setPlayers((ps) => [...ps, { name: `Player ${ps.length + 1}`, color }]);
+    setPlayers((ps) => [...ps, { name: `Bot ${ps.filter((p) => p.isBot).length + 1}`, color, isBot: true }]);
   };
 
   return (
     <div className="pl-setup">
-      <p className="pl-setup-lead">Pass and play on this phone. First to 10 Plunder Points wins.</p>
+      <p className="pl-setup-lead">Pass and play, with bots if you like. First to 10 points wins.</p>
       {onResume && (
         <button className="pl-btn pl-btn-wide" onClick={onResume}>
           Resume saved game
@@ -48,6 +48,24 @@ export default function Setup({
               aria-label={`Player ${i + 1} name`}
               onChange={(e) => update(i, { name: e.target.value })}
             />
+            <div className="pl-toggle" role="radiogroup" aria-label={`${p.name}: person or bot`}>
+              <button
+                role="radio"
+                aria-checked={!p.isBot}
+                className={!p.isBot ? "on" : ""}
+                onClick={() => update(i, { isBot: false })}
+              >
+                Person
+              </button>
+              <button
+                role="radio"
+                aria-checked={!!p.isBot}
+                className={p.isBot ? "on" : ""}
+                onClick={() => update(i, { isBot: true })}
+              >
+                Bot
+              </button>
+            </div>
             <div className="pl-swatches" role="radiogroup" aria-label={`Player ${i + 1} colour`}>
               {PLAYER_COLORS.map((c) => (
                 <button

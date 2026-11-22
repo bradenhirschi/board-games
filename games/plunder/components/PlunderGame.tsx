@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { botAction } from "@/games/plunder/lib/bot";
 import {
   COSTS,
   GOLD_TO_BURY,
@@ -36,7 +37,19 @@ function flagSpot(squares: Pos[], ports: Pos[]): Pos {
   return squares.find((p) => !ports.some((q) => same(p, q))) ?? squares[0];
 }
 
-type Props = { game: GameState; onChange: (g: GameState) => void; onNewGame: () => void };
+type Props = {
+  game: GameState;
+  onChange: (g: GameState) => void;
+  onNewGame: () => void;
+  /** The human who has the phone (after tapping through the hand-over cover). */
+  holder: number | null;
+  onHolder: (player: number) => void;
+};
+
+/** How long a bot pauses before each move, so people can follow it. */
+const BOT_STEP_MS = 750;
+/** How long a bot's treasure find stays on screen. */
+const BOT_NOTICE_MS = 1600;
 
 /**
  * The game on one phone screen: the board on top, then a strip with whose turn it is, their cards
@@ -50,12 +63,10 @@ export function turnKey(g: GameState): string {
   return `${p.t === "pickIsland" ? p.order[p.index] : g.turn}:${p.t}`;
 }
 
-export default function PlunderGame({ game, onChange, onNewGame }: Props) {
+export default function PlunderGame({ game, onChange, onNewGame, holder, onHolder }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [placing, setPlacing] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
-  /** The player who has the phone (after tapping through the hand-over cover). */
-  const [holder, setHolder] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
 
   const s = game;
@@ -65,7 +76,37 @@ export default function PlunderGame({ game, onChange, onNewGame }: Props) {
   const me = s.players[current];
   const myShips = s.ships.filter((sh) => sh.owner === current);
   const ship: Ship | undefined = s.ships.find((sh) => sh.id === selected && sh.owner === current) ?? undefined;
-  const covered = holder !== current && phase.t !== "gameOver";
+  const isBot = !!me.isBot;
+  const humans = s.players.filter((p) => !p.isBot).length;
+  // Cover the screen when the phone passes between people. Bots don't need it, nor does a lone human.
+  const covered = !isBot && phase.t !== "gameOver" && humans > 1 && holder !== current;
+  const notice: Notice | undefined = covered ? undefined : s.notices[0];
+  const botNotice = notice && s.players[notice.player].isBot;
+
+  // Bots play by themselves, one visible step at a time.
+  useEffect(() => {
+    if (!isBot || phase.t === "gameOver" || rolling) return;
+    if (notice) {
+      // A bot's treasure find shows for a moment; what it drew stays private and moves on at once.
+      const t = window.setTimeout(
+        () => onChange({ ...s, notices: s.notices.slice(1) }),
+        notice.t === "treasure" ? BOT_NOTICE_MS : 0,
+      );
+      return () => window.clearTimeout(t);
+    }
+    const a = botAction(s);
+    if (!a) return;
+    const t = window.setTimeout(() => {
+      if (a.t === "roll") {
+        setRolling(true);
+        window.setTimeout(() => {
+          setRolling(false);
+          onChange(reducer(s, { t: "roll", die: 1 + Math.floor(Math.random() * 6) }));
+        }, 550);
+      } else onChange(reducer(s, a));
+    }, BOT_STEP_MS);
+    return () => window.clearTimeout(t);
+  }, [s, isBot, phase.t, notice, onChange, rolling]);
 
   const reach = useMemo(
     () => (ship && phase.t === "turn" ? reachable(s, ship) : new Map<string, Pos[]>()),
@@ -79,7 +120,7 @@ export default function PlunderGame({ game, onChange, onNewGame }: Props) {
   const allIslands = useMemo(() => islandsOf(s.layout), [s.layout]);
 
   function onSquareTap(p: Pos) {
-    if (covered) return;
+    if (covered || isBot) return;
     if (phase.t === "pickIsland") {
       const isl = startIsles.find((i) => i.squares.some((q) => same(q, p)) || i.ports.some((q) => same(q, p)));
       if (isl) act({ t: "pickIsland", island: isl.id });
@@ -111,12 +152,13 @@ export default function PlunderGame({ game, onChange, onNewGame }: Props) {
     }, 550);
   }
 
-  const notice: Notice | undefined = covered ? undefined : s.notices[0];
   const focus = ship?.pos ?? (phase.t === "turn" && myShips[0] ? myShips[0].pos : null);
 
   // What the strip under the board says.
   let status: string;
-  if (phase.t === "pickIsland") status = "Pick your starting island";
+  if (isBot && phase.t !== "gameOver")
+    status = rolling ? "Rolling…" : phase.t === "pickIsland" ? "Choosing an island…" : "Thinking…";
+  else if (phase.t === "pickIsland") status = "Pick your starting island";
   else if (phase.t === "gameOver") status = `${s.players[phase.winner].name} wins!`;
   else if (placing) status = "Tap a green square for your new ship";
   else if (phase.roll === null) status = "Roll to sail, or build first";
@@ -170,13 +212,13 @@ export default function PlunderGame({ game, onChange, onNewGame }: Props) {
             {RESOURCES.map((r) => (
               <span key={r} className="pl-card-count" title={RESOURCE_NAMES[r]}>
                 <ResourceIcon r={r} />
-                <b>{covered ? "–" : me.hand[r]}</b>
+                <b>{covered || isBot ? "–" : me.hand[r]}</b>
               </span>
             ))}
           </div>
         )}
 
-        {phase.t === "turn" && (
+        {phase.t === "turn" && !isBot && (
           <div className="pl-actions">
             {placing ? (
               <button className="pl-btn pl-btn-wide" onClick={() => setPlacing(false)}>
@@ -231,13 +273,20 @@ export default function PlunderGame({ game, onChange, onNewGame }: Props) {
         <div className="pl-cover" role="dialog" aria-label="Pass the phone">
           <span className="pl-dot pl-dot-big" style={{ background: COLOR_HEX[me.color] }} />
           <p className="pl-cover-title">Pass the phone to {me.name}</p>
-          <button className="pl-btn pl-btn-main" onClick={() => setHolder(current)}>
+          <button className="pl-btn pl-btn-main" onClick={() => onHolder(current)}>
             I&rsquo;m {me.name}
           </button>
         </div>
       )}
 
-      {notice && <NoticeDialog notice={notice} game={s} onOk={() => onChange({ ...s, notices: s.notices.slice(1) })} />}
+      {notice && botNotice && notice.t === "treasure" && (
+        <div className="pl-toast" role="status">
+          {s.players[notice.player].name} found a Treasure card
+        </div>
+      )}
+      {notice && !botNotice && (
+        <NoticeDialog notice={notice} game={s} onOk={() => onChange({ ...s, notices: s.notices.slice(1) })} />
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { authErrorMessage, onlineAvailable, signInWithGoogle, signOutUser, useFirebaseUser } from "@/shared/firebase";
 import { newGame, randomLayout, type GameState, type PlayerSetup } from "@/games/plunder/lib/engine";
 import PlunderGame, { turnKey } from "./PlunderGame";
@@ -31,6 +31,8 @@ function save(g: GameState | null) {
 export default function PlunderHome() {
   const [game, setGame] = useState<GameState | null>(null);
   const [saved, setSaved] = useState<GameState | null>(null);
+  /** The human holding the phone (kept across turns so the hand-over cover shows only on a change). */
+  const [holder, setHolder] = useState<number | null>(null);
   // Read the saved game after mounting (localStorage isn't there during the static render).
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -46,13 +48,14 @@ export default function PlunderHome() {
     while (rolls.filter((r) => r === Math.max(...rolls)).length > 1);
     const g = newGame(players, seed, randomLayout(seed ^ 0x9e3779b9), rolls);
     setGame(g);
+    setHolder(null);
     save(g);
   }
 
-  function change(g: GameState) {
+  const change = useCallback((g: GameState) => {
     setGame(g);
     save(g);
-  }
+  }, []);
 
   return (
     <main className="pl-screen">
@@ -75,7 +78,14 @@ export default function PlunderHome() {
         )}
       </header>
       {game ? (
-        <PlunderGame key={turnKey(game)} game={game} onChange={change} onNewGame={() => setGame(null)} />
+        <PlunderGame
+          key={turnKey(game)}
+          game={game}
+          onChange={change}
+          onNewGame={() => setGame(null)}
+          holder={holder}
+          onHolder={setHolder}
+        />
       ) : (
         <Setup onStart={start} onResume={saved ? () => setGame(saved) : undefined} />
       )}

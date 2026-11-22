@@ -105,7 +105,7 @@ describe("plunder tiles", () => {
       {},
     );
     expect(kinds.merchant).toBe(2); // the two barrels: tiles 1 and 5
-    expect(kinds.resource).toBe(9);
+    expect(kinds.resource).toBe(10);
     const crescent = islands(boardMap()).find((i) => i.id === "6b")!;
     expect(crescent).toMatchObject({ kind: "resource", skulls: 3 });
   });

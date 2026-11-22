@@ -913,3 +913,81 @@ body {
   flex: none;
   margin-top: 6px;
 }
+
+/* ---- Bots ---- */
+
+.pl-setup-players {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pl-setup-players li {
+  grid-template-columns: 1fr auto auto;
+}
+
+.pl-setup-players .pl-swatches {
+  grid-column: 1 / -1;
+}
+
+.pl-toggle {
+  display: flex;
+  border: 1px solid #d9a44188;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pl-toggle button {
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--pl-parchment);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pl-toggle button.on {
+  background: var(--pl-gold);
+  color: var(--pl-sea);
+  font-weight: 700;
+}
+
+.pl-toast {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  z-index: 45;
+  transform: translateX(-50%);
+  padding: 12px 18px;
+  border: 2px solid var(--pl-gold);
+  border-radius: 12px;
+  background: #1b2a38f2;
+  color: var(--pl-gold);
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pl-setup-players li > .pl-close {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+.pl-setup-players li > .pl-swatches {
+  grid-row: 2;
+}
+
+.pl-setup-players .pl-input {
+  padding: 6px 10px;
+}
+
+.pl-setup-players .pl-toggle button {
+  padding: 6px 9px;
+}
+
+.pl-setup-players {
+  padding: 4px;
+  margin: -4px;
+}
