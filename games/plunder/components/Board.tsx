@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 import { COLS, ROWS, ROW_LETTERS, tilePosition } from "@/games/plunder/lib/board";
 
 /** One tile = U units in the SVG. The border is one tile thick on every side. */
@@ -77,27 +77,96 @@ function BoardSvg() {
   );
 }
 
+/** A swipe this far (px) always flips sides; shorter drags snap to the nearer side. */
+const SWIPE_FLIP = 40;
+/** Movement (px) before a touch counts as a drag rather than a tap. */
+const DRAG_START = 8;
+
 /**
- * The board, drawn wider than a phone screen so it stays readable. A small button on the edge
- * slides it to show the left or the right side.
+ * The board, drawn wider than a phone screen so it stays readable. Swipe it, or tap the
+ * button below it, to slide between its left and right side. On wide screens it all fits.
  */
 export default function Board() {
   const [side, setSide] = useState<"left" | "right">("left");
+  /** While a finger is dragging the board: its offset in px (0 = left side, -max = right side). */
+  const [drag, setDrag] = useState<{ offset: number; max: number } | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const gesture = useRef<{ id: number; x: number; base: number; max: number; moved: boolean } | null>(null);
+
+  function onPointerDown(e: PointerEvent) {
+    const viewport = viewportRef.current;
+    const track = trackRef.current;
+    if (!viewport || !track) return;
+    const max = track.offsetWidth - viewport.clientWidth;
+    if (max <= 0) return; // the whole board fits: nothing to slide
+    gesture.current = { id: e.pointerId, x: e.clientX, base: side === "left" ? 0 : -max, max, moved: false };
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    const dx = e.clientX - g.x;
+    if (!g.moved) {
+      if (Math.abs(dx) < DRAG_START) return;
+      g.moved = true;
+      viewportRef.current?.setPointerCapture(e.pointerId);
+    }
+    setDrag({ offset: Math.min(0, Math.max(-g.max, g.base + dx)), max: g.max });
+  }
+
+  function onPointerEnd(e: PointerEvent) {
+    const g = gesture.current;
+    if (!g || g.id !== e.pointerId) return;
+    gesture.current = null;
+    if (!g.moved) return;
+    const dx = e.clientX - g.x;
+    const offset = g.base + dx;
+    if (dx <= -SWIPE_FLIP) setSide("right");
+    else if (dx >= SWIPE_FLIP) setSide("left");
+    else setSide(offset < -g.max / 2 ? "right" : "left");
+    setDrag(null);
+  }
+
+  // How far across the board the view is, 0 (left side) to 1 (right side), for the button's indicator.
+  const progress = drag ? -drag.offset / drag.max : side === "left" ? 0 : 1;
   const toRight = side === "left";
+
   return (
-    <div className="pl-board-viewport">
-      <div className={`pl-board-track pl-show-${side}`}>
-        <BoardSvg />
-      </div>
-      <button
-        className={`pl-slide pl-slide-${toRight ? "right" : "left"}`}
-        aria-label={toRight ? "Show the right side of the board" : "Show the left side of the board"}
-        onClick={() => setSide(toRight ? "right" : "left")}
+    <>
+      <div
+        ref={viewportRef}
+        className="pl-board-viewport"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
       >
-        <svg viewBox="0 0 10 10" aria-hidden="true">
-          <path d={toRight ? "M3.5 1.5 L7 5 L3.5 8.5" : "M6.5 1.5 L3 5 L6.5 8.5"} />
-        </svg>
-      </button>
-    </div>
+        <div
+          ref={trackRef}
+          className={`pl-board-track pl-show-${side}${drag ? " pl-dragging" : ""}`}
+          style={drag ? { transform: `translateX(${drag.offset}px)` } : undefined}
+        >
+          <BoardSvg />
+        </div>
+      </div>
+      <div className={`pl-slide-bar${drag ? " pl-dragging" : ""}`}>
+        <button
+          className="pl-slide"
+          aria-label={toRight ? "Show the right side of the board" : "Show the left side of the board"}
+          onClick={() => setSide(toRight ? "right" : "left")}
+        >
+          <svg className={`pl-slide-arrow${toRight ? "" : " on"}`} viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M6.5 1.5 L3 5 L6.5 8.5" />
+          </svg>
+          <span className="pl-slide-rail" aria-hidden="true">
+            <span className="pl-slide-thumb" style={{ left: `${progress * 31}%` }} />
+          </span>
+          <svg className={`pl-slide-arrow${toRight ? " on" : ""}`} viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M3.5 1.5 L7 5 L3.5 8.5" />
+          </svg>
+        </button>
+      </div>
+    </>
   );
 }
