@@ -27,6 +27,8 @@ import {
   reachable,
   shipSpots,
   startingIslands,
+  treasureNeed,
+  nudgeReach,
   type Action,
   type Battle,
   type Build,
@@ -40,6 +42,7 @@ import {
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
 import TradePanel from "./Trade";
+import { TreasureDialog, TreasureResult, boardNeed, treasurePrompt } from "./Treasure";
 import {
   COLOR_HEX,
   Flag,
@@ -88,7 +91,7 @@ const BOT_STEP_MS = 750;
 const BOT_NOTICE_MS: Record<Notice["t"], number> = {
   deal: 1800,
   noDeal: 1600,
-  treasure: 1600,
+  treasure: 3400,
   battle: 2600,
   doubles: 1600,
   drew: 0,
@@ -186,6 +189,19 @@ export default function PlunderGame({
   const botNotice = !!notice && !canControl(notice.player) && notice.t !== "drew";
   const passing = !!notice && (botNotice || notice.t === "deal" || notice.t === "noDeal");
   const negotiating = !!s.trade || s.pendingAttack?.stage === "bribe";
+  // A Treasure card waiting on a choice (this device's, or someone else's to watch).
+  const found = phase.t === "turn" ? (s.found?.[0] ?? null) : null;
+  const tNeed = useMemo(() => (found ? treasureNeed(s) : null), [s, found]);
+  const myTreasure = !!found && !!tNeed && canControl(actor) && !covered;
+  // Choices made on the board: the card steps aside, and a first tap (an enemy ship, your island) is
+  // remembered here until the second. Reset whenever a different card (or stage) is up.
+  const tKey = found ? `${s.log.length}:${found.card}:${found.stage ?? ""}:${found.lose ?? ""}` : "";
+  const [tPickState, setTPick] = useState<{ key: string; onBoard: boolean; ship?: number; island?: string }>({
+    key: "",
+    onBoard: false,
+  });
+  const tPick = tPickState.key === tKey ? tPickState : { key: tKey, onBoard: false };
+  const pickOnBoard = myTreasure && boardNeed(tNeed) && tPick.onBoard;
   const [tradeOpen, setTradeOpen] = useState(false);
 
   useEffect(() => {
@@ -238,8 +254,8 @@ export default function PlunderGame({
 
   const reach = useMemo(
     // Only for ships played from this device.
-    () => (ship && phase.t === "turn" && !isBot ? reachable(s, ship) : new Map<string, Pos[]>()),
-    [s, ship, phase.t, isBot],
+    () => (ship && phase.t === "turn" && !isBot && !found ? reachable(s, ship) : new Map<string, Pos[]>()),
+    [s, ship, phase.t, isBot, found],
   );
   const spots = useMemo(() => (placing ? shipSpots(s, current) : []), [s, placing, current]);
   // The player's ships that can take the chosen upgrade.
@@ -249,7 +265,7 @@ export default function PlunderGame({
     [s, phase.t],
   );
   const allIslands = useMemo(() => islandsOf(s.layout), [s.layout]);
-  const targets = useMemo(() => (ship && !isBot ? attackTargets(s, ship) : []), [s, ship, isBot]);
+  const targets = useMemo(() => (ship && !isBot && !found ? attackTargets(s, ship) : []), [s, ship, isBot, found]);
   // A captain without a ship (and not yet back on the water).
   const captain = phase.t === "turn" && !myShips.length ? (s.captain ?? null) : null;
   const captainSpots = captain?.spots ?? [];
@@ -280,7 +296,82 @@ export default function PlunderGame({
     }, ROLL_MS);
   }
 
+  /** Squares to highlight while a Treasure card is answered on the board. */
+  const tMarks = useMemo((): { at: Pos; kind: "place" | "attack" | "reach" }[] => {
+    if (!pickOnBoard || !tNeed) return [];
+    const shipPos = (ids: number[], kind: "place" | "attack") =>
+      s.ships.filter((sh) => ids.includes(sh.id)).map((sh) => ({ at: sh.pos, kind }));
+    const isles = (ids: string[], kind: "place" | "attack") =>
+      allIslands.filter((i) => ids.includes(i.id)).flatMap((i) => i.squares.map((at) => ({ at, kind })));
+    switch (tNeed.k) {
+      case "ship":
+        return shipPos(tNeed.ships, tNeed.enemy ? "attack" : "place");
+      case "shipTo":
+        return tPick.ship === undefined ? shipPos(tNeed.ships, "attack") : shipPos(tNeed.to, "place");
+      case "square":
+        return tNeed.squares.map((at) => ({ at, kind: "place" }));
+      case "shipSquare":
+        return tPick.ship === undefined
+          ? shipPos(tNeed.ships, "attack")
+          : tNeed.squares.map((at) => ({ at, kind: "place" }));
+      case "shipPath":
+        return tPick.ship === undefined
+          ? shipPos(tNeed.ships, "attack")
+          : [...nudgeReach(s, tPick.ship).values()].map((path) => ({ at: path[path.length - 1], kind: "reach" }));
+      case "islands":
+        return tPick.island === undefined ? isles(tNeed.mine, "place") : isles(tNeed.theirs, "attack");
+      default:
+        return [];
+    }
+  }, [s, pickOnBoard, tNeed, tPick.ship, tPick.island, allIslands]);
+
+  /** A tap on the board while answering a Treasure card there. */
+  function treasureTap(p: Pos) {
+    if (!tNeed) return;
+    const tapped = s.ships.find((sh) => same(sh.pos, p));
+    const send = (a: Omit<Extract<Action, { t: "treasure" }>, "t">) => act({ t: "treasure", ...a });
+    const remember = (patch: { ship?: number; island?: string }) => setTPick({ ...tPick, ...patch });
+    switch (tNeed.k) {
+      case "ship":
+        if (tapped && tNeed.ships.includes(tapped.id)) send({ ship: tapped.id });
+        return;
+      case "shipTo":
+        if (tapped && tNeed.ships.includes(tapped.id)) {
+          if (!tNeed.to.length) send({ ship: tapped.id });
+          else remember({ ship: tapped.id });
+        } else if (tapped && tPick.ship !== undefined && tNeed.to.includes(tapped.id))
+          send({ ship: tPick.ship, to: tapped.id });
+        return;
+      case "square":
+        if (tNeed.squares.some((q) => same(q, p))) send({ at: p });
+        return;
+      case "shipSquare":
+        if (tapped && tNeed.ships.includes(tapped.id)) remember({ ship: tapped.id });
+        else if (tPick.ship !== undefined && tNeed.squares.some((q) => same(q, p))) send({ ship: tPick.ship, at: p });
+        return;
+      case "shipPath": {
+        if (tapped && tNeed.ships.includes(tapped.id)) return remember({ ship: tapped.id });
+        const path = tPick.ship !== undefined ? nudgeReach(s, tPick.ship).get(key(p)) : undefined;
+        if (path) send({ ship: tPick.ship, path });
+        return;
+      }
+      case "islands": {
+        const isl = allIslands.find((i) => i.squares.some((q) => same(q, p)) || i.ports.some((q) => same(q, p)));
+        if (!isl) return;
+        if (tNeed.mine.includes(isl.id)) remember({ island: isl.id });
+        else if (tPick.island !== undefined && tNeed.theirs.includes(isl.id))
+          send({ island: tPick.island, theirs: isl.id });
+        return;
+      }
+    }
+  }
+
   function onSquareTap(p: Pos) {
+    if (pickOnBoard && !locked && !moving) {
+      treasureTap(p);
+      return;
+    }
+    if (found) return;
     if (covered || isBot || locked || rolling || moving || negotiating || tradeOpen) return;
     if (captainSpots.some((q) => same(q, p))) {
       act({ t: "placeShip", at: p });
@@ -355,6 +446,8 @@ export default function PlunderGame({
   else if (phase.t === "pickIsland") status = "Pick your starting island";
   else if (phase.t === "gameOver") status = `${s.players[phase.winner].name} wins!`;
   else if (rolling) status = "Rolling…";
+  else if (pickOnBoard && tNeed) status = treasurePrompt(tNeed, tPick);
+  else if (found) status = "Treasure!";
   else if (upgrading) status = `Tap a ship to give it ${upgrading === "life" ? "an extra life" : `a ${upgrading}`}`;
   else if (placing || captainSpots.length) status = "Tap a green square for your new ship";
   else if (captain)
@@ -397,6 +490,9 @@ export default function PlunderGame({
         {targets.flatMap((t) =>
           targetSquares(t).map((p) => <SquareMark key={`a${t.kind}${t.id}${key(p)}`} at={p} kind="attack" />),
         )}
+        {tMarks.map((m) => (
+          <SquareMark key={`t${key(m.at)}`} at={m.at} kind={m.kind} />
+        ))}
         {s.xs.map((x, i) => (
           <XMark key={`x${i}`} at={x} />
         ))}
@@ -470,7 +566,25 @@ export default function PlunderGame({
           </div>
         )}
 
-        {captain && !isBot && !captainSpots.length && (
+        {pickOnBoard && tNeed && (
+          <div className="pl-actions">
+            <button className="pl-btn" onClick={() => setTPick({ key: tKey, onBoard: false })}>
+              See the card
+            </button>
+            {tNeed.k === "islands" && (
+              <button className="pl-btn" onClick={() => act({ t: "treasure", accept: false })}>
+                Keep my islands
+              </button>
+            )}
+            {tNeed.k === "shipPath" && tPick.ship !== undefined && (
+              <button className="pl-btn" onClick={() => act({ t: "treasure", ship: tPick.ship, path: [] })}>
+                Leave it
+              </button>
+            )}
+          </div>
+        )}
+
+        {captain && !isBot && !captainSpots.length && !found && (
           <div className="pl-actions">
             {!captain.acquired && (
               <button className="pl-btn" onClick={() => setOtherWays(true)}>
@@ -489,7 +603,7 @@ export default function PlunderGame({
           </div>
         )}
 
-        {phase.t === "turn" && !isBot && !captain && (
+        {phase.t === "turn" && !isBot && !captain && !found && (
           <div className="pl-actions">
             {placing || upgrading ? (
               <button
@@ -569,9 +683,11 @@ export default function PlunderGame({
           <p className="pl-cover-title">Pass the device to {s.players[actor].name}</p>
           {actor !== current && (
             <p className="pl-cover-sub">
-              {s.trade
-                ? `${s.players[s.trade.from].name} has an offer for you.`
-                : `${me.name} is attacking you! Bribe or fight?`}
+              {found
+                ? `${me.name} played White Flag on you. Bribe, or lose a life?`
+                : s.trade
+                  ? `${s.players[s.trade.from].name} has an offer for you.`
+                  : `${me.name} is attacking you! Bribe or fight?`}
             </p>
           )}
           <button className="pl-btn pl-btn-main" onClick={() => onHolder(actor)}>
@@ -609,10 +725,25 @@ export default function PlunderGame({
         />
       )}
 
-      {notice && botNotice && notice.t === "treasure" && (
-        <div className="pl-toast" role="status">
-          {s.players[notice.player].name} found a Treasure card
-        </div>
+      {found && tNeed && !notice && !covered && !pickOnBoard && (
+        <TreasureDialog
+          key={tKey}
+          game={s}
+          found={found}
+          need={tNeed}
+          canChoose={myTreasure && !locked}
+          onAct={act}
+          onBoard={() => setTPick({ key: tKey, onBoard: true })}
+        />
+      )}
+      {notice && notice.t === "treasure" && (
+        <TreasureResult
+          game={s}
+          card={notice.card}
+          player={notice.player}
+          result={notice.result}
+          onOk={botNotice ? undefined : onDismiss}
+        />
       )}
       {notice && botNotice && notice.t === "doubles" && (
         <div className="pl-toast" role="status">
@@ -1020,6 +1151,7 @@ function OtherWaysSheet({
 }
 
 function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState; onOk: () => void }) {
+  if (notice.t === "treasure") return null;
   if (notice.t === "battle") {
     return (
       <div className="pl-sheet-backdrop pl-centered">
@@ -1051,14 +1183,6 @@ function NoticeDialog({ notice, game, onOk }: { notice: Notice; game: GameState;
           <>
             <p className="pl-dialog-title">The storm moves!</p>
             <p>A 1 was rolled, so the storm moves to {squareName(notice.at)}. You still sail 1 square.</p>
-          </>
-        ) : notice.t === "treasure" ? (
-          <>
-            <p className="pl-dialog-title">Treasure!</p>
-            <p>
-              {game.players[notice.player].name} found a Treasure card. Treasure cards haven&rsquo;t been made yet, so
-              nothing happens for now.
-            </p>
           </>
         ) : notice.t === "drew" ? (
           <>

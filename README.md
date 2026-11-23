@@ -80,7 +80,20 @@ the storm (a 3×3 square, first placed off the one-skull islands' ports; rolling
 still sail 1; sailing in or out costs 2 cards of your choice, so a ship with nothing to pay is trapped;
 no attacks, treasure or new-ship placement across its edge; islands with every port inside give no
 card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
-Plunder Points (ships + islands + Plunder Point cards) and winning at 10. Basic bots
+Plunder Points (ships + islands + Plunder Point cards) and winning at 10.
+
+**Treasure cards** (`games/plunder/lib/treasureCards.ts` for the printed text, `resolveFind` in
+`engine.ts` for what they do): the owner's 55-card deck (51 different, five of A Pirate's Life),
+shuffled at the start. Sailing over an X draws the top card; it's carried out once the ship stops,
+then goes under the deck. Cards that need a choice wait for it (`treasureNeed`): an enemy player, a
+resource, a die roll, cards to lose, yes/no, or something tapped on the board (a ship, a port, a
+square in the storm, an island). White Flag asks its target for a bribe on their own device. How the
+cards are read (the owner may correct these): "your ship" is the ship that found the X; "steal"
+takes random cards; "enemy" means any other player without a treaty with you this turn; "accessible
+port" is any empty port the ship could reach by water, however far, ignoring the storm; cards move
+ships without tolls and without collecting treasure; a card that ends the turn ends it after the
+rest of that sail's treasure; losing your last ship to a card ends your turn, and a ship sunk by a
+card earns nobody a Plunder Point. Basic bots
 (`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
 when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
 
@@ -107,8 +120,6 @@ Bots are played by any seated device; the room keeps the first save. Saved state
 
 **Not decided yet** (placeholders in the code):
 
-- **Treasure cards:** the deck hasn't been written. Finding an X just shows a "Treasure cards
-  haven't been made yet" message and moves the X.
 - **Resource card counts:** the deck is a placeholder 40 of each resource (wood, iron, rum, gold),
   `CARDS_PER_RESOURCE` in `games/plunder/lib/engine.ts`.
 

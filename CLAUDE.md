@@ -69,7 +69,8 @@ rules, how online play works, and the file map; read it first.
   Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
   an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
   sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
-  attacking costs no moves and can happen before the roll; ships built after the roll can't sail
+  attacking costs no moves and can happen before the roll; Treasure cards are the owner's printed deck
+  (`lib/treasureCards.ts`), with the readings listed in the README; ships built after the roll can't sail
   but can attack; the app rolls islands' defence; sinking against an unowned island gives no card.
   Trading follows the printed rules: offers go to every eligible player, each answers in seat order
   (pass the device), the offerer picks among those who accepted; counters go back and forth; only
