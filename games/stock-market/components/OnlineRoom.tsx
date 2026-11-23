@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
@@ -15,7 +15,6 @@ import {
   BOT_LEVEL_NAMES,
   type BotLevel,
 } from "@/games/stock-market/lib/engine";
-import { ensureUser } from "@/shared/firebase";
 import { botDecision, isBotTurn, resolve, type Decision } from "@/games/stock-market/lib/online";
 import {
   RoomError,
@@ -36,42 +35,33 @@ const DECISION_MS = 350;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function OnlineRoom({ code, name, onQuit, onStatusChange }: {
+export default function OnlineRoom({ code, uid, connectionError, header, name, onQuit, onStatusChange }: {
   code: string;
+  uid: string | undefined;
+  connectionError: boolean;
+  header: ReactNode;
   name: string;
   onQuit: () => void;
   onStatusChange: (status: Room["status"] | undefined) => void;
 }) {
-  const [uid, setUid] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let stop: (() => void) | undefined;
-    let cancelled = false;
-    ensureUser()
-      .then((user) => {
-        if (cancelled) return;
-        setUid(user.uid);
-        stop = watchRoom(code, setRoom, (e) => setError(e.message));
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't connect."));
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, [code]);
+    if (!uid) return;
+    return watchRoom(code, setRoom, (e) => setError(e.message));
+  }, [code, uid]);
 
   const status = error ? undefined : room?.status;
   useEffect(() => {
     onStatusChange(status);
   }, [onStatusChange, status]);
 
-  if (error) return <Notice title="Something went wrong" text={error} onQuit={onQuit} />;
-  if (!uid || room === undefined) return <Notice title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;
-  if (room === null) return <Notice title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
+  if (error || connectionError) return <Notice header={header} title="Something went wrong" text={error ?? "Couldn’t connect."} onQuit={onQuit} />;
+  if (!uid || room === undefined) return <Notice header={header} title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;
+  if (room === null) return <Notice header={header} title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
 
-  if (room.status === "lobby") return <Lobby room={room} uid={uid} name={name} onQuit={onQuit} />;
+  if (room.status === "lobby") return <Lobby header={header} room={room} uid={uid} name={name} onQuit={onQuit} />;
   return <OnlineGame room={room} uid={uid} onQuit={onQuit} />;
 }
 
@@ -81,11 +71,11 @@ function useRemoved(room: Room, uid: string): boolean {
   return wasSeated && !room.memberUids.includes(uid);
 }
 
-function Notice({ title, text, onQuit }: { title: string; text: string; onQuit: () => void }) {
+function Notice({ header, title, text, onQuit }: { header?: ReactNode; title: string; text: string; onQuit: () => void }) {
   return (
     <main className="setup">
       <div className="setup-card">
-        <h1 className="setup-logo">{title}</h1>
+        {header ? <>{header}<h2 className="lobby-heading">{title}</h2></> : <h1 className="setup-logo">{title}</h1>}
         <p className="muted">{text}</p>
         <button className="btn" onClick={onQuit}>
           Back to menu
@@ -99,7 +89,7 @@ function Notice({ title, text, onQuit }: { title: string; text: string; onQuit: 
 // Lobby
 // ---------------------------------------------------------------------------
 
-function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: string; onQuit: () => void }) {
+function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: Room; uid: string; name: string; onQuit: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinName, setJoinName] = useState(name);
@@ -146,7 +136,7 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
   return (
     <main className="setup">
       <div className="setup-card">
-        <h1 className="setup-logo">Stock Market</h1>
+        {header}
         <div className="room-code">
           <span className="muted small">Room code</span>
           <b>{room.code}</b>
@@ -231,7 +221,10 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
               <select
                 value={room.target}
                 disabled={busy}
-                onChange={(e) => run(() => editLobby(room.code, () => ({ target: Number(e.target.value) })))}
+                onChange={(e) => {
+                  const target = Number(e.currentTarget.value);
+                  void run(() => editLobby(room.code, () => ({ target })));
+                }}
               >
                 {TARGETS.map((t) => (
                   <option key={t} value={t}>
@@ -247,7 +240,10 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
                 <select
                   value={room.botLevel}
                   disabled={busy}
-                  onChange={(e) => run(() => editLobby(room.code, () => ({ botLevel: e.target.value as BotLevel })))}
+                  onChange={(e) => {
+                    const botLevel = e.currentTarget.value as BotLevel;
+                    void run(() => editLobby(room.code, () => ({ botLevel })));
+                  }}
                 >
                   {BOT_LEVELS.map((l) => (
                     <option key={l} value={l}>
@@ -258,7 +254,7 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
               </label>
             )}
             <button
-              className="btn btn-primary btn-big"
+              className="btn btn-primary btn-big stock-lobby-start"
               disabled={busy || room.seats.length < MIN_PLAYERS}
               onClick={() => run(() => startGame(room.code))}
             >

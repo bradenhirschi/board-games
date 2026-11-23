@@ -72,15 +72,17 @@ describe("creating a room", () => {
   const newRoom = (uid: string, code: string) => db(uid).doc(`stockMarketRooms/${code}`);
   const newLobby = lobby({ code: "F01" });
 
-  it("lets the host create a three-character room using letters and numbers", async () => {
-    await assertSucceeds(newRoom("host", "F01").set(newLobby));
+  it("lets the host create rooms with three or more letters and numbers", async () => {
+    for (const code of ["F01", "ABCD", "FAMILY2026"]) {
+      await assertSucceeds(newRoom("host", code).set(lobby({ code })));
+    }
   });
   it("can't name someone else as host or start mid-game", async () => {
     await assertFails(newRoom("amy", "F01").set(newLobby));
     await assertFails(newRoom("host", "F01").set({ ...newLobby, status: "playing" }));
   });
-  it("rejects new rooms with lowercase, short, or legacy-length codes", async () => {
-    for (const code of ["abc", "AB", "ABCD", "FAM01"]) {
+  it("rejects new rooms with lowercase, short, or non-alphanumeric codes", async () => {
+    for (const code of ["abc", "AB", "ABC-123"]) {
       await assertFails(newRoom("host", code).set(lobby({ code })));
     }
   });

@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import LocalGame, { SAVE_KEY } from "@/games/stock-market/components/Game";
 import OnlineRoom from "@/games/stock-market/components/OnlineRoom";
+import StockMarketHeader from "@/games/stock-market/components/StockMarketHeader";
 import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
@@ -20,11 +21,9 @@ import {
   authErrorMessage,
   ensureUser,
   onlineAvailable,
-  signInWithGoogle,
-  signOutUser,
   useFirebaseUser,
 } from "@/shared/firebase";
-import { enterRoom, isRoomCode, normalizeCode } from "@/games/stock-market/lib/rooms";
+import { enterRoom, isRoomCode, normalizeCode, ROOM_CODE_MAX_LENGTH } from "@/games/stock-market/lib/rooms";
 import { useStockMarketPresence, type PresenceStatus } from "@/games/stock-market/lib/presence";
 
 const NAME_KEY = "stock-market:name";
@@ -114,11 +113,16 @@ export default function Home() {
     setRoom(code);
   };
 
+  const header = <StockMarketHeader user={user} name={name} setName={updateName} />;
+
   if (room) {
     return (
       <OnlineRoom
-        key={room}
+        key={`${room}:${user?.uid ?? ""}`}
         code={room}
+        uid={user?.uid}
+        connectionError={presenceError && !user}
+        header={header}
         name={name.trim() || "Player"}
         onStatusChange={setRoomStatus}
         onQuit={() => {
@@ -247,13 +251,7 @@ export default function Home() {
   return (
     <main className="setup">
       <div className="setup-card">
-        <header className="stock-home-header">
-          <div>
-            <h1 className="setup-logo">Stock Market</h1>
-            <p className="muted">Buy low, sell high. For 2–8 players.</p>
-          </div>
-          {onlineAvailable && <AccountMenu user={user} name={name} setName={updateName} />}
-        </header>
+        {header}
 
         {onlineAvailable && (
           <div className="home-tabs" role="group" aria-label="Play mode">
@@ -353,7 +351,7 @@ function OnlineStart({
   const join = async () => {
     if (busy) return;
     if (!isRoomCode(code)) {
-      setError("Enter a three-character room code using letters or numbers.");
+      setError("Enter a room code with at least 3 letters or numbers.");
       return;
     }
     setBusy(true);
@@ -391,6 +389,7 @@ function OnlineStart({
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}
+            maxLength={ROOM_CODE_MAX_LENGTH}
             aria-describedby={`${codeId}-hint`}
             onChange={(e) => setCode(normalizeCode(e.target.value))}
           />
@@ -400,49 +399,5 @@ function OnlineStart({
       </form>
       {error && <p className="hint bad" role="alert">{error}</p>}
     </section>
-  );
-}
-
-function AccountMenu({ user, name, setName }: {
-  user: ReturnType<typeof useFirebaseUser>;
-  name: string;
-  setName: (name: string) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const googleName = user && !user.isAnonymous ? (user.displayName ?? user.email ?? "your Google account") : null;
-
-  const changeAccount = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (googleName) {
-        await signOutUser();
-        await ensureUser();
-      } else {
-        const signedIn = await signInWithGoogle();
-        if (!name.trim() && signedIn.displayName) setName(signedIn.displayName.split(" ")[0].slice(0, 16));
-      }
-    } catch (e) {
-      setError(authErrorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <details className="stock-home-account">
-      <summary aria-label="Account">
-        <span className="stock-home-profile-picture" aria-hidden="true" />
-      </summary>
-      <section className="stock-home-account-panel" aria-label="Account">
-        <h2 className="home-heading">Account</h2>
-        <p>{googleName ? <>Signed in as <b>{googleName}</b></> : "Playing as guest"}</p>
-        <button type="button" className="btn" disabled={busy} onClick={() => void changeAccount()}>
-          {googleName ? "Sign out" : "Sign in with Google"}
-        </button>
-        {error && <p className="hint bad" role="alert">{error}</p>}
-      </section>
-    </details>
   );
 }

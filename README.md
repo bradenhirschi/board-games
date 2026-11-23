@@ -40,7 +40,7 @@ npm test      # rules engine tests + simulated bot games
 
 ## Online play
 
-Enter a three-character room code and tap **Join**. The first player to use a new code becomes its host.
+Enter a room code with at least three letters or numbers and tap **Join**. The first player to use a new code becomes its host.
 Friends use the same code or the invite link from the lobby. Online play runs on Firebase’s free Spark
 plan with no game server:
 

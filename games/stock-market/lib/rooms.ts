@@ -50,19 +50,18 @@ export interface Room {
   currentUid: string | null;
 }
 
-const CODE_LENGTH = 3;
-const LEGACY_CODE_LENGTH = 5;
+const ROOM_CODE_MIN_LENGTH = 3;
+// Firestore document IDs are limited to 1,500 bytes. Room codes are ASCII.
+export const ROOM_CODE_MAX_LENGTH = 1500;
 
 export function normalizeCode(input: string): string {
   return input
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, LEGACY_CODE_LENGTH);
+    .replace(/[^A-Z0-9]/g, "");
 }
 
-/** Existing rooms retain their original five-character codes. */
 export function isRoomCode(code: string): boolean {
-  return (code.length === CODE_LENGTH || code.length === LEGACY_CODE_LENGTH) && code === normalizeCode(code);
+  return code.length >= ROOM_CODE_MIN_LENGTH && code.length <= ROOM_CODE_MAX_LENGTH && code === normalizeCode(code);
 }
 
 /** Firestore collection for this game's rooms (the project may host other games too). */
@@ -106,13 +105,13 @@ export function joinRoom(code: string, uid: string, name: string): Promise<void>
 
 async function takeSeat(code: string, uid: string, name: string, createIfMissing: boolean): Promise<void> {
   if (!isRoomCode(code)) {
-    throw new RoomError("Enter a three-character room code using letters or numbers.");
+    throw new RoomError("Enter a room code with at least 3 letters or numbers.");
   }
   const ref = roomRef(code);
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) {
-      if (!createIfMissing || code.length !== CODE_LENGTH) throw new RoomError(`There's no room ${code}.`);
+      if (!createIfMissing) throw new RoomError(`There's no room ${code}.`);
       tx.set(ref, {
         code,
         hostUid: uid,
