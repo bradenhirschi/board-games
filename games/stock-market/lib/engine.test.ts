@@ -279,6 +279,7 @@ describe("shareholders' meetings", () => {
     s = rollAndMove(s, [3, 3], true); // 5, 4, 3 (entrance) → lane p0, p1, p2
     expect(s.players[0].pos).toEqual({ kind: "lane", lane: 0, from: 1, p: 2 });
     expect(s.players[0].shares.ISHOE).toBe(15); // landed on 2 FOR 1
+    expect(s.phase).toEqual({ t: "afterRoll", buy: null, split: { n: 2, stock: "ISHOE", gained: 10 } });
     expect(s.market).toBe(25); // the slider doesn't move in a meeting
   });
 
