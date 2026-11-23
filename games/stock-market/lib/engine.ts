@@ -50,12 +50,20 @@ export type Phase =
   | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
   /**
    * After landing, until the player ends their turn. They may sell at the lowest board
-   * price, and buy the stock they landed on (`buy`) if it was a stock square.
+   * price, and buy the stock they landed on (`buy`) if it was a stock square. `split`: the
+   * "N FOR 1" square landed on in a shareholders' meeting, and the shares it paid out.
    */
-  | { t: "afterRoll"; buy: BuyOffer | null; fee?: FeePaid }
+  | { t: "afterRoll"; buy: BuyOffer | null; fee?: FeePaid; split?: SplitPaid }
   /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
   | { t: "raiseCash"; owed: number; reason: string }
   | { t: "gameOver"; winnerId: number; reason: "target" };
+
+/** A shareholders' meeting square landed on: "`n` FOR 1", paying `gained` shares of `stock`. */
+export interface SplitPaid {
+  n: number;
+  stock: StockId | null;
+  gained: number;
+}
 
 /** A fee charged on landing this turn (amount 0: a broker fee with no shares to charge for). */
 export interface FeePaid {
@@ -414,12 +422,13 @@ function land(s: GameState) {
     const stock = TRACK[LANES[pos.lane].entries[pos.from]];
     const id = stock.kind === "stock" ? stock.stock : null;
     const n = laneSplit(pos.lane, pos.from, pos.p);
+    let gained = 0;
     if (id && p.shares[id] > 0) {
-      const gained = p.shares[id] * n;
+      gained = p.shares[id] * n;
       p.shares[id] += gained;
       log(s, p.id, `lands on ${n} FOR 1 and receives ${gained} ${STOCKS[id].name} shares (now ${p.shares[id]})`, "up");
     }
-    afterRoll(s, null);
+    s.phase = { t: "afterRoll", buy: null, split: { n, stock: id, gained } };
     return;
   }
 

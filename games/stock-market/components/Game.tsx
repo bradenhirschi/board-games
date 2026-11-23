@@ -989,8 +989,26 @@ function AfterRollBox({
     <div className="controls">
       {/* Phones skip this line when there's an offer: the buy line already names the square. */}
       <p className={`hint ${offer ? "m-hide" : ""}`}>
-        Landed on <b>{posName(player.pos)}</b>.
-        {fee ? (
+        {ph.split ? (
+          <>
+            Landed on <b>{ph.split.n} FOR 1</b> in the <b>{posName(player.pos)}</b>.{" "}
+            {ph.split.gained > 0 ? (
+              <>
+                You received <b>{fmt(ph.split.gained)}</b> {ph.split.stock ? STOCKS[ph.split.stock].name : ""}{" "}
+                {ph.split.gained === 1 ? "share" : "shares"}.
+              </>
+            ) : (
+              "No shares to split."
+            )}
+          </>
+        ) : (
+          <>
+            Landed on <b>{posName(player.pos)}</b>.
+          </>
+        )}
+        {ph.split ? (
+          ""
+        ) : fee ? (
           fee.amount > 0 ? (
             <>
               {" "}
