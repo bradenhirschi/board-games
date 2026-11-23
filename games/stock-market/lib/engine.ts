@@ -113,6 +113,12 @@ export type BotLevel = "easy" | "normal";
 export const BOT_LEVELS: BotLevel[] = ["easy", "normal"];
 export const BOT_LEVEL_NAMES: Record<BotLevel, string> = { easy: "Easy", normal: "Normal" };
 
+export interface GameSettings {
+  target: number;
+  botLevel: BotLevel;
+  startWithCash: boolean;
+}
+
 export interface PlayerSetup {
   name: string;
   isBot: boolean;

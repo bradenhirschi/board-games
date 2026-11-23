@@ -3315,7 +3315,7 @@ button.link {
   padding-block: 10px;
 }
 
-.stock-lobby-cash-switch {
+.stock-cash-switch {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3329,6 +3329,6 @@ button.link {
   text-align: left;
   cursor: pointer;
 }
-.stock-lobby-cash-switch:disabled {
+.stock-cash-switch:disabled {
   cursor: default;
 }

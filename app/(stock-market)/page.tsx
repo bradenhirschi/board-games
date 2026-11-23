@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import LocalGame, { SAVE_KEY } from "@/games/stock-market/components/Game";
+import GameSettingsFields from "@/games/stock-market/components/GameSettingsFields";
 import OnlineRoom from "@/games/stock-market/components/OnlineRoom";
 import StockMarketHeader from "@/games/stock-market/components/StockMarketHeader";
 import {
@@ -9,13 +10,10 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   PLAYER_COLORS,
-  fmt,
   newGame,
   type GameState,
   type PlayerSetup,
-  BOT_LEVELS,
-  BOT_LEVEL_NAMES,
-  type BotLevel,
+  type GameSettings,
 } from "@/games/stock-market/lib/engine";
 import {
   authErrorMessage,
@@ -52,8 +50,6 @@ function setRoomInUrl(code: string | null) {
   window.history.replaceState(null, "", url);
 }
 
-const TARGETS = [25_000, 50_000, 100_000, 250_000];
-
 function loadSaved(): GameState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -69,8 +65,11 @@ export default function Home() {
     { name: "Player 1", isBot: false },
     { name: "Bot 1", isBot: true },
   ]);
-  const [target, setTarget] = useState(DEFAULT_TARGET);
-  const [botLevel, setBotLevel] = useState<BotLevel>("normal");
+  const [settings, setSettings] = useState<GameSettings>({
+    target: DEFAULT_TARGET,
+    botLevel: "normal",
+    startWithCash: false,
+  });
   const [game, setGame] = useState<{ key: number; state: GameState } | null>(null);
   const [saved, setSaved] = useState<GameState | null>(null);
   const [room, setRoom] = useState<string | null>(null);
@@ -144,7 +143,7 @@ export default function Home() {
 
   const start = () => {
     const clean = players.map((p, i) => ({ ...p, name: p.name.trim() || `Player ${i + 1}` }));
-    setGame({ key: Date.now(), state: newGame(clean, target, botLevel) });
+    setGame({ key: Date.now(), state: newGame(clean, settings.target, settings.botLevel, settings.startWithCash) });
   };
 
   if (game) return <LocalGame key={game.key} initial={game.state} onQuit={leaveLocalGame} />;
@@ -215,29 +214,11 @@ export default function Home() {
               </div>
             )}
 
-            <label className="setup-target">
-              <span>Winning amount</span>
-              <select value={target} onChange={(e) => setTarget(Number(e.target.value))}>
-                {TARGETS.map((t) => (
-                  <option key={t} value={t}>
-                    ${fmt(t)}
-                    {t === DEFAULT_TARGET ? " (standard)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {players.some((p) => p.isBot) && (
-              <label className="setup-target">
-                <span>Bots</span>
-                <select value={botLevel} onChange={(e) => setBotLevel(e.target.value as BotLevel)}>
-                  {BOT_LEVELS.map((l) => (
-                    <option key={l} value={l}>
-                      {BOT_LEVEL_NAMES[l]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <GameSettingsFields
+              settings={settings}
+              hasBots={players.some((player) => player.isBot)}
+              onChange={(change) => setSettings((current) => ({ ...current, ...change }))}
+            />
 
             <button type="submit" className="btn btn-primary btn-big">
               Start game

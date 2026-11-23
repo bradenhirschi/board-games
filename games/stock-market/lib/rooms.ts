@@ -7,7 +7,7 @@ import {
   MIN_PLAYERS,
   newGame,
   type Action,
-  type BotLevel,
+  type GameSettings,
   type GameState,
 } from "./engine";
 import { firebase } from "@/shared/firebase";
@@ -34,14 +34,10 @@ export interface Replay {
   actions: Action[];
 }
 
-export interface Room {
+export interface Room extends GameSettings {
   code: string;
   hostUid: string;
   status: "lobby" | "playing";
-  target: number;
-  startWithCash: boolean;
-  /** How well the room's bots play (chosen by the host in the lobby). */
-  botLevel: BotLevel;
   seats: Seat[];
   memberUids: string[];
   version: number;
@@ -145,7 +141,7 @@ async function takeSeat(code: string, uid: string, name: string, createIfMissing
 /** Change lobby settings and seats (host), or leave the lobby (anyone). */
 export async function editLobby(
   code: string,
-  edit: (room: Room) => Partial<Pick<Room, "seats" | "target" | "botLevel" | "startWithCash">>,
+  edit: (room: Room) => Partial<GameSettings & Pick<Room, "seats">>,
 ): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));

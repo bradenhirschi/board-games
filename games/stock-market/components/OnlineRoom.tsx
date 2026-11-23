@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  DEFAULT_TARGET,
   MAX_PLAYERS,
   MIN_PLAYERS,
   PLAYER_COLORS,
@@ -11,9 +10,6 @@ import {
   type Action,
   type GameState,
   type Player,
-  BOT_LEVELS,
-  BOT_LEVEL_NAMES,
-  type BotLevel,
 } from "@/games/stock-market/lib/engine";
 import { botDecision, isBotTurn, resolve, type Decision } from "@/games/stock-market/lib/online";
 import {
@@ -28,8 +24,8 @@ import {
   type Room,
 } from "@/games/stock-market/lib/rooms";
 import { BOT_THINK_MS, GameView, STEP_MS, animateRoll } from "./Game";
+import GameSettingsFields from "./GameSettingsFields";
 
-const TARGETS = [25_000, 50_000, 100_000, 250_000];
 /** Pause between replayed decisions (buying, ending a turn…) so they don't blur together. */
 const DECISION_MS = 350;
 
@@ -219,57 +215,12 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
                 + Add bot
               </button>
             )}
-            <label className="setup-target">
-              <span>Winning amount</span>
-              <select
-                value={room.target}
-                disabled={savingSettings}
-                onChange={(e) => {
-                  const target = Number(e.currentTarget.value);
-                  void run(() => editLobby(room.code, () => ({ target })), setSavingSettings);
-                }}
-              >
-                {TARGETS.map((t) => (
-                  <option key={t} value={t}>
-                    ${fmt(t)}
-                    {t === DEFAULT_TARGET ? " (standard)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="stock-lobby-cash-switch"
-              role="switch"
-              aria-checked={room.startWithCash}
+            <GameSettingsFields
+              settings={room}
+              hasBots={bots > 0}
               disabled={savingSettings}
-              onClick={() => {
-                const startWithCash = !room.startWithCash;
-                void run(() => editLobby(room.code, () => ({ startWithCash })), setSavingSettings);
-              }}
-            >
-              <span>Everyone starts with $1000</span>
-              <span className={room.startWithCash ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
-            </button>
-            {bots > 0 && (
-              <label className="setup-target">
-                <span>Bots</span>
-                <select
-                  value={room.botLevel}
-                  disabled={savingSettings}
-                  onChange={(e) => {
-                    const botLevel = e.currentTarget.value as BotLevel;
-                    void run(() => editLobby(room.code, () => ({ botLevel })), setSavingSettings);
-                  }}
-                >
-                  {BOT_LEVELS.map((l) => (
-                    <option key={l} value={l}>
-                      {BOT_LEVEL_NAMES[l]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+              onChange={(change) => void run(() => editLobby(room.code, () => change), setSavingSettings)}
+            />
             <button
               className="btn btn-primary btn-big stock-lobby-start"
               disabled={busy || savingSettings || room.seats.length < MIN_PLAYERS}

@@ -1,0 +1,63 @@
+"use client";
+
+import { BOT_LEVELS, BOT_LEVEL_NAMES, DEFAULT_TARGET, fmt, type BotLevel, type GameSettings } from "../lib/engine";
+
+const TARGETS = [25_000, 50_000, DEFAULT_TARGET, 250_000];
+
+interface GameSettingsFieldsProps {
+  settings: GameSettings;
+  hasBots: boolean;
+  disabled?: boolean;
+  onChange: (change: Partial<GameSettings>) => void;
+}
+
+export default function GameSettingsFields({ settings, hasBots, disabled, onChange }: GameSettingsFieldsProps) {
+  const { target, botLevel, startWithCash } = settings;
+
+  return (
+    <>
+      <label className="setup-target">
+        <span>Winning amount</span>
+        <select
+          value={target}
+          disabled={disabled}
+          onChange={(event) => onChange({ target: Number(event.currentTarget.value) })}
+        >
+          {TARGETS.map((amount) => (
+            <option key={amount} value={amount}>
+              ${fmt(amount)}
+              {amount === DEFAULT_TARGET ? " (standard)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="stock-cash-switch"
+        role="switch"
+        aria-checked={startWithCash}
+        disabled={disabled}
+        onClick={() => onChange({ startWithCash: !startWithCash })}
+      >
+        <span>Everyone starts with $1000</span>
+        <span className={startWithCash ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
+      </button>
+      {hasBots && (
+        <label className="setup-target">
+          <span>Bots</span>
+          <select
+            value={botLevel}
+            disabled={disabled}
+            onChange={(event) => onChange({ botLevel: event.currentTarget.value as BotLevel })}
+          >
+            {BOT_LEVELS.map((level) => (
+              <option key={level} value={level}>
+                {BOT_LEVEL_NAMES[level]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </>
+  );
+}
