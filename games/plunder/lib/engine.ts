@@ -10,8 +10,7 @@
  * each), turns (draw a resource per island, roll, sail the fleet, build, bury gold, end the turn),
  * battles (attacking islands from their port and ships next door), a captain without a ship,
  * the storm, trading (players and merchant islands), threats, bribes and treaties, X-marks-the-spot
- * tokens, Plunder Points and winning. Not yet: the Treasure card deck (finding an X only says the
- * cards aren't written yet).
+ * tokens and the Treasure deck, Plunder Points and winning.
  */
 
 import { COLS, ROWS } from "./board";
@@ -28,6 +27,7 @@ import {
   type SeaMap,
   type Side,
 } from "./tiles";
+import { TREASURE_CARDS, TREASURE_DECK, type TreasureId } from "./treasureCards";
 
 export const MIN_PLAYERS = 2;
 /** Every player starts on a one-skull island, and the board has six. */
@@ -114,7 +114,8 @@ export type Battle = {
 
 /** Something the player should be told about (shown as a message, then cleared by the UI). */
 export type Notice =
-  | { t: "treasure"; player: number; at: Pos }
+  /** A Treasure card was found and carried out: `result` says what happened, line by line. */
+  | { t: "treasure"; player: number; at: Pos; card: TreasureId; result: string[] }
   | { t: "drew"; player: number; cards: Resource[] }
   | Battle
   | { t: "doubles"; player: number; dice: [number, number] }
@@ -171,6 +172,21 @@ export type PendingAttack = {
   bribes?: number;
 };
 
+/** A Treasure card being carried out (several can be found in one sail; they go in order). */
+export type Found = {
+  card: TreasureId;
+  player: number;
+  /** The ship that found it (it may have sunk since). */
+  ship: number;
+  at: Pos;
+  /** Godforsaken: the die rolled, which is how many cards to give up. */
+  lose?: number;
+  /** White Flag: the player asked for a bribe, what they offered, and where it's got to. */
+  target?: number;
+  stage?: "bribe" | "decide" | "hit";
+  offer?: Cards;
+};
+
 /** Ways a shipless captain can get a ship other than doubles. */
 export type ShipVia = "build" | "plunder" | "gold" | { disown: string };
 
@@ -205,6 +221,12 @@ export type GameState = {
   treaties?: number[];
   /** Trade offers the current player has made this turn (bots make one at most). */
   offers?: number;
+  /** The Treasure deck, top card first; a used card goes to the bottom. Missing in older saves. */
+  treasureDeck?: TreasureId[];
+  /** Treasure cards found and not yet carried out; the first is waiting on someone's choice. */
+  found?: Found[];
+  /** A Treasure card ended the turn: it ends once every find is carried out. */
+  turnOver?: boolean;
   notices: Notice[];
   log: string[];
 };
@@ -237,7 +259,33 @@ export type Action =
   | { t: "noBribe" }
   | { t: "cancelAttack" }
   | { t: "endTurn" }
+  /** A choice for the Treasure card being carried out (which fields depend on `treasureNeed`). */
+  | TreasureAction
   | { t: "clearNotices" };
+
+export type TreasureAction = {
+  t: "treasure";
+  player?: number;
+  /** A ship picked: yours to upgrade, or an enemy's to hit, move or put in the storm. */
+  ship?: number;
+  /** Notorious: your ship that takes the stolen life. */
+  to?: number;
+  at?: Pos;
+  /** Arrr: the enemy ship's route (up to three squares). */
+  path?: Pos[];
+  resource?: Resource;
+  /** Godforsaken: the cards given up. */
+  cards?: Resource[];
+  /** Takeover: your island and theirs. */
+  island?: string;
+  theirs?: string;
+  /** A yes/no choice (see `treasureNeed`). */
+  accept?: boolean;
+  /** White Flag: the bribe offered. */
+  give?: Cards;
+  /** Dice: Gambit and Godforsaken use the first; Standoff is [yours, theirs]. */
+  dice?: [number, number];
+};
 
 // ---------------------------------------------------------------------------------------------
 // Randomness (seeded, kept in the state)
@@ -563,6 +611,8 @@ export function threatTargets(s: GameState, a: number): number[] {
 /** Who the game is waiting on: someone answering an offer or deciding on a bribe, else the current player. */
 export function waitingOn(s: GameState): number {
   if (s.phase.t === "pickIsland") return s.phase.order[s.phase.index];
+  const f = s.found?.[0];
+  if (f) return f.stage === "bribe" ? f.target! : f.player;
   const t = s.trade;
   if (t) {
     // Answers come in seat order, starting after the offerer.
@@ -669,7 +719,8 @@ export function newGame(
   for (let i = 0; i < n; i++) s = draw(s, i, STARTING_CARDS);
   // The storm: spun like everything else, but not over a starting island's port.
   s = placeStorm(s, true);
-  return { ...s, notices: [] };
+  const [treasureDeck, after] = shuffle(TREASURE_DECK, s.rng);
+  return { ...s, treasureDeck, rng: after, notices: [] };
 }
 
 /** Make a random board: the six tiles shuffled into the slots, each turned at random. */
@@ -736,10 +787,667 @@ function collectXs(s: GameState, ship: Ship): GameState {
     if (!onIt && !(fromNextDoor && sameSide(out, ship.pos, x))) continue;
     const [p, rng] = spin(out.rng);
     const xs = out.xs.map((q, k) => (k === i ? p : q));
-    out = log(
-      { ...out, xs, rng, notices: [...out.notices, { t: "treasure", player: ship.owner, at: x }] },
-      `${out.players[ship.owner].name} found treasure!`,
-    );
+    const [card, drawn] = drawTreasure({ ...out, xs, rng });
+    const found: Found = { card, player: ship.owner, ship: ship.id, at: x };
+    out = log({ ...drawn, found: [...(drawn.found ?? []), found] }, `${out.players[ship.owner].name} found treasure!`);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Treasure cards
+
+/** Take the top Treasure card; it goes back under the deck once used. */
+function drawTreasure(s: GameState): [TreasureId, GameState] {
+  let deck = s.treasureDeck;
+  let rng = s.rng;
+  if (!deck?.length) [deck, rng] = shuffle(TREASURE_DECK, rng);
+  const [card, ...rest] = deck;
+  return [card, { ...s, rng, treasureDeck: [...rest, card] }];
+}
+
+/** The players a Treasure card can touch: everyone else, except anyone with a treaty this turn. */
+export function treasureEnemies(s: GameState, player: number): number[] {
+  const treaties = s.treaties ?? [];
+  return s.players.map((_, i) => i).filter((i) => i !== player && !treaties.includes(i));
+}
+
+/** Open, empty squares inside the storm (where I Am the Storm can put a ship). */
+export function stormSquares(s: GameState): Pos[] {
+  const c = s.storm;
+  if (!c) return [];
+  const map = mapOf(s.layout);
+  const out: Pos[] = [];
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      const p = { r: c.r + dr, c: c.c + dc };
+      if (isSailable(map.squares[p.r]?.[p.c]) && !shipAt(s, p)) out.push(p);
+    }
+  return out;
+}
+
+/** Where a ship could get to by water, however far (other ships block the way; the storm doesn't). */
+function waterFrom(s: GameState, from: Pos): Pos[] {
+  const map = mapOf(s.layout);
+  const k = (p: Pos) => `${p.r},${p.c}`;
+  const seen = new Set([k(from)]);
+  const out = [from];
+  for (let i = 0; i < out.length; i++) {
+    for (const side of SIDES) {
+      const q = step(out[i], side);
+      if (seen.has(k(q)) || !canSail(map, out[i], side) || shipAt(s, q)) continue;
+      seen.add(k(q));
+      out.push(q);
+    }
+  }
+  return out;
+}
+
+/** Ports a ship can dock in for Berth (any island) or Land Ho (unowned islands only). */
+export function accessiblePorts(s: GameState, shipId: number, unownedOnly: boolean): Pos[] {
+  const ship = s.ships.find((sh) => sh.id === shipId);
+  if (!ship) return [];
+  const water = waterFrom(s, ship.pos);
+  const ports = islandsOf(s.layout)
+    .filter((i) => !unownedOnly || s.owners[i.id] === undefined)
+    .flatMap((i) => i.ports);
+  return water.filter((p) => ports.some((q) => same(p, q)));
+}
+
+/** Where Arrr can push an enemy ship: up to three squares by water, with the route there. */
+export function nudgeReach(s: GameState, shipId: number): Map<string, Pos[]> {
+  const ship = s.ships.find((sh) => sh.id === shipId);
+  const out = new Map<string, Pos[]>();
+  if (!ship) return out;
+  const map = mapOf(s.layout);
+  const k = (p: Pos) => `${p.r},${p.c}`;
+  let frontier: Pos[][] = [[]];
+  const seen = new Set([k(ship.pos)]);
+  for (let d = 0; d < 3; d++) {
+    const next: Pos[][] = [];
+    for (const path of frontier) {
+      const at = path.length ? path[path.length - 1] : ship.pos;
+      for (const side of SIDES) {
+        const q = step(at, side);
+        if (seen.has(k(q)) || !canSail(map, at, side) || shipAt(s, q)) continue;
+        seen.add(k(q));
+        out.set(k(q), [...path, q]);
+        next.push([...path, q]);
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+/**
+ * What the Treasure card being carried out needs from someone, or null if it can go ahead by itself
+ * (including when there's nothing to choose from, e.g. no enemy has any gold for Lair).
+ * - player: pick an enemy player (`roll`: then both roll, for Standoff)
+ * - resource: pick a resource (Loot)
+ * - roll: roll the die (Gambit, Godforsaken)
+ * - cards: pick `n` cards to give up (Godforsaken)
+ * - choose: yes (`accept: true`) or no
+ * - ship: pick one of `ships`; shipTo: an enemy ship, then one of yours in `to` (Notorious)
+ * - square: pick a square for your ship (Berth, Land Ho)
+ * - shipSquare: an enemy ship and a square in the storm; shipPath: an enemy ship and its route (Arrr)
+ * - islands: one of yours and one of theirs, or skip (Takeover)
+ * - bribe: the White Flag's target offers cards (`give`) or refuses (`accept: false`)
+ */
+export type TreasureNeed =
+  | { k: "player"; players: number[]; roll?: boolean }
+  | { k: "resource" }
+  | { k: "roll" }
+  | { k: "cards"; n: number }
+  | { k: "choose"; yes: string; no: string }
+  | { k: "ship"; ships: number[]; enemy: boolean }
+  | { k: "shipTo"; ships: number[]; to: number[] }
+  | { k: "square"; squares: Pos[] }
+  | { k: "shipSquare"; ships: number[]; squares: Pos[] }
+  | { k: "shipPath"; ships: number[] }
+  | { k: "islands"; mine: string[]; theirs: string[] }
+  | { k: "bribe"; from: number; to: number };
+
+const UPGRADE: Partial<Record<TreasureId, "life" | "cannon" | "mast">> = {
+  castaway: "life",
+  cannonball: "cannon",
+  hoistTheMizzen: "mast",
+};
+
+function roomFor(ship: Ship, item: "life" | "cannon" | "mast"): boolean {
+  if (item === "life") return ship.lives < MAX_LIVES;
+  if (item === "cannon") return ship.cannons < MAX_CANNONS;
+  return ship.masts < MAX_MASTS;
+}
+
+export function treasureNeed(s: GameState): TreasureNeed | null {
+  const f = s.found?.[0];
+  if (!f) return null;
+  const me = f.player;
+  const hand = s.players[me].hand;
+  const enemies = treasureEnemies(s, me);
+  const enemyShips = s.ships.filter((sh) => enemies.includes(sh.owner)).map((sh) => sh.id);
+  const myShips = s.ships.filter((sh) => sh.owner === me);
+  const ship = s.ships.find((sh) => sh.id === f.ship);
+  const players = (ok: (p: Player) => boolean) => enemies.filter((i) => ok(s.players[i]));
+  const asPlayer = (list: number[], roll?: boolean): TreasureNeed | null =>
+    list.length ? { k: "player", players: list, ...(roll ? { roll } : {}) } : null;
+  const item = UPGRADE[f.card];
+  if (item) {
+    const ships = myShips.filter((sh) => roomFor(sh, item)).map((sh) => sh.id);
+    // With just one ship that can take it, there's nothing to choose.
+    return ships.length > 1 ? { k: "ship", ships, enemy: false } : null;
+  }
+  switch (f.card) {
+    case "lair":
+      return asPlayer(players((p) => p.hand.gold > 0));
+    case "baited":
+    case "messageInABottle":
+      return asPlayer(players((p) => handSize(p.hand) > 0));
+    case "plunder":
+      return asPlayer(players((p) => p.plunderCards > 0));
+    case "standoff":
+      return asPlayer(
+        players((p) => p.hand.gold > 0 || hand.gold > 0),
+        true,
+      );
+    case "loot":
+      return enemies.some((i) => handSize(s.players[i].hand) > 0) ? { k: "resource" } : null;
+    case "gambit":
+      return hand.gold > 0 ? { k: "roll" } : null;
+    case "godforsaken":
+      if (f.lose === undefined) return handSize(hand) > 0 ? { k: "roll" } : null;
+      return f.lose < handSize(hand) ? { k: "cards", n: f.lose } : null;
+    case "theLocker":
+    case "tellNoTales":
+      return enemyShips.length ? { k: "ship", ships: enemyShips, enemy: true } : null;
+    case "notorious":
+      return enemyShips.length
+        ? { k: "shipTo", ships: enemyShips, to: myShips.filter((sh) => sh.lives < MAX_LIVES).map((sh) => sh.id) }
+        : null;
+    case "arrr": {
+      const ships = enemyShips.filter((id) => nudgeReach(s, id).size > 0);
+      return ships.length ? { k: "shipPath", ships } : null;
+    }
+    case "iAmTheStorm": {
+      const squares = stormSquares(s);
+      const ships = enemyShips.filter((id) => !inStorm(s, s.ships.find((sh) => sh.id === id)!.pos));
+      return squares.length && ships.length ? { k: "shipSquare", ships, squares } : null;
+    }
+    case "berth":
+    case "landHo": {
+      const squares = ship ? accessiblePorts(s, ship.id, f.card === "landHo") : [];
+      return squares.length ? { k: "square", squares } : null;
+    }
+    case "royalNavy":
+      return ship && hand.gold > 0 ? { k: "choose", yes: "Lose all your gold", no: "Ship loses a life" } : null;
+    case "manOverboard":
+      return { k: "choose", yes: "+3 Gold, ship loses a life", no: "End your turn" };
+    case "takeover": {
+      const mine = Object.keys(s.owners).filter((id) => s.owners[id] === me);
+      const theirs = Object.keys(s.owners).filter((id) => enemies.includes(s.owners[id]));
+      return mine.length && theirs.length ? { k: "islands", mine, theirs } : null;
+    }
+    case "whiteFlag": {
+      if (!f.stage)
+        return asPlayer(enemies.filter((i) => handSize(s.players[i].hand) > 0 || s.ships.some((sh) => sh.owner === i)));
+      if (f.stage === "bribe") return { k: "bribe", from: f.target!, to: me };
+      if (f.stage === "decide") return { k: "choose", yes: "Take the bribe", no: "Refuse" };
+      const ships = s.ships.filter((sh) => sh.owner === f.target).map((sh) => sh.id);
+      return ships.length ? { k: "ship", ships, enemy: true } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+const RES_NAME: Record<Resource, string> = { wood: "Wood", iron: "Iron", rum: "Rum", gold: "Gold" };
+/** "2 Wood, 1 Rum" (or "nothing"). */
+export function cardsText(c: Cards): string {
+  const parts = RESOURCES.filter((r) => c[r]).map((r) => `${c[r]} ${RES_NAME[r]}`);
+  return parts.length ? parts.join(", ") : "nothing";
+}
+
+/** Take cards from the supply (as many as there are). */
+function gainCards(s: GameState, player: number, c: Cards): [GameState, Cards] {
+  let out = s;
+  const got: Cards = {};
+  for (const r of RESOURCES)
+    for (let i = 0; i < (c[r] ?? 0); i++) {
+      const before = out;
+      out = takeCard(out, player, r);
+      if (out !== before) got[r] = (got[r] ?? 0) + 1;
+    }
+  return [out, got];
+}
+
+/** Give cards back to the supply (only what the player has). */
+function loseCards(s: GameState, player: number, c: Cards): [GameState, Cards] {
+  const hand = s.players[player].hand;
+  const lost: Cards = {};
+  for (const r of RESOURCES) if (c[r]) lost[r] = Math.min(c[r]!, hand[r]);
+  return [pay(s, player, lost), lost];
+}
+
+/** Steal `n` random cards from one hand into another. */
+function stealRandom(s: GameState, from: number, to: number, n: number): [GameState, Cards] {
+  let out = s;
+  const got: Cards = {};
+  for (let i = 0; i < n; i++) {
+    const hand = out.players[from].hand;
+    const cards = RESOURCES.flatMap((r) => Array<Resource>(hand[r]).fill(r));
+    if (!cards.length) break;
+    const [x, rng] = next(out.rng);
+    const r = cards[Math.floor(x * cards.length)];
+    out = transfer({ ...out, rng }, from, to, { [r]: 1 });
+    got[r] = (got[r] ?? 0) + 1;
+  }
+  return [out, got];
+}
+
+function moveShip(s: GameState, shipId: number, to: Pos): GameState {
+  return { ...s, ships: s.ships.map((sh) => (sh.id === shipId ? { ...sh, pos: to } : sh)) };
+}
+
+/** Carry out the Treasure card at the front of the queue. Null if `a` isn't a valid choice for it. */
+function resolveFind(s: GameState, f: Found, a: TreasureAction | null): GameState | null {
+  const need = treasureNeed(s);
+  if (!need !== !a) return null;
+  const me = f.player;
+  const who = (p: number) => s.players[p].name;
+  const card = TREASURE_CARDS[f.card];
+  const lines: string[] = [];
+  let out = s;
+  let endTurn = false;
+  const ship = () => out.ships.find((sh) => sh.id === f.ship);
+  const loseLife = (id: number, whose: string) => {
+    let sunk: boolean;
+    [out, sunk] = hit(out, id);
+    lines.push(sunk ? `${whose} ship sank.` : `${whose} ship lost a life.`);
+  };
+  const myShipLife = () => {
+    const sh = ship();
+    if (sh) loseLife(sh.id, `${who(me)}'s`);
+  };
+  const enemyShip = (id: number | undefined, list: number[]) => (id !== undefined && list.includes(id) ? id : null);
+  const dieOk = (d: number | undefined) => d !== undefined && Number.isInteger(d) && d >= 1 && d <= 6;
+
+  // The resource cards printed on every copy.
+  if (card.lose) {
+    const [o, lost] = loseCards(out, me, card.lose);
+    out = o;
+    if (cardCount(lost)) lines.push(`${who(me)} lost ${cardsText(lost)}.`);
+  }
+  if (card.gain) {
+    const [o, got] = gainCards(out, me, card.gain);
+    out = o;
+    lines.push(`${who(me)} got ${cardsText(got)}.`);
+  }
+
+  const item = UPGRADE[f.card];
+  if (item) {
+    const options = out.ships.filter((sh) => sh.owner === me && roomFor(sh, item));
+    const pick = a ? options.find((sh) => sh.id === a.ship) : options[0];
+    if (a && !pick) return null;
+    if (pick) {
+      out = {
+        ...out,
+        ships: out.ships.map((sh) =>
+          sh.id !== pick.id
+            ? sh
+            : {
+                ...sh,
+                lives: sh.lives + (item === "life" ? 1 : 0),
+                cannons: sh.cannons + (item === "cannon" ? 1 : 0),
+                masts: sh.masts + (item === "mast" ? 1 : 0),
+              },
+        ),
+      };
+      lines.push(`${who(me)} added ${item === "life" ? "a life" : `a ${item}`} to a ship.`);
+    } else lines.push("No ship had room for it.");
+  }
+
+  switch (f.card) {
+    case "aPiratesLife":
+      out = givePlunderCard(out, me);
+      lines.push(`${who(me)} gained a Plunder Point.`);
+      break;
+    case "mirage":
+      endTurn = true;
+      lines.push(`${who(me)}'s turn is over.`);
+      break;
+    case "scurvy":
+    case "cursed":
+      myShipLife();
+      break;
+    case "blackout": {
+      const sh = ship();
+      if (sh) {
+        // Spin the compasses until they land on open water.
+        let rng = out.rng;
+        let at: Pos | null = null;
+        const map = mapOf(out.layout);
+        for (let tries = 0; tries < 100 && !at; tries++) {
+          let p: Pos;
+          [p, rng] = spin(rng);
+          if (isSailable(map.squares[p.r]?.[p.c]) && !shipAt(out, p)) at = p;
+        }
+        out = { ...out, rng };
+        if (at) {
+          out = moveShip(out, sh.id, at);
+          lines.push(`The compasses sent ${who(me)}'s ship to ${posName(at)}.`);
+        }
+      }
+      endTurn = true;
+      lines.push(`${who(me)}'s turn is over.`);
+      break;
+    }
+    case "berth":
+    case "landHo": {
+      if (a) {
+        if (need?.k !== "square" || !a.at || !need.squares.some((q) => same(q, a.at!))) return null;
+        out = moveShip(out, f.ship, a.at);
+        lines.push(`${who(me)}'s ship ${f.card === "berth" ? "docked" : "sailed"} at ${posName(a.at)}.`);
+      } else lines.push("There was no port to reach.");
+      if (f.card === "berth") {
+        endTurn = true;
+        lines.push(`${who(me)}'s turn is over.`);
+      }
+      break;
+    }
+    case "windAtYourBack": {
+      const sh = ship();
+      if (sh) {
+        out = { ...out, ships: out.ships.map((x) => (x.id === sh.id ? { ...x, mastMoves: x.mastMoves + 3 } : x)) };
+        lines.push(`${who(me)}'s ship can sail 3 more squares.`);
+      }
+      break;
+    }
+    case "royalNavy": {
+      if (a?.accept) {
+        const gold = out.players[me].hand.gold;
+        out = pay(out, me, { gold });
+        lines.push(`${who(me)} paid off the navy with ${gold} Gold.`);
+      } else myShipLife();
+      break;
+    }
+    case "manOverboard": {
+      if (a?.accept) {
+        const [o, got] = gainCards(out, me, { gold: 3 });
+        out = o;
+        lines.push(`${who(me)} got ${cardsText(got)}.`);
+        myShipLife();
+      } else {
+        endTurn = true;
+        lines.push(`${who(me)} saved the sailor. Their turn is over.`);
+      }
+      break;
+    }
+    case "lair":
+    case "baited":
+    case "messageInABottle":
+    case "plunder": {
+      if (!a) {
+        lines.push("No enemy had anything to take.");
+        break;
+      }
+      if (need?.k !== "player" || a.player === undefined || !need.players.includes(a.player)) return null;
+      const them = a.player;
+      if (f.card === "lair") {
+        const gold = out.players[them].hand.gold;
+        out = transfer(out, them, me, { gold });
+        lines.push(`${who(them)} gave ${who(me)} ${gold} Gold.`);
+      } else if (f.card === "plunder") {
+        out = {
+          ...out,
+          players: out.players.map((p, i) =>
+            i === them
+              ? { ...p, plunderCards: p.plunderCards - 1 }
+              : i === me
+                ? { ...p, plunderCards: p.plunderCards + 1 }
+                : p,
+          ),
+        };
+        lines.push(`${who(me)} stole a Plunder Point card from ${who(them)}.`);
+      } else {
+        const [o, got] = stealRandom(out, them, me, f.card === "baited" ? 2 : 3);
+        out = o;
+        lines.push(`${who(me)} stole ${cardsText(got)} from ${who(them)}.`);
+      }
+      break;
+    }
+    case "hailToTheThief":
+    case "badForm": {
+      for (const them of treasureEnemies(out, me)) {
+        if (f.card === "hailToTheThief") {
+          const gold = out.players[them].hand.gold;
+          if (!gold) continue;
+          out = transfer(out, them, me, { gold });
+          lines.push(`${who(them)} gave ${who(me)} ${gold} Gold.`);
+        } else {
+          const [o, got] = stealRandom(out, them, me, 1);
+          out = o;
+          if (cardCount(got)) lines.push(`${who(me)} stole ${cardsText(got)} from ${who(them)}.`);
+        }
+      }
+      if (!lines.length) lines.push("No enemy had anything to take.");
+      break;
+    }
+    case "loot": {
+      if (!a) {
+        lines.push("No enemy had any cards.");
+        break;
+      }
+      if (!a.resource || !RESOURCES.includes(a.resource)) return null;
+      const r = a.resource;
+      for (const them of treasureEnemies(out, me)) {
+        const n = out.players[them].hand[r];
+        if (!n) continue;
+        out = transfer(out, them, me, { [r]: n });
+        lines.push(`${who(them)} handed over ${n} ${RES_NAME[r]}.`);
+      }
+      if (!lines.length) lines.push(`Nobody had any ${RES_NAME[r]}.`);
+      break;
+    }
+    case "theLocker":
+    case "tellNoTales": {
+      if (!a) {
+        lines.push("There was no enemy ship to hit.");
+        break;
+      }
+      const id = enemyShip(a.ship, need?.k === "ship" ? need.ships : []);
+      if (id === null) return null;
+      loseLife(id, `${who(out.ships.find((sh) => sh.id === id)!.owner)}'s`);
+      break;
+    }
+    case "notorious": {
+      if (!a) {
+        lines.push("There was no enemy ship to steal from.");
+        break;
+      }
+      if (need?.k !== "shipTo") return null;
+      const id = enemyShip(a.ship, need.ships);
+      if (id === null) return null;
+      if (need.to.length && (a.to === undefined || !need.to.includes(a.to))) return null;
+      loseLife(id, `${who(out.ships.find((sh) => sh.id === id)!.owner)}'s`);
+      if (a.to !== undefined && need.to.includes(a.to)) {
+        out = { ...out, ships: out.ships.map((sh) => (sh.id === a.to ? { ...sh, lives: sh.lives + 1 } : sh)) };
+        lines.push(`${who(me)}'s ship gained a life.`);
+      }
+      break;
+    }
+    case "arrr": {
+      if (!a) {
+        lines.push("No enemy ship could be moved.");
+        break;
+      }
+      const id = enemyShip(a.ship, need?.k === "shipPath" ? need.ships : []);
+      if (id === null || !a.path || a.path.length > 3) return null;
+      if (a.path.length) {
+        const end = a.path[a.path.length - 1];
+        const route = nudgeReach(out, id).get(`${end.r},${end.c}`);
+        if (!route) return null;
+        out = moveShip(out, id, end);
+        lines.push(`${who(me)} drove ${who(out.ships.find((sh) => sh.id === id)!.owner)}'s ship to ${posName(end)}.`);
+      }
+      break;
+    }
+    case "iAmTheStorm": {
+      if (!a) {
+        lines.push("No enemy ship could be put in the storm.");
+        break;
+      }
+      if (need?.k !== "shipSquare") return null;
+      const id = enemyShip(a.ship, need.ships);
+      if (id === null || !a.at || !need.squares.some((q) => same(q, a.at!))) return null;
+      out = moveShip(out, id, a.at);
+      lines.push(`${who(out.ships.find((sh) => sh.id === id)!.owner)}'s ship is lost in the storm.`);
+      break;
+    }
+    case "takeover": {
+      if (!a || a.accept === false) {
+        lines.push(`${who(me)} kept their islands.`);
+        break;
+      }
+      if (need?.k !== "islands" || !a.island || !a.theirs) return null;
+      if (!need.mine.includes(a.island) || !need.theirs.includes(a.theirs)) return null;
+      const them = out.owners[a.theirs];
+      out = { ...out, owners: { ...out.owners, [a.island]: them, [a.theirs]: me } };
+      lines.push(`${who(me)} swapped an island with ${who(them)}.`);
+      break;
+    }
+    case "midas": {
+      const hand = out.players[me].hand;
+      const others: Cards = { wood: hand.wood, iron: hand.iron, rum: hand.rum };
+      const n = cardCount(others);
+      out = pay(out, me, others);
+      const [o, got] = gainCards(out, me, { gold: n });
+      out = o;
+      lines.push(
+        n ? `${who(me)} turned ${cardsText(others)} into ${got.gold ?? 0} Gold.` : "Nothing to turn into gold.",
+      );
+      break;
+    }
+    case "gambit": {
+      if (!a) {
+        lines.push(`${who(me)} had no gold to gamble.`);
+        break;
+      }
+      const d = a.dice?.[0];
+      if (!dieOk(d)) return null;
+      const gold = out.players[me].hand.gold;
+      if (d! >= 4) {
+        const [o, got] = gainCards(out, me, { gold });
+        out = o;
+        lines.push(`Rolled ${d}: ${who(me)} doubled their gold (+${got.gold ?? 0}).`);
+      } else {
+        out = pay(out, me, { gold });
+        lines.push(`Rolled ${d}: ${who(me)} lost all ${gold} Gold.`);
+      }
+      break;
+    }
+    case "godforsaken": {
+      if (f.lose === undefined) {
+        if (!a) {
+          lines.push(`${who(me)} had no cards to lose.`);
+          break;
+        }
+        const d = a.dice?.[0];
+        if (!dieOk(d)) return null;
+        // Now choose the cards (or, with too few, they all go).
+        const found = [{ ...f, lose: d! }, ...(out.found ?? []).slice(1)];
+        return log({ ...out, found }, `${who(me)} rolled ${d} for Godforsaken.`);
+      }
+      let lost: Cards;
+      if (a) {
+        if (!a.cards || a.cards.length !== f.lose) return null;
+        lost = {};
+        for (const r of a.cards) lost[r] = (lost[r] ?? 0) + 1;
+        if (!hasCards(out.players[me].hand, lost)) return null;
+      } else lost = { ...out.players[me].hand };
+      out = pay(out, me, lost);
+      lines.push(`Rolled ${f.lose}: ${who(me)} lost ${cardsText(lost)}.`);
+      break;
+    }
+    case "standoff": {
+      if (!a) {
+        lines.push("Nobody had any gold to fight over.");
+        break;
+      }
+      if (need?.k !== "player" || a.player === undefined || !need.players.includes(a.player)) return null;
+      const [mine, theirs] = a.dice ?? [0, 0];
+      if (!dieOk(mine) || !dieOk(theirs)) return null;
+      const them = a.player;
+      const [winner, loser] = mine >= theirs ? [me, them] : [them, me];
+      const gold = out.players[loser].hand.gold;
+      out = transfer(out, loser, winner, { gold });
+      lines.push(`${who(me)} rolled ${mine}, ${who(them)} rolled ${theirs}: ${who(winner)} takes ${gold} Gold.`);
+      break;
+    }
+    case "whiteFlag": {
+      if (!a) {
+        lines.push(f.stage === "hit" ? `${who(f.target!)} had no ships left.` : "No enemy to threaten.");
+        break;
+      }
+      const go = (patch: Partial<Found>) => ({ ...out, found: [{ ...f, ...patch }, ...(out.found ?? []).slice(1)] });
+      if (!f.stage) {
+        if (need?.k !== "player" || a.player === undefined || !need.players.includes(a.player)) return null;
+        const t = a.player;
+        // With no cards to offer, there's no bribe: straight to the cannons.
+        return handSize(out.players[t].hand) ? go({ target: t, stage: "bribe" }) : go({ target: t, stage: "hit" });
+      }
+      if (f.stage === "bribe") {
+        if (a.accept === false) return go({ stage: "hit" });
+        if (!a.give || !validCards(a.give) || !cardCount(a.give) || !hasCards(out.players[f.target!].hand, a.give))
+          return null;
+        return go({ stage: "decide", offer: a.give });
+      }
+      if (f.stage === "decide") {
+        if (a.accept === undefined) return null;
+        if (!a.accept) return go({ stage: "hit", offer: undefined });
+        out = transfer(out, f.target!, me, f.offer!);
+        out = { ...out, treaties: [...new Set([...(out.treaties ?? []), f.target!])] };
+        lines.push(`${who(me)} took ${cardsText(f.offer!)} from ${who(f.target!)} and let them live.`);
+        break;
+      }
+      const id = enemyShip(a.ship, need?.k === "ship" ? need.ships : []);
+      if (id === null) return null;
+      loseLife(id, `${who(f.target!)}'s`);
+      break;
+    }
+  }
+  return finishFind(out, f, lines, endTurn);
+}
+
+/** A board square's name, like "C7" (rows A–L, columns 1–18). */
+function posName(p: Pos): string {
+  return `${String.fromCharCode(65 + p.r)}${p.c + 1}`;
+}
+
+/** The card is done: off the queue, with its news, and the turn marked to end if it says so. */
+function finishFind(s: GameState, f: Found, lines: string[], endTurn: boolean): GameState {
+  const notice: Notice = { t: "treasure", player: f.player, at: f.at, card: f.card, result: lines };
+  let out: GameState = {
+    ...s,
+    found: (s.found ?? []).slice(1),
+    notices: [...s.notices, notice],
+    // A turn also ends when the finder's last ship goes down.
+    turnOver: s.turnOver || endTurn || !s.ships.some((sh) => sh.owner === f.player),
+  };
+  out = log(out, `${s.players[f.player].name} found ${TREASURE_CARDS[f.card].title}. ${lines.join(" ")}`);
+  return checkWin(out);
+}
+
+/** Carry out every Treasure card that needs no choice, stopping at the first that does. */
+function settle(s: GameState): GameState {
+  let out = s;
+  for (let guard = 0; guard < 50 && out.found?.length; guard++) {
+    if (out.phase.t === "gameOver") return { ...out, found: [] };
+    if (treasureNeed(out)) return out;
+    out = resolveFind(out, out.found[0], null) ?? { ...out, found: out.found.slice(1) };
+  }
+  if (out.turnOver && !out.found?.length && out.phase.t === "turn") {
+    out = reducer({ ...out, turnOver: false }, { t: "endTurn" });
   }
   return out;
 }
@@ -790,6 +1498,8 @@ const validCards = (c: Cards) => RESOURCES.every((r) => Number.isInteger(c[r] ??
 
 export function reducer(s: GameState, a: Action): GameState {
   if (s.phase.t === "gameOver" && a.t !== "clearNotices") return s;
+  // While a Treasure card waits on a choice, only that choice is allowed.
+  if (s.found?.length && a.t !== "treasure" && a.t !== "clearNotices") return s;
   // While an offer is on the table or a bribe is being decided, only answers to it are allowed.
   if ((s.trade || s.pendingAttack?.stage === "bribe") && !NEGOTIATION.has(a.t) && a.t !== "clearNotices") return s;
   if (s.pendingAttack?.stage === "fight" && a.t !== "attack" && a.t !== "cancelAttack" && a.t !== "clearNotices") {
@@ -875,11 +1585,12 @@ export function reducer(s: GameState, a: Action): GameState {
         ships: paid.ships.map((sh) => (sh.id === ship.id ? moved : sh)),
         phase: { ...s.phase, moves: s.phase.moves - (a.path.length - fromMasts) },
       };
-      // Treasure along the way counts too (sailing over an X picks it up).
+      // Treasure along the way counts too (sailing over an X picks it up). The cards are carried out
+      // once the ship has finished sailing.
       for (let i = 0; i < a.path.length; i++) {
         out = collectXs(out, { ...moved, pos: a.path[i] });
       }
-      return out;
+      return settle(out);
     }
 
     case "build": {
@@ -905,7 +1616,7 @@ export function reducer(s: GameState, a: Action): GameState {
         let out = pay(s, player, cost);
         out = { ...out, ships: [...out.ships, ship], nextShipId: s.nextShipId + 1 };
         out = collectXs(log(out, `${s.players[player].name} built a ship.`), ship);
-        return checkWin(out);
+        return settle(checkWin(out));
       }
       const ship = s.ships.find((sh) => sh.id === a.ship);
       if (!ship || ship.owner !== player) return s;
@@ -1079,7 +1790,7 @@ export function reducer(s: GameState, a: Action): GameState {
       };
       // With a ship in play, the turn carries on like any other.
       const out: GameState = { ...s, ships: [...s.ships, ship], nextShipId: s.nextShipId + 1, captain: null };
-      return checkWin(collectXs(out, ship));
+      return settle(checkWin(collectXs(out, ship)));
     }
 
     case "merchant": {
@@ -1175,6 +1886,13 @@ export function reducer(s: GameState, a: Action): GameState {
       return { ...s, pendingAttack: null };
     }
 
+    case "treasure": {
+      const f = s.found?.[0];
+      if (!f || s.phase.t !== "turn" || !treasureNeed(s)) return s;
+      const out = resolveFind(s, f, a);
+      return out ? settle(out) : s;
+    }
+
     case "endTurn": {
       if (s.phase.t !== "turn") return s;
       const turn = (s.turn + 1) % s.players.length;
@@ -1190,6 +1908,8 @@ export function reducer(s: GameState, a: Action): GameState {
         pendingAttack: null,
         treaties: [],
         offers: 0,
+        found: [],
+        turnOver: false,
       };
       // Start of the next turn: one resource card for every island they own, except islands with
       // every port inside the storm.

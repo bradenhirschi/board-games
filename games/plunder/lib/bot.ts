@@ -40,6 +40,8 @@ import {
   shipAt,
   shipSpots,
   startingIslands,
+  treasureNeed,
+  nudgeReach,
   type Action,
   type GameState,
   type Hand,
@@ -185,6 +187,9 @@ export function botAction(s: GameState): Action | null {
   const hand = s.players[me].hand;
   const ships = s.ships.filter((sh) => sh.owner === me);
 
+  // A Treasure card waiting on this bot's choice.
+  if (s.found?.length) return treasureChoice(s, me);
+
   // Deals and bribes on the table come first: the game is waiting on this bot's answer.
   const deal = negotiate(s, me);
   if (deal) return deal;
@@ -271,6 +276,7 @@ export function fillDice(a: Action, d6: () => number): Action {
   if (a.t === "roll") return { ...a, die: d6() };
   if (a.t === "attack") return { ...a, attackDie: d6(), defenseDie: d6() };
   if (a.t === "rollDoubles") return { ...a, dice: [d6(), d6()] };
+  if (a.t === "treasure" && a.dice) return { ...a, dice: [d6(), d6()] };
   return a;
 }
 
@@ -390,4 +396,74 @@ function negotiate(s: GameState, me: number): Action | null {
     return { t: "attack", ship: pa.ship, target: pa.target, attackDie: 0, defenseDie: 0 };
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Treasure cards
+
+/**
+ * A bot's choice for a Treasure card. It only uses what players can see: hand sizes, ships, islands
+ * and Plunder Points (never what cards someone holds).
+ */
+function treasureChoice(s: GameState, me: number): Action | null {
+  const need = treasureNeed(s);
+  const f = s.found![0];
+  if (!need) return null;
+  const hand = s.players[me].hand;
+  const size = (p: number) => RESOURCES.reduce((n, r) => n + s.players[p].hand[r], 0);
+  const shipOf = (id: number) => s.ships.find((sh) => sh.id === id)!;
+  const weakest = (ids: number[]) => ids.reduce((a, b) => (shipOf(b).lives < shipOf(a).lives ? b : a));
+  switch (need.k) {
+    case "player": {
+      // The leader for points-related cards, else whoever holds the most cards.
+      const score = (p: number) => (f.card === "plunder" || f.card === "whiteFlag" ? points(s, p) * 100 : 0) + size(p);
+      const player = need.players.reduce((a, b) => (score(b) > score(a) ? b : a));
+      return { t: "treasure", player, ...(need.roll ? { dice: [0, 0] as [number, number] } : {}) };
+    }
+    case "resource":
+      return { t: "treasure", resource: "gold" };
+    case "roll":
+      return { t: "treasure", dice: [0, 0] };
+    case "cards":
+      return { t: "treasure", cards: tollCards(hand, need.n) };
+    case "choose": {
+      const ship = s.ships.find((sh) => sh.id === f.ship);
+      let accept: boolean;
+      if (f.card === "royalNavy") accept = !ship || ship.lives === 1 || hand.gold <= 2;
+      else if (f.card === "manOverboard") accept = !!ship && ship.lives > 1;
+      else accept = cardCount(f.offer ?? {}) >= 2 || !s.ships.some((sh) => sh.owner === f.target);
+      return { t: "treasure", accept };
+    }
+    case "ship":
+      return { t: "treasure", ship: need.enemy ? weakest(need.ships) : weakest(need.ships) };
+    case "shipTo":
+      return { t: "treasure", ship: weakest(need.ships), ...(need.to.length ? { to: weakest(need.to) } : {}) };
+    case "square": {
+      const resourcePorts = islandsOf(s.layout)
+        .filter((i) => i.kind === "resource")
+        .flatMap((i) => i.ports);
+      const at = need.squares.find((p) => resourcePorts.some((q) => q.r === p.r && q.c === p.c)) ?? need.squares[0];
+      return { t: "treasure", at };
+    }
+    case "shipSquare":
+      return { t: "treasure", ship: need.ships[0], at: need.squares[0] };
+    case "shipPath": {
+      const ship = need.ships[0];
+      const paths = [...nudgeReach(s, ship).values()];
+      const path = paths.reduce((a, b) => (b.length > a.length ? b : a));
+      return { t: "treasure", ship, path };
+    }
+    case "islands": {
+      const skulls = (id: string) => islandsOf(s.layout).find((i) => i.id === id)?.skulls ?? 0;
+      const mine = need.mine.reduce((a, b) => (skulls(b) < skulls(a) ? b : a));
+      const theirs = need.theirs.reduce((a, b) => (skulls(b) > skulls(a) ? b : a));
+      return skulls(theirs) > skulls(mine) ? { t: "treasure", island: mine, theirs } : { t: "treasure", accept: false };
+    }
+    case "bribe": {
+      // Offer up to two cards it can spare; with nothing, take the hit.
+      const give: Cards = {};
+      for (const r of tollCards(hand, Math.min(2, size(me)))) give[r] = (give[r] ?? 0) + 1;
+      return cardCount(give) ? { t: "treasure", give } : { t: "treasure", accept: false };
+    }
+  }
 }

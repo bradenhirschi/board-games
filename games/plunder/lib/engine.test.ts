@@ -23,6 +23,7 @@ import {
   type GameState,
   type Hand,
 } from "./engine";
+import { TREASURE_DECK, type TreasureId } from "./treasureCards";
 import { parseTile } from "./board";
 import { DEFAULT_LAYOUT, type Pos } from "./tiles";
 
@@ -222,9 +223,114 @@ describe("plunder turns and treasure", () => {
     let s = play(started(), { t: "roll", die: 3 });
     const ship = s.ships.find((sh) => sh.owner === s.turn)!;
     s = { ...s, xs: [sq("C3")], notices: [] };
+    s = { ...s, treasureDeck: ["chest", "purse"] };
     s = play(s, { t: "sail", ship: ship.id, path: [sq("C2"), sq("C3")] });
-    expect(s.notices).toEqual([{ t: "treasure", player: 0, at: sq("C3") }]);
+    expect(s.notices).toEqual([
+      { t: "treasure", player: 0, at: sq("C3"), card: "chest", result: ["Anne got 3 Gold."] },
+    ]);
     expect(s.xs[0]).not.toEqual(sq("C3"));
+    // The used card goes under the deck.
+    expect(s.treasureDeck).toEqual(["purse", "chest"]);
+  });
+});
+
+describe("plunder treasure cards", () => {
+  /** Anne has rolled, with an X on C3 and `cards` on top of the Treasure deck. */
+  function atX(...cards: TreasureId[]): GameState {
+    const s = play(started(), { t: "roll", die: 3 });
+    return { ...s, xs: [sq("C3")], notices: [], treasureDeck: cards };
+  }
+  const anne = (s: GameState) => s.ships.find((sh) => sh.owner === 0)!;
+  const bart = (s: GameState) => s.ships.find((sh) => sh.owner === 1)!;
+  const sail = (s: GameState) => play(s, { t: "sail", ship: anne(s).id, path: [sq("C2"), sq("C3")] });
+
+  it("has 55 cards: 51 different, with five of A Pirate's Life", () => {
+    expect(TREASURE_DECK).toHaveLength(55);
+    expect(new Set(TREASURE_DECK).size).toBe(51);
+    expect(TREASURE_DECK.filter((c) => c === "aPiratesLife")).toHaveLength(5);
+    expect([...newGame(setup, 1).treasureDeck!].sort()).toEqual([...TREASURE_DECK].sort());
+  });
+
+  it("waits for a choice, blocking everything else, then carries it out", () => {
+    let s = atX("lair");
+    s = { ...s, players: s.players.map((p, i) => (i === 1 ? { ...p, hand: { ...p.hand, gold: 4 } } : p)) };
+    s = sail(s);
+    expect(s.found?.[0].card).toBe("lair");
+    expect(waitingOn(s)).toBe(0);
+    expect(play(s, { t: "endTurn" })).toBe(s);
+    const gold = s.players[0].hand.gold;
+    s = play(s, { t: "treasure", player: 1 });
+    expect(s.found).toEqual([]);
+    expect(s.players[0].hand.gold).toBe(gold + 4);
+    expect(s.players[1].hand.gold).toBe(0);
+  });
+
+  it("skips the choice when there's nothing to choose from", () => {
+    let s = atX("lair");
+    s = { ...s, players: s.players.map((p) => ({ ...p, hand: { ...p.hand, gold: 0 } })) };
+    s = sail(s);
+    expect(s.found).toEqual([]);
+    expect(s.notices[0]).toMatchObject({ card: "lair", result: ["No enemy had anything to take."] });
+  });
+
+  it("ends the turn once the sail is over (Mirage)", () => {
+    const s = sail(atX("mirage"));
+    expect(s.turn).toBe(1);
+  });
+
+  it("hurts the ship that found it, and a sinking earns nobody a point (Scurvy)", () => {
+    let s = atX("scurvy");
+    s = { ...s, ships: s.ships.map((sh) => (sh.owner === 0 ? { ...sh, lives: 1 } : sh)) };
+    s = sail(s);
+    expect(s.ships.some((sh) => sh.owner === 0)).toBe(false);
+    expect(s.players[1].plunderCards).toBe(0);
+    // Losing the last ship ends the turn.
+    expect(s.turn).toBe(1);
+  });
+
+  it("Godforsaken: roll, then choose which cards to lose", () => {
+    let s = atX("godforsaken");
+    s = {
+      ...s,
+      players: s.players.map((p, i) => (i === 0 ? { ...p, hand: { wood: 3, iron: 2, rum: 0, gold: 1 } } : p)),
+    };
+    s = play(sail(s), { t: "treasure", dice: [2, 0] });
+    expect(s.found?.[0].lose).toBe(2);
+    expect(play(s, { t: "treasure", cards: ["gold", "gold"] })).toBe(s);
+    s = play(s, { t: "treasure", cards: ["wood", "iron"] });
+    expect(s.players[0].hand).toEqual({ wood: 2, iron: 1, rum: 0, gold: 1 });
+  });
+
+  it("White Flag: the target bribes or loses a life, and their answer is theirs to give", () => {
+    let s = sail(atX("whiteFlag", "whiteFlag"));
+    s = play(s, { t: "treasure", player: 1 });
+    expect(waitingOn(s)).toBe(1);
+    const bartCards = s.players[1].hand;
+    const one = (["wood", "iron", "rum", "gold"] as const).find((r) => bartCards[r] > 0)!;
+    s = play(s, { t: "treasure", give: { [one]: 1 } });
+    expect(waitingOn(s)).toBe(0);
+    // Anne refuses, then picks Bart's ship to lose a life.
+    s = play(s, { t: "treasure", accept: false }, { t: "treasure", ship: bart(s).id });
+    expect(bart(s).lives).toBe(2);
+    expect(s.found).toEqual([]);
+  });
+
+  it("can't touch a player Anne has a treaty with", () => {
+    let s = atX("hailToTheThief");
+    s = { ...s, treaties: [1], players: s.players.map((p) => ({ ...p, hand: { ...p.hand, gold: 3 } })) };
+    s = sail(s);
+    expect(s.players[1].hand.gold).toBe(3);
+  });
+
+  it("Arrr pushes an enemy ship up to three squares; Wind at Your Back adds three", () => {
+    let s = atX("arrr");
+    s = { ...s, ships: s.ships.map((sh) => (sh.owner === 1 ? { ...sh, pos: sq("C4") } : sh)) };
+    s = sail(s);
+    expect(play(s, { t: "treasure", ship: bart(s).id, path: [sq("C5"), sq("D5"), sq("D6"), sq("D7")] })).toBe(s);
+    s = play(s, { t: "treasure", ship: bart(s).id, path: [sq("C5"), sq("D5")] });
+    expect(bart(s).pos).toEqual(sq("D5"));
+    const w = sail(atX("windAtYourBack"));
+    expect(anne(w).mastMoves).toBe(3);
   });
 });
 
