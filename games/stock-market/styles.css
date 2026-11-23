@@ -3163,3 +3163,144 @@ button.link {
 .auto-roll .switch {
   display: inline-block;
 }
+
+/* Mobile stock market home */
+.stock-home-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: start;
+  gap: 8px;
+}
+.stock-home-header .setup-logo {
+  font-size: clamp(23px, 6.8vw, 36px);
+  line-height: 1.1;
+}
+.stock-home-header p {
+  margin-top: 4px;
+}
+.stock-home-account {
+  position: relative;
+}
+.stock-home-account summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--paper);
+  list-style: none;
+  cursor: pointer;
+}
+.stock-home-account summary::-webkit-details-marker {
+  display: none;
+}
+.stock-home-profile-picture {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--highlight);
+}
+.stock-home-profile-picture::before,
+.stock-home-profile-picture::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+}
+.stock-home-profile-picture::before {
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.stock-home-profile-picture::after {
+  top: 16px;
+  width: 19px;
+  height: 14px;
+  border-radius: 10px 10px 0 0;
+}
+.stock-home-account-panel {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 0;
+  top: 50px;
+  width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--card);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(31 58 48 / 0.13);
+  overflow-wrap: anywhere;
+}
+.stock-home-account-panel .home-heading,
+.stock-home-account-panel p {
+  margin: 0;
+}
+.stock-home-field,
+.stock-home-room-form {
+  display: grid;
+  gap: 4px;
+}
+.stock-home-field input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+}
+.stock-home-field input,
+.stock-home-room-form .join-form input {
+  font-size: 16px;
+  min-height: 44px;
+}
+.stock-home-room-form .join-form .btn,
+.stock-home-account-panel .btn,
+.local-start > .btn {
+  min-height: 44px;
+}
+.stock-home-roster {
+  margin-top: 14px;
+  border-top: var(--border);
+}
+.stock-home-roster .home-heading {
+  margin: 12px 0 8px;
+  color: var(--ink);
+}
+.stock-home-roster .home-heading span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-inline-end: 6px;
+  background: var(--up);
+}
+.stock-home-roster li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px 0;
+  border-top: var(--border);
+}
+.stock-home-roster li span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.stock-home-roster li b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--paper);
+}

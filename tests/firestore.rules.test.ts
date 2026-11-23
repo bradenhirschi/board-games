@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 import {
   assertFails,
@@ -52,7 +54,7 @@ async function seed(data: Record<string, unknown>) {
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-stock-market",
-    firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8085 },
+    firestore: { rules: readFileSync("firestore.rules", "utf8") },
   });
 });
 afterAll(() => env.cleanup());
@@ -80,6 +82,26 @@ describe("creating a room", () => {
         .doc("stockMarketRooms/abc")
         .set(lobby({ code: "abc" })),
     );
+  });
+});
+
+describe("custom codes and online presence", () => {
+  it("lets the first player create a lobby with any five-letter-or-number code", async () => {
+    await assertSucceeds(db("host").doc("stockMarketRooms/FAM01").set(lobby({ code: "FAM01" })));
+  });
+
+  it("lets signed-in players see presence and update only their own entry", async () => {
+    const data = { name: "Amy", status: "lobby", seenAt: firebase.firestore.FieldValue.serverTimestamp() };
+    await assertSucceeds(db("amy").doc("stockMarketPresence/amy").set(data));
+    await assertSucceeds(db("host").collection("stockMarketPresence").get());
+    await assertFails(db("host").doc("stockMarketPresence/amy").set(data));
+    await assertFails(env.unauthenticatedContext().firestore().collection("stockMarketPresence").get());
+  });
+
+  it("rejects client timestamps and private fields in public presence", async () => {
+    const entry = db("amy").doc("stockMarketPresence/amy");
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: new Date() }));
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: firebase.firestore.FieldValue.serverTimestamp(), email: "amy@example.com" }));
   });
 });
 

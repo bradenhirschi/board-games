@@ -36,7 +36,12 @@ const DECISION_MS = 350;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function OnlineRoom({ code, name, onQuit }: { code: string; name: string; onQuit: () => void }) {
+export default function OnlineRoom({ code, name, onQuit, onStatusChange }: {
+  code: string;
+  name: string;
+  onQuit: () => void;
+  onStatusChange: (status: Room["status"] | undefined) => void;
+}) {
   const [uid, setUid] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +61,11 @@ export default function OnlineRoom({ code, name, onQuit }: { code: string; name:
       stop?.();
     };
   }, [code]);
+
+  const status = error ? undefined : room?.status;
+  useEffect(() => {
+    onStatusChange(status);
+  }, [onStatusChange, status]);
 
   if (error) return <Notice title="Something went wrong" text={error} onQuit={onQuit} />;
   if (!uid || room === undefined) return <Notice title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;

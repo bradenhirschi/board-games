@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import LocalGame, { SAVE_KEY } from "@/games/stock-market/components/Game";
 import OnlineRoom from "@/games/stock-market/components/OnlineRoom";
 import {
@@ -24,10 +24,10 @@ import {
   signOutUser,
   useFirebaseUser,
 } from "@/shared/firebase";
-import { createRoom, normalizeCode } from "@/games/stock-market/lib/rooms";
+import { CODE_LENGTH, enterRoom, normalizeCode } from "@/games/stock-market/lib/rooms";
+import { useStockMarketPresence, type PresenceStatus } from "@/games/stock-market/lib/presence";
 
 const NAME_KEY = "stock-market:name";
-const LAST_ROOM_KEY = "stock-market:last-room";
 const TAB_KEY = "stock-market:home-tab";
 
 function readStorage(key: string): string | null {
@@ -76,7 +76,25 @@ export default function Home() {
   const [saved, setSaved] = useState<GameState | null>(null);
   const [room, setRoom] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [lastRoom, setLastRoom] = useState<string | null>(null);
+  const [localSetup, setLocalSetup] = useState(false);
+  const [roomStatus, setRoomStatus] = useState<PresenceStatus | undefined>(undefined);
+  const [presenceError, setPresenceError] = useState(false);
+  const user = useFirebaseUser();
+  const { players: onlinePlayers, unavailable } = useStockMarketPresence(
+    user?.uid,
+    name.trim() || "Player",
+    roomStatus ?? (game ? "playing" : "home"),
+    !room && !game && !localSetup,
+  );
+
+  useEffect(() => {
+    if (onlineAvailable) void ensureUser().catch(() => setPresenceError(true));
+  }, []);
+
+  const updateName = (value: string) => {
+    setName(value);
+    writeStorage(NAME_KEY, value);
+  };
   const [tab, setTab] = useState<Tab>(onlineAvailable ? "online" : "local");
 
   useEffect(() => {
@@ -84,7 +102,6 @@ export default function Home() {
     /* eslint-disable react-hooks/set-state-in-effect */
     setSaved(loadSaved());
     setName(readStorage(NAME_KEY) ?? "");
-    setLastRoom(readStorage(LAST_ROOM_KEY));
     const savedTab = readStorage(TAB_KEY);
     if (savedTab === "local" || (savedTab === "online" && onlineAvailable)) setTab(savedTab);
     const fromUrl = normalizeCode(new URLSearchParams(window.location.search).get("room") ?? "");
@@ -93,8 +110,6 @@ export default function Home() {
   }, [game]);
 
   const openRoom = (code: string) => {
-    writeStorage(LAST_ROOM_KEY, code);
-    setLastRoom(code);
     setRoomInUrl(code);
     setRoom(code);
   };
@@ -105,7 +120,9 @@ export default function Home() {
         key={room}
         code={room}
         name={name.trim() || "Player"}
+        onStatusChange={setRoomStatus}
         onQuit={() => {
+          setRoomStatus(undefined);
           setRoomInUrl(null);
           setRoom(null);
         }}
@@ -113,9 +130,10 @@ export default function Home() {
     );
   }
 
-  if (game) {
-    return <LocalGame key={game.key} initial={game.state} onQuit={() => setGame(null)} />;
-  }
+  const leaveLocalGame = () => {
+    setGame(null);
+    setLocalSetup(false);
+  };
 
   const update = (i: number, patch: Partial<PlayerSetup>) =>
     setPlayers(players.map((p, j) => (j === i ? { ...p, ...patch } : p)));
@@ -125,14 +143,120 @@ export default function Home() {
     setGame({ key: Date.now(), state: newGame(clean, target, botLevel) });
   };
 
+  if (game) return <LocalGame key={game.key} initial={game.state} onQuit={leaveLocalGame} />;
+
+  if (localSetup) {
+    return (
+      <main className="setup">
+        <div className="setup-card">
+          <button type="button" className="link" onClick={() => setLocalSetup(false)}>Back to home</button>
+          <h1 className="setup-logo">New local game</h1>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              start();
+            }}
+          >
+            {players.map((p, i) => (
+              <div key={i} className="setup-row">
+                <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
+                  {(p.name.trim() || "P").slice(0, 1).toUpperCase()}
+                </span>
+                <input
+                  value={p.name}
+                  maxLength={16}
+                  aria-label={`Player ${i + 1} name`}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                />
+                <div className="seg" role="group" aria-label={`Player ${i + 1} type`}>
+                  <button type="button" className={!p.isBot ? "on" : ""} onClick={() => update(i, { isBot: false })}>
+                    Human
+                  </button>
+                  <button type="button" className={p.isBot ? "on" : ""} onClick={() => update(i, { isBot: true })}>
+                    Bot
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="link small"
+                  disabled={players.length <= MIN_PLAYERS}
+                  onClick={() => setPlayers(players.filter((_, j) => j !== i))}
+                  aria-label={`Remove player ${i + 1}`}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {players.length < MAX_PLAYERS && (
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setPlayers([...players, { name: `Player ${players.length + 1}`, isBot: false }])}
+                >
+                  + Add player
+                </button>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() =>
+                    setPlayers([
+                      ...players,
+                      { name: `Bot ${players.filter((p) => p.isBot).length + 1}`, isBot: true },
+                    ])
+                  }
+                >
+                  + Add bot
+                </button>
+              </div>
+            )}
+
+            <label className="setup-target">
+              <span>Winning amount</span>
+              <select value={target} onChange={(e) => setTarget(Number(e.target.value))}>
+                {TARGETS.map((t) => (
+                  <option key={t} value={t}>
+                    ${fmt(t)}
+                    {t === DEFAULT_TARGET ? " (standard)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {players.some((p) => p.isBot) && (
+              <label className="setup-target">
+                <span>Bots</span>
+                <select value={botLevel} onChange={(e) => setBotLevel(e.target.value as BotLevel)}>
+                  {BOT_LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {BOT_LEVEL_NAMES[l]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <button type="submit" className="btn btn-primary btn-big">
+              Start game
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="setup">
       <div className="setup-card">
-        <h1 className="setup-logo">Stock Market</h1>
-        <p className="muted">Buy low, sell high, and be first to ${fmt(target)}. For 2–8 players.</p>
+        <header className="stock-home-header">
+          <div>
+            <h1 className="setup-logo">Stock Market</h1>
+            <p className="muted">Buy low, sell high. For 2–8 players.</p>
+          </div>
+          {onlineAvailable && <AccountMenu user={user} name={name} setName={updateName} />}
+        </header>
 
         {onlineAvailable && (
-          <div className="home-tabs" role="tablist" aria-label="How to play">
+          <div className="home-tabs" role="group" aria-label="Play mode">
             {(
               [
                 ["online", "Online"],
@@ -141,8 +265,8 @@ export default function Home() {
             ).map(([id, label]) => (
               <button
                 key={id}
-                role="tab"
-                aria-selected={tab === id}
+                type="button"
+                aria-pressed={tab === id}
                 className={tab === id ? "on" : ""}
                 onClick={() => {
                   setTab(id);
@@ -156,15 +280,7 @@ export default function Home() {
         )}
 
         {tab === "online" && onlineAvailable && (
-          <OnlineStart
-            name={name}
-            setName={(n) => {
-              setName(n);
-              writeStorage(NAME_KEY, n);
-            }}
-            lastRoom={lastRoom}
-            onOpenRoom={openRoom}
-          />
+          <OnlineStart name={name} setName={updateName} onOpenRoom={openRoom} />
         )}
 
         {tab === "local" && (
@@ -178,161 +294,74 @@ export default function Home() {
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                start();
-              }}
-            >
-              {players.map((p, i) => (
-                <div key={i} className="setup-row">
-                  <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
-                    {(p.name.trim() || "P").slice(0, 1).toUpperCase()}
-                  </span>
-                  <input
-                    value={p.name}
-                    maxLength={16}
-                    aria-label={`Player ${i + 1} name`}
-                    onChange={(e) => update(i, { name: e.target.value })}
-                  />
-                  <div className="seg" role="group" aria-label={`Player ${i + 1} type`}>
-                    <button type="button" className={!p.isBot ? "on" : ""} onClick={() => update(i, { isBot: false })}>
-                      Human
-                    </button>
-                    <button type="button" className={p.isBot ? "on" : ""} onClick={() => update(i, { isBot: true })}>
-                      Bot
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="link small"
-                    disabled={players.length <= MIN_PLAYERS}
-                    onClick={() => setPlayers(players.filter((_, j) => j !== i))}
-                    aria-label={`Remove player ${i + 1}`}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              {players.length < MAX_PLAYERS && (
-                <div className="btn-row">
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => setPlayers([...players, { name: `Player ${players.length + 1}`, isBot: false }])}
-                  >
-                    + Add player
-                  </button>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      setPlayers([
-                        ...players,
-                        { name: `Bot ${players.filter((p) => p.isBot).length + 1}`, isBot: true },
-                      ])
-                    }
-                  >
-                    + Add bot
-                  </button>
-                </div>
-              )}
-
-              <label className="setup-target">
-                <span>Winning amount</span>
-                <select value={target} onChange={(e) => setTarget(Number(e.target.value))}>
-                  {TARGETS.map((t) => (
-                    <option key={t} value={t}>
-                      ${fmt(t)}
-                      {t === DEFAULT_TARGET ? " (standard)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {players.some((p) => p.isBot) && (
-                <label className="setup-target">
-                  <span>Bots</span>
-                  <select value={botLevel} onChange={(e) => setBotLevel(e.target.value as BotLevel)}>
-                    {BOT_LEVELS.map((l) => (
-                      <option key={l} value={l}>
-                        {BOT_LEVEL_NAMES[l]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              <button type="submit" className="btn btn-primary btn-big">
-                New game
-              </button>
-            </form>
+            <button type="button" className="btn btn-primary" onClick={() => setLocalSetup(true)}>
+              New local game
+            </button>
           </section>
         )}
 
-        <details className="rules">
-          <summary>How to play</summary>
-          <ul>
-            <li>
-              <b>Go to work.</b> Pick an occupation. Whenever <i>anyone</i> throws your numbers you&apos;re paid. Once
-              you have $1,000 you start playing the market at your next turn.
-            </li>
-            <li>
-              <b>Play the market.</b> Start on any START square (no fee). Each throw, move the way the arrow on the
-              square you&apos;re leaving points. START: odd one way, even the other.
-            </li>
-            <li>
-              <b>Land</b> and the market slider moves up or down. Then buy as many shares of that stock as you like at
-              the new price (1 on limit squares). Own it already? Collect the dividend first.
-            </li>
-            <li>
-              <b>Paired stocks.</b> The eight stocks come in four pairs that share one price ladder, flipped: when the
-              market moves, one of each pair goes up and the other goes down.
-            </li>
-            <li>
-              <b>Sell</b> at the board price just before your throw. After the throw you can still sell (for example to
-              afford the stock you landed on), but only at the lowest price on the board, as with fees and SELL ALL
-              squares. Your turn lasts until you press <b>End turn</b>.
-            </li>
-            <li>
-              <b>Fees:</b> $100 for landing on START, $10 per share you own on a broker fee corner.
-            </li>
-            <li>
-              <b>Shareholders&apos; meetings:</b> own the stock and you may detour in as you pass its entrance. Land on
-              a space to get that many new shares for each share you own. Walk through and out the far end.
-            </li>
-            <li>
-              <b>Win</b> by being worth the target (cash + stock at board price) at your turn to roll.
-            </li>
-          </ul>
-        </details>
+        {onlineAvailable && (
+          <section className="stock-home-roster" aria-labelledby="stock-home-roster-title">
+            <h2 className="home-heading" id="stock-home-roster-title">
+              <span aria-hidden="true" />
+              {onlinePlayers && !unavailable ? `${onlinePlayers.length} online now` : "Online now"}
+            </h2>
+            {unavailable || (presenceError && !user) ? (
+              <p className="muted">Online players are temporarily unavailable.</p>
+            ) : !onlinePlayers ? (
+              <p className="muted">Checking who’s online…</p>
+            ) : onlinePlayers.length === 0 ? (
+              <p className="muted">No players online yet.</p>
+            ) : (
+              <ul>
+                {onlinePlayers.map((player) => (
+                  <li key={player.uid}>
+                    <span><b aria-hidden="true">{player.name.charAt(0).toUpperCase()}</b>{player.name}{player.uid === user?.uid && " (you)"}</span>
+                    <small className="muted">{PRESENCE_LABELS[player.status]}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </div>
     </main>
   );
 }
 
 type Tab = "online" | "local";
+const PRESENCE_LABELS: Record<PresenceStatus, string> = {
+  home: "On home screen",
+  lobby: "Waiting in room",
+  playing: "In a game",
+};
 
 function OnlineStart({
   name,
   setName,
-  lastRoom,
   onOpenRoom,
 }: {
   name: string;
-  setName: (n: string) => void;
-  lastRoom: string | null;
+  setName: (name: string) => void;
   onOpenRoom: (code: string) => void;
 }) {
-  const user = useFirebaseUser();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codeId = useId();
 
-  const run = async (task: () => Promise<void>) => {
+  const join = async () => {
+    if (busy) return;
+    if (code.length !== CODE_LENGTH) {
+      setError("Room codes are 5 letters and numbers.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await task();
+      const user = await ensureUser();
+      await enterRoom(code, user.uid, name.trim() || "Player");
+      onOpenRoom(code);
     } catch (e) {
       setError(authErrorMessage(e));
     } finally {
@@ -340,86 +369,80 @@ function OnlineStart({
     }
   };
 
-  const playerName = name.trim() || "Player";
-  const googleName = user && !user.isAnonymous ? (user.displayName ?? user.email ?? "your Google account") : null;
-
   return (
     <section className="online-start">
-      <label className="setup-row">
+      <label className="stock-home-field">
         <span className="home-label">Your name</span>
-        <input value={name} maxLength={16} placeholder="Player" onChange={(e) => setName(e.target.value)} />
+        <input value={name} maxLength={16} placeholder="Player" autoComplete="nickname" onChange={(e) => setName(e.target.value)} />
       </label>
-
-      <div className="btn-row">
-        <button
-          className="btn btn-primary"
-          disabled={busy}
-          onClick={() =>
-            run(async () => {
-              const u = await ensureUser();
-              onOpenRoom(await createRoom(u.uid, playerName));
-            })
-          }
-        >
-          Create a room
-        </button>
-      </div>
-
       <form
-        className="join-form"
+        className="stock-home-room-form"
         onSubmit={(e) => {
           e.preventDefault();
-          const c = normalizeCode(code);
-          if (c.length === 5) onOpenRoom(c);
-          else setError("Room codes are 5 letters and numbers.");
+          void join();
         }}
       >
-        <input
-          value={code}
-          placeholder="Room code"
-          aria-label="Room code"
-          autoCapitalize="characters"
-          onChange={(e) => setCode(normalizeCode(e.target.value))}
-        />
-        <button className="btn" disabled={busy}>
-          Join
-        </button>
+        <label className="home-label" htmlFor={codeId}>Room code</label>
+        <div className="join-form">
+          <input
+            id={codeId}
+            value={code}
+            placeholder="e.g. FAM25"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            aria-describedby={`${codeId}-hint`}
+            onChange={(e) => setCode(normalizeCode(e.target.value))}
+          />
+          <button className="btn btn-primary" disabled={busy}>{busy ? "Joining…" : "Join"}</button>
+        </div>
+        <small className="muted" id={`${codeId}-hint`}>Pick a code to open a room, or enter the code your friends are using.</small>
       </form>
-
-      {lastRoom && (
-        <button className="link small" onClick={() => onOpenRoom(lastRoom)}>
-          Back to room {lastRoom}
-        </button>
-      )}
-
-      <p className="account small muted">
-        {googleName ? (
-          <>
-            Signed in as <b>{googleName}</b> ·{" "}
-            <button className="link small" disabled={busy} onClick={() => run(signOutUser)}>
-              Sign out
-            </button>
-          </>
-        ) : (
-          <>
-            Playing as a guest on this device ·{" "}
-            <button
-              className="link small"
-              disabled={busy}
-              onClick={() =>
-                run(async () => {
-                  const u = await signInWithGoogle();
-                  if (!name.trim() && u.displayName) setName(u.displayName.split(" ")[0].slice(0, 16));
-                })
-              }
-            >
-              Sign in with Google
-            </button>
-          </>
-        )}
-      </p>
-
-      {error && <p className="hint bad">{error}</p>}
+      {error && <p className="hint bad" role="alert">{error}</p>}
     </section>
+  );
+}
+
+function AccountMenu({ user, name, setName }: {
+  user: ReturnType<typeof useFirebaseUser>;
+  name: string;
+  setName: (name: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const googleName = user && !user.isAnonymous ? (user.displayName ?? user.email ?? "your Google account") : null;
+
+  const changeAccount = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (googleName) {
+        await signOutUser();
+        await ensureUser();
+      } else {
+        const signedIn = await signInWithGoogle();
+        if (!name.trim() && signedIn.displayName) setName(signedIn.displayName.split(" ")[0].slice(0, 16));
+      }
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <details className="stock-home-account">
+      <summary aria-label="Account">
+        <span className="stock-home-profile-picture" aria-hidden="true" />
+      </summary>
+      <section className="stock-home-account-panel" aria-label="Account">
+        <h2 className="home-heading">Account</h2>
+        <p>{googleName ? <>Signed in as <b>{googleName}</b></> : "Playing as guest"}</p>
+        <button type="button" className="btn" disabled={busy} onClick={() => void changeAccount()}>
+          {googleName ? "Sign out" : "Sign in with Google"}
+        </button>
+        {error && <p className="hint bad" role="alert">{error}</p>}
+      </section>
+    </details>
   );
 }
