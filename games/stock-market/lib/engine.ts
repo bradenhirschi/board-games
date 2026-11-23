@@ -113,6 +113,12 @@ export type BotLevel = "easy" | "normal";
 export const BOT_LEVELS: BotLevel[] = ["easy", "normal"];
 export const BOT_LEVEL_NAMES: Record<BotLevel, string> = { easy: "Easy", normal: "Normal" };
 
+export interface GameSettings {
+  target: number;
+  botLevel: BotLevel;
+  startWithCash: boolean;
+}
+
 export interface PlayerSetup {
   name: string;
   isBot: boolean;
@@ -138,7 +144,12 @@ const EASY_BOT_CAREERS = [0, 1];
 /** The occupation a bot takes for seat `i`. */
 const botCareer = (i: number, level: BotLevel) => (level === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS)[i % 2];
 
-export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel: BotLevel = "normal"): GameState {
+export function newGame(
+  setup: PlayerSetup[],
+  target = DEFAULT_TARGET,
+  botLevel: BotLevel = "normal",
+  startWithCash = false,
+): GameState {
   return {
     version: 3,
     players: setup.map((p, i) => ({
@@ -147,17 +158,17 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel:
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
-      career: p.isBot ? botCareer(i, botLevel) : null,
+      career: p.isBot && !startWithCash ? botCareer(i, botLevel) : null,
       status: "work",
       pos: null,
-      cash: 0,
+      cash: startWithCash ? WORK_CAP : 0,
       shares: emptyHoldings(),
     })),
     current: 0,
     market: MARKET_START,
     target,
     dice: null,
-    phase: setup.some((p) => !p.isBot) ? { t: "chooseCareers" } : { t: "preRoll" },
+    phase: !startWithCash && setup.some((p) => !p.isBot) ? { t: "chooseCareers" } : { t: "preRoll" },
     turn: 1,
     lastLanding: null,
     lastMarketDelta: 0,
@@ -227,7 +238,7 @@ function apply(s: GameState, a: Action): boolean {
       if (!kicked || kicked.isBot) return false;
       kicked.isBot = true;
       log(s, kicked.id, "left the game. A bot plays for them now.");
-      if (kicked.career === null) {
+      if (kicked.status === "work" && kicked.career === null && !mustGoToMarket(kicked)) {
         kicked.career = botCareer(kicked.id, s.botLevel ?? "normal");
         log(s, kicked.id, `goes to work as a ${CAREERS[kicked.career].name}`);
       }
@@ -261,7 +272,7 @@ function apply(s: GameState, a: Action): boolean {
 
     case "goToMarket": {
       if (ph.t !== "preRoll" || p.status !== "work" || !START_SQUARES.includes(a.start)) return false;
-      // Nobody plays the market until they've earned $1,000 at work.
+      // Players need at least $1,000 before entering the market.
       if (p.cash < WORK_CAP) return false;
       p.status = "market";
       p.pos = { kind: "track", index: a.start };

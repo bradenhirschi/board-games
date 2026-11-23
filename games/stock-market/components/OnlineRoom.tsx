@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  DEFAULT_TARGET,
   MAX_PLAYERS,
   MIN_PLAYERS,
   PLAYER_COLORS,
@@ -11,11 +10,7 @@ import {
   type Action,
   type GameState,
   type Player,
-  BOT_LEVELS,
-  BOT_LEVEL_NAMES,
-  type BotLevel,
 } from "@/games/stock-market/lib/engine";
-import { ensureUser } from "@/shared/firebase";
 import { botDecision, isBotTurn, resolve, type Decision } from "@/games/stock-market/lib/online";
 import {
   RoomError,
@@ -29,39 +24,40 @@ import {
   type Room,
 } from "@/games/stock-market/lib/rooms";
 import { BOT_THINK_MS, GameView, STEP_MS, animateRoll } from "./Game";
+import GameSettingsFields from "./GameSettingsFields";
 
-const TARGETS = [25_000, 50_000, 100_000, 250_000];
 /** Pause between replayed decisions (buying, ending a turn…) so they don't blur together. */
 const DECISION_MS = 350;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function OnlineRoom({ code, name, onQuit }: { code: string; name: string; onQuit: () => void }) {
-  const [uid, setUid] = useState<string | null>(null);
+export default function OnlineRoom({ code, uid, connectionError, header, name, onQuit, onStatusChange }: {
+  code: string;
+  uid: string | undefined;
+  connectionError: boolean;
+  header: ReactNode;
+  name: string;
+  onQuit: () => void;
+  onStatusChange: (status: Room["status"] | undefined) => void;
+}) {
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let stop: (() => void) | undefined;
-    let cancelled = false;
-    ensureUser()
-      .then((user) => {
-        if (cancelled) return;
-        setUid(user.uid);
-        stop = watchRoom(code, setRoom, (e) => setError(e.message));
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't connect."));
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, [code]);
+    if (!uid) return;
+    return watchRoom(code, setRoom, (e) => setError(e.message));
+  }, [code, uid]);
 
-  if (error) return <Notice title="Something went wrong" text={error} onQuit={onQuit} />;
-  if (!uid || room === undefined) return <Notice title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;
-  if (room === null) return <Notice title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
+  const status = error ? undefined : room?.status;
+  useEffect(() => {
+    onStatusChange(status);
+  }, [onStatusChange, status]);
 
-  if (room.status === "lobby") return <Lobby room={room} uid={uid} name={name} onQuit={onQuit} />;
+  if (error || connectionError) return <Notice header={header} title="Something went wrong" text={error ?? "Couldn’t connect."} onQuit={onQuit} />;
+  if (!uid || room === undefined) return <Notice header={header} title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;
+  if (room === null) return <Notice header={header} title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
+
+  if (room.status === "lobby") return <Lobby header={header} room={room} uid={uid} name={name} onQuit={onQuit} />;
   return <OnlineGame room={room} uid={uid} onQuit={onQuit} />;
 }
 
@@ -71,11 +67,11 @@ function useRemoved(room: Room, uid: string): boolean {
   return wasSeated && !room.memberUids.includes(uid);
 }
 
-function Notice({ title, text, onQuit }: { title: string; text: string; onQuit: () => void }) {
+function Notice({ header, title, text, onQuit }: { header?: ReactNode; title: string; text: string; onQuit: () => void }) {
   return (
     <main className="setup">
       <div className="setup-card">
-        <h1 className="setup-logo">{title}</h1>
+        {header ? <>{header}<h2 className="lobby-heading">{title}</h2></> : <h1 className="setup-logo">{title}</h1>}
         <p className="muted">{text}</p>
         <button className="btn" onClick={onQuit}>
           Back to menu
@@ -89,8 +85,9 @@ function Notice({ title, text, onQuit }: { title: string; text: string; onQuit: 
 // Lobby
 // ---------------------------------------------------------------------------
 
-function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: string; onQuit: () => void }) {
+function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: Room; uid: string; name: string; onQuit: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinName, setJoinName] = useState(name);
   const [copied, setCopied] = useState(false);
@@ -98,15 +95,15 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
   const seated = room.memberUids.includes(uid);
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/?room=${room.code}`;
 
-  const run = async (task: () => Promise<void>) => {
-    setBusy(true);
+  const run = async (task: () => Promise<void>, setPending = setBusy) => {
+    setPending(true);
     setError(null);
     try {
       await task();
     } catch (e) {
       setError(e instanceof RoomError || e instanceof Error ? e.message : "Something went wrong.");
     } finally {
-      setBusy(false);
+      setPending(false);
     }
   };
 
@@ -136,7 +133,7 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
   return (
     <main className="setup">
       <div className="setup-card">
-        <h1 className="setup-logo">Stock Market</h1>
+        {header}
         <div className="room-code">
           <span className="muted small">Room code</span>
           <b>{room.code}</b>
@@ -207,49 +204,26 @@ function Lobby({ room, uid, name, onQuit }: { room: Room; uid: string; name: str
                 disabled={busy}
                 onClick={() =>
                   run(() =>
-                    editLobby(room.code, (r) => ({
-                      seats: [...r.seats, { uid: null, name: `Bot ${bots + 1}`, isBot: true }],
-                    })),
+                    editLobby(room.code, (r) => {
+                      if (r.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
+                      const botCount = r.seats.filter((seat) => seat.isBot).length;
+                      return { seats: [...r.seats, { uid: null, name: `Bot ${botCount + 1}`, isBot: true }] };
+                    }),
                   )
                 }
               >
                 + Add bot
               </button>
             )}
-            <label className="setup-target">
-              <span>Winning amount</span>
-              <select
-                value={room.target}
-                disabled={busy}
-                onChange={(e) => run(() => editLobby(room.code, () => ({ target: Number(e.target.value) })))}
-              >
-                {TARGETS.map((t) => (
-                  <option key={t} value={t}>
-                    ${fmt(t)}
-                    {t === DEFAULT_TARGET ? " (standard)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {bots > 0 && (
-              <label className="setup-target">
-                <span>Bots</span>
-                <select
-                  value={room.botLevel}
-                  disabled={busy}
-                  onChange={(e) => run(() => editLobby(room.code, () => ({ botLevel: e.target.value as BotLevel })))}
-                >
-                  {BOT_LEVELS.map((l) => (
-                    <option key={l} value={l}>
-                      {BOT_LEVEL_NAMES[l]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <GameSettingsFields
+              settings={room}
+              hasBots={bots > 0}
+              disabled={savingSettings}
+              onChange={(change) => void run(() => editLobby(room.code, () => change), setSavingSettings)}
+            />
             <button
-              className="btn btn-primary btn-big"
-              disabled={busy || room.seats.length < MIN_PLAYERS}
+              className="btn btn-primary btn-big stock-lobby-start"
+              disabled={busy || savingSettings || room.seats.length < MIN_PLAYERS}
               onClick={() => run(() => startGame(room.code))}
             >
               {room.seats.length < MIN_PLAYERS ? "Waiting for players…" : "Start game"}

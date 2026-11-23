@@ -1482,6 +1482,8 @@ button.link {
   margin: 14px 0 10px;
 }
 .room-code b {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: var(--mono);
   font-size: 32px;
   letter-spacing: 0.12em;
@@ -3162,4 +3164,171 @@ button.link {
 
 .auto-roll .switch {
   display: inline-block;
+}
+
+/* Stock Market home and lobby */
+.stock-market-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: start;
+  gap: 8px;
+}
+.stock-market-header .setup-logo {
+  font-size: clamp(23px, 6.8vw, 36px);
+  line-height: 1.1;
+}
+.stock-market-header p {
+  margin-top: 4px;
+}
+.stock-market-account {
+  position: relative;
+}
+.stock-market-account summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  list-style: none;
+  cursor: pointer;
+}
+.stock-market-account summary::-webkit-details-marker {
+  display: none;
+}
+.stock-market-profile-picture {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--paper);
+}
+.stock-market-profile-picture::before,
+.stock-market-profile-picture::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+}
+.stock-market-profile-picture::before {
+  top: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.stock-market-profile-picture::after {
+  top: 24px;
+  width: 29px;
+  height: 22px;
+  border-radius: 15px 15px 0 0;
+}
+.stock-market-account-panel {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 0;
+  top: 50px;
+  width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--card);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(31 58 48 / 0.13);
+  overflow-wrap: anywhere;
+}
+.stock-market-account-panel .home-heading,
+.stock-market-account-panel p {
+  margin: 0;
+}
+.stock-home-field,
+.stock-home-room-form {
+  display: grid;
+  gap: 4px;
+}
+.stock-home-field input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+}
+.stock-home-field input,
+.stock-home-room-form .join-form input {
+  font-size: 16px;
+  min-height: 44px;
+}
+.stock-home-room-form .join-form .btn,
+.stock-market-account-panel .btn,
+.local-start > .btn {
+  min-height: 44px;
+}
+.stock-home-roster {
+  margin-top: 14px;
+  border-top: var(--border);
+}
+.stock-home-roster .home-heading {
+  margin: 12px 0 8px;
+  color: var(--ink);
+}
+.stock-home-roster .home-heading span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-inline-end: 6px;
+  background: var(--up);
+}
+.stock-home-roster li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px 0;
+  border-top: var(--border);
+}
+.stock-home-roster li span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.stock-home-roster li b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.stock-lobby-start {
+  width: 100%;
+  min-height: 44px;
+  margin-block: 12px;
+  padding-block: 10px;
+}
+
+.stock-cash-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.stock-cash-switch:disabled {
+  cursor: default;
 }

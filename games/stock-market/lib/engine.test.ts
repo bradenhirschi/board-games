@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { botMove } from "./bot";
-import { CAREERS, TRACK, arrowFor, directionFor } from "./board";
+import { CAREERS, START_SQUARES, TRACK, arrowFor, directionFor } from "./board";
 import { newGame, reducer, netWorth, type Action, type GameState, type Pos } from "./engine";
 import { lowestPrice, moveMarket, priceAt } from "./stocks";
 
@@ -34,6 +34,19 @@ function rollAndMove(s: GameState, dice: [number, number], enter = false): GameS
   }
   return s;
 }
+
+it("starts humans and bots with $1,000 and skips occupations when enabled", () => {
+  const setup = [{ name: "Player", isBot: false }, { name: "Bot", isBot: true }];
+  const state = newGame(setup, undefined, undefined, true);
+
+  expect(newGame(setup).phase.t).toBe("chooseCareers");
+  expect(newGame(setup).players.map((player) => player.cash)).toEqual([0, 0]);
+  expect(state.phase.t).toBe("preRoll");
+  expect(state.players.map((player) => [player.cash, player.career])).toEqual([[1000, null], [1000, null]]);
+  const entered = reducer(state, { type: "goToMarket", start: START_SQUARES[0] });
+  expect(entered.players[0]).toMatchObject({ status: "market", cash: 1000 });
+  expect(botMove({ ...state, current: 1 })?.type).toBe("goToMarket");
+});
 
 describe("quotation board", () => {
   it("bounces off the top and bottom", () => {

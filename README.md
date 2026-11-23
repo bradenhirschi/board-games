@@ -9,8 +9,7 @@ npm run dev   # http://localhost:3000
 
 ## The game
 
-Pass-and-play for 2–8 players on one screen, with optional computer players. Click **How to play** on
-the start screen for a summary of the rules. Everything in the rulebook is in:
+Pass-and-play for 2–8 players on one screen, with optional computer players.
 
 - **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. You can't
   play the market until you've earned $1,000; then you must.
@@ -41,8 +40,9 @@ npm test      # rules engine tests + simulated bot games
 
 ## Online play
 
-Players can create a room and share its 5-letter code or invite link; friends join from their own
-phones. It runs on Firebase's free Spark plan with no game server:
+Enter a room code with at least three letters or numbers and tap **Join**. The first player to use a new code becomes its host.
+Friends use the same code or the invite link from the lobby. Online play runs on Firebase’s free Spark
+plan with no game server:
 
 - **Accounts:** everyone gets a guest account automatically (Firebase anonymous sign-in), and can link it to
   Google to keep the same account across devices.
@@ -53,6 +53,8 @@ phones. It runs on Firebase's free Spark plan with no game server:
 - **`firestore.rules`** limits who may write: only seated players, one version at a time, on their own turn or
   a bot's turn. Players' phones roll the dice, so a determined player
   could cheat; fine among friends.
+- The home screen shows recent players from `stockMarketPresence`. Keep `firestore.rules` in sync with
+  the app deployment so presence and custom codes work.
 - The Firebase web config lives in `shared/firebase.ts` (public values).
 
 ```bash
