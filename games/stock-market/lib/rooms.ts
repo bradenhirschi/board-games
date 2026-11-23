@@ -7,7 +7,7 @@ import {
   MIN_PLAYERS,
   newGame,
   type Action,
-  type BotLevel,
+  type GameSettings,
   type GameState,
 } from "./engine";
 import { firebase } from "@/shared/firebase";
@@ -34,13 +34,10 @@ export interface Replay {
   actions: Action[];
 }
 
-export interface Room {
+export interface Room extends GameSettings {
   code: string;
   hostUid: string;
   status: "lobby" | "playing";
-  target: number;
-  /** How well the room's bots play (chosen by the host in the lobby). */
-  botLevel: BotLevel;
   seats: Seat[];
   memberUids: string[];
   version: number;
@@ -50,18 +47,18 @@ export interface Room {
   currentUid: string | null;
 }
 
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I
-const CODE_LENGTH = 5;
+const ROOM_CODE_MIN_LENGTH = 3;
+// Firestore document IDs are limited to 1,500 bytes. Room codes are ASCII.
+export const ROOM_CODE_MAX_LENGTH = 1500;
 
 export function normalizeCode(input: string): string {
   return input
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, CODE_LENGTH);
+    .replace(/[^A-Z0-9]/g, "");
 }
 
-function randomCode(): string {
-  return Array.from({ length: CODE_LENGTH }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+export function isRoomCode(code: string): boolean {
+  return code.length >= ROOM_CODE_MIN_LENGTH && code.length <= ROOM_CODE_MAX_LENGTH && code === normalizeCode(code);
 }
 
 /** Firestore collection for this game's rooms (the project may host other games too). */
@@ -75,6 +72,7 @@ function parseRoom(data: DocumentData): Room {
     hostUid: data.hostUid,
     status: data.status,
     target: data.target,
+    startWithCash: data.startWithCash === true,
     botLevel: data.botLevel === "easy" ? "easy" : "normal",
     seats: data.seats,
     memberUids: data.memberUids,
@@ -93,18 +91,30 @@ export function seatUid(state: GameState, seats: Seat[]): string | null {
 
 export class RoomError extends Error {}
 
-export async function createRoom(uid: string, name: string, target = DEFAULT_TARGET): Promise<string> {
-  const { db } = firebase();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = randomCode();
-    const created = await runTransaction(db, async (tx) => {
-      const snap = await tx.get(roomRef(code));
-      if (snap.exists()) return false;
-      tx.set(roomRef(code), {
+/** Open a room and take a seat atomically. The first successful entrant hosts a new room. */
+export function enterRoom(code: string, uid: string, name: string): Promise<void> {
+  return takeSeat(code, uid, name, true);
+}
+
+/** Take a seat in an existing lobby, including when following a shared link. */
+export function joinRoom(code: string, uid: string, name: string): Promise<void> {
+  return takeSeat(code, uid, name, false);
+}
+
+async function takeSeat(code: string, uid: string, name: string, createIfMissing: boolean): Promise<void> {
+  if (!isRoomCode(code)) {
+    throw new RoomError("Enter a room code with at least 3 letters or numbers.");
+  }
+  const ref = roomRef(code);
+  await runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      if (!createIfMissing) throw new RoomError(`There's no room ${code}.`);
+      tx.set(ref, {
         code,
         hostUid: uid,
         status: "lobby",
-        target,
+        target: DEFAULT_TARGET,
         seats: [{ uid, name, isBot: false }],
         memberUids: [uid],
         version: 0,
@@ -114,23 +124,13 @@ export async function createRoom(uid: string, name: string, target = DEFAULT_TAR
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      return true;
-    });
-    if (created) return code;
-  }
-  throw new RoomError("Couldn't create a room. Try again.");
-}
-
-/** Take a seat in a room's lobby (or do nothing if already seated). */
-export async function joinRoom(code: string, uid: string, name: string): Promise<void> {
-  await runTransaction(firebase().db, async (tx) => {
-    const snap = await tx.get(roomRef(code));
-    if (!snap.exists()) throw new RoomError(`There's no room ${code}.`);
+      return;
+    }
     const room = parseRoom(snap.data());
     if (room.memberUids.includes(uid)) return;
     if (room.status !== "lobby") throw new RoomError("That game has already started.");
     if (room.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
-    tx.update(roomRef(code), {
+    tx.update(ref, {
       seats: [...room.seats, { uid, name, isBot: false }],
       memberUids: [...room.memberUids, uid],
       updatedAt: serverTimestamp(),
@@ -138,10 +138,10 @@ export async function joinRoom(code: string, uid: string, name: string): Promise
   });
 }
 
-/** Change the lobby's seats or target (host), or leave it (anyone). */
+/** Change lobby settings and seats (host), or leave the lobby (anyone). */
 export async function editLobby(
   code: string,
-  edit: (room: Room) => { seats?: Seat[]; target?: number; botLevel?: BotLevel },
+  edit: (room: Room) => Partial<GameSettings & Pick<Room, "seats">>,
 ): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
@@ -154,8 +154,8 @@ export async function editLobby(
       seats,
       memberUids: seats.flatMap((s) => (s.uid ? [s.uid] : [])),
       target: next.target ?? room.target,
-      // Only written when the host picks a level, so other players' edits (joining,
-      // leaving) never touch a field the rules reserve for the host.
+      // Leave optional settings untouched when a player only edits seats.
+      ...(next.startWithCash === undefined ? {} : { startWithCash: next.startWithCash }),
       ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
@@ -173,6 +173,7 @@ export async function startGame(code: string): Promise<void> {
       room.seats.map((s) => ({ name: s.name, isBot: s.isBot })),
       room.target,
       room.botLevel,
+      room.startWithCash,
     );
     tx.update(roomRef(code), {
       status: "playing",
@@ -271,4 +272,27 @@ export function watchRoom(code: string, onRoom: (room: Room | null) => void, onE
     (snap) => onRoom(snap.exists() ? parseRoom(snap.data()) : null),
     (e) => onError(e),
   );
+}
+
+/**
+ * Read the room straight from the server, skipping the live listener. Phones sometimes let
+ * the listener's connection go quiet (after the app was in the background, on a flaky
+ * network) without any error, so the room screen checks this every so often to catch up.
+ * It reads in a (read-only) transaction because those use the same plain requests as saving
+ * a move; `getDocFromServer` would go through the live connection that may be stuck.
+ */
+export async function fetchRoom(code: string): Promise<Room | null> {
+  return runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    return snap.exists() ? parseRoom(snap.data()) : null;
+  });
+}
+
+/** Whether `fresh` (read from the server) has news that `seen` (from the listener) is missing. */
+export function isNewer(fresh: Room, seen: Room): boolean {
+  if (fresh.version !== seen.version) return fresh.version > seen.version;
+  if (fresh.status !== "lobby") return false;
+  // Lobby edits (seats, settings) don't bump the version.
+  const stamp = (r: Room) => JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash]);
+  return stamp(fresh) !== stamp(seen);
 }

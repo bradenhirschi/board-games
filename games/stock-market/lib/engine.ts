@@ -50,12 +50,20 @@ export type Phase =
   | { t: "detour"; remaining: number; dir: Dir; stock: StockId; at: number }
   /**
    * After landing, until the player ends their turn. They may sell at the lowest board
-   * price, and buy the stock they landed on (`buy`) if it was a stock square.
+   * price, and buy the stock they landed on (`buy`) if it was a stock square. `split`: the
+   * "N FOR 1" square landed on in a shareholders' meeting, and the shares it paid out.
    */
-  | { t: "afterRoll"; buy: BuyOffer | null; fee?: FeePaid }
+  | { t: "afterRoll"; buy: BuyOffer | null; fee?: FeePaid; split?: SplitPaid }
   /** A fee is due and the player is short: sell at the lowest board price, or go broke. */
   | { t: "raiseCash"; owed: number; reason: string }
   | { t: "gameOver"; winnerId: number; reason: "target" };
+
+/** A shareholders' meeting square landed on: "`n` FOR 1", paying `gained` shares of `stock`. */
+export interface SplitPaid {
+  n: number;
+  stock: StockId | null;
+  gained: number;
+}
 
 /** A fee charged on landing this turn (amount 0: a broker fee with no shares to charge for). */
 export interface FeePaid {
@@ -105,6 +113,12 @@ export type BotLevel = "easy" | "normal";
 export const BOT_LEVELS: BotLevel[] = ["easy", "normal"];
 export const BOT_LEVEL_NAMES: Record<BotLevel, string> = { easy: "Easy", normal: "Normal" };
 
+export interface GameSettings {
+  target: number;
+  botLevel: BotLevel;
+  startWithCash: boolean;
+}
+
 export interface PlayerSetup {
   name: string;
   isBot: boolean;
@@ -130,7 +144,12 @@ const EASY_BOT_CAREERS = [0, 1];
 /** The occupation a bot takes for seat `i`. */
 const botCareer = (i: number, level: BotLevel) => (level === "easy" ? EASY_BOT_CAREERS : BOT_CAREERS)[i % 2];
 
-export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel: BotLevel = "normal"): GameState {
+export function newGame(
+  setup: PlayerSetup[],
+  target = DEFAULT_TARGET,
+  botLevel: BotLevel = "normal",
+  startWithCash = false,
+): GameState {
   return {
     version: 3,
     players: setup.map((p, i) => ({
@@ -139,17 +158,17 @@ export function newGame(setup: PlayerSetup[], target = DEFAULT_TARGET, botLevel:
       color: PLAYER_COLORS[i % PLAYER_COLORS.length],
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
-      career: p.isBot ? botCareer(i, botLevel) : null,
+      career: p.isBot && !startWithCash ? botCareer(i, botLevel) : null,
       status: "work",
       pos: null,
-      cash: 0,
+      cash: startWithCash ? WORK_CAP : 0,
       shares: emptyHoldings(),
     })),
     current: 0,
     market: MARKET_START,
     target,
     dice: null,
-    phase: setup.some((p) => !p.isBot) ? { t: "chooseCareers" } : { t: "preRoll" },
+    phase: !startWithCash && setup.some((p) => !p.isBot) ? { t: "chooseCareers" } : { t: "preRoll" },
     turn: 1,
     lastLanding: null,
     lastMarketDelta: 0,
@@ -219,7 +238,7 @@ function apply(s: GameState, a: Action): boolean {
       if (!kicked || kicked.isBot) return false;
       kicked.isBot = true;
       log(s, kicked.id, "left the game. A bot plays for them now.");
-      if (kicked.career === null) {
+      if (kicked.status === "work" && kicked.career === null && !mustGoToMarket(kicked)) {
         kicked.career = botCareer(kicked.id, s.botLevel ?? "normal");
         log(s, kicked.id, `goes to work as a ${CAREERS[kicked.career].name}`);
       }
@@ -253,7 +272,7 @@ function apply(s: GameState, a: Action): boolean {
 
     case "goToMarket": {
       if (ph.t !== "preRoll" || p.status !== "work" || !START_SQUARES.includes(a.start)) return false;
-      // Nobody plays the market until they've earned $1,000 at work.
+      // Players need at least $1,000 before entering the market.
       if (p.cash < WORK_CAP) return false;
       p.status = "market";
       p.pos = { kind: "track", index: a.start };
@@ -414,12 +433,13 @@ function land(s: GameState) {
     const stock = TRACK[LANES[pos.lane].entries[pos.from]];
     const id = stock.kind === "stock" ? stock.stock : null;
     const n = laneSplit(pos.lane, pos.from, pos.p);
+    let gained = 0;
     if (id && p.shares[id] > 0) {
-      const gained = p.shares[id] * n;
+      gained = p.shares[id] * n;
       p.shares[id] += gained;
       log(s, p.id, `lands on ${n} FOR 1 and receives ${gained} ${STOCKS[id].name} shares (now ${p.shares[id]})`, "up");
     }
-    afterRoll(s, null);
+    s.phase = { t: "afterRoll", buy: null, split: { n, stock: id, gained } };
     return;
   }
 

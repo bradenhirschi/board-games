@@ -14,7 +14,7 @@ import {
   type Auth,
   type User,
 } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFirestoreEmulator, disableNetwork, enableNetwork, getFirestore, type Firestore } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import { useEffect, useState } from "react";
 
@@ -53,6 +53,16 @@ export function firebase() {
   }
   services = { app, auth, db };
   return services;
+}
+
+/**
+ * Drop Firestore's live connection and open a new one. Live listeners can stall on phones
+ * without reporting an error; listeners pick up again on the new connection.
+ */
+export async function restartConnection(): Promise<void> {
+  const { db } = firebase();
+  await disableNetwork(db);
+  await enableNetwork(db);
 }
 
 /**

@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 import {
   assertFails,
@@ -52,7 +54,7 @@ async function seed(data: Record<string, unknown>) {
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-stock-market",
-    firestore: { rules: readFileSync("firestore.rules", "utf8"), host: "127.0.0.1", port: 8085 },
+    firestore: { rules: readFileSync("firestore.rules", "utf8") },
   });
 });
 afterAll(() => env.cleanup());
@@ -67,19 +69,38 @@ describe("reading", () => {
 });
 
 describe("creating a room", () => {
-  it("is allowed as its host", async () => {
-    await assertSucceeds(room("host").set(lobby()));
+  const newRoom = (uid: string, code: string) => db(uid).doc(`stockMarketRooms/${code}`);
+  const newLobby = lobby({ code: "F01" });
+
+  it("lets the host create rooms with three or more letters and numbers", async () => {
+    for (const code of ["F01", "ABCD", "FAMILY2026"]) {
+      await assertSucceeds(newRoom("host", code).set(lobby({ code })));
+    }
   });
   it("can't name someone else as host or start mid-game", async () => {
-    await assertFails(room("amy").set(lobby()));
-    await assertFails(room("host").set(lobby({ status: "playing" })));
+    await assertFails(newRoom("amy", "F01").set(newLobby));
+    await assertFails(newRoom("host", "F01").set({ ...newLobby, status: "playing" }));
   });
-  it("needs a valid code", async () => {
-    await assertFails(
-      db("host")
-        .doc("stockMarketRooms/abc")
-        .set(lobby({ code: "abc" })),
-    );
+  it("rejects new rooms with lowercase, short, or non-alphanumeric codes", async () => {
+    for (const code of ["abc", "AB", "ABC-123"]) {
+      await assertFails(newRoom("host", code).set(lobby({ code })));
+    }
+  });
+});
+
+describe("online presence", () => {
+  it("lets signed-in players see presence and update only their own entry", async () => {
+    const data = { name: "Amy", status: "lobby", seenAt: firebase.firestore.FieldValue.serverTimestamp() };
+    await assertSucceeds(db("amy").doc("stockMarketPresence/amy").set(data));
+    await assertSucceeds(db("host").collection("stockMarketPresence").get());
+    await assertFails(db("host").doc("stockMarketPresence/amy").set(data));
+    await assertFails(env.unauthenticatedContext().firestore().collection("stockMarketPresence").get());
+  });
+
+  it("rejects client timestamps and private fields in public presence", async () => {
+    const entry = db("amy").doc("stockMarketPresence/amy");
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: new Date() }));
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: firebase.firestore.FieldValue.serverTimestamp(), email: "amy@example.com" }));
   });
 });
 
@@ -102,6 +123,13 @@ describe("the lobby", () => {
     await assertFails(room("amy").update({ target: 5 }));
     await assertFails(room("amy").update({ status: "playing", version: 1 }));
   });
+  it("lets only the host change the starting cash switch and requires a boolean", async () => {
+    await assertFails(room("amy").update({ startWithCash: true }));
+    await assertFails(room("host").update({ startWithCash: "on" }));
+    await assertSucceeds(room("host").update({ startWithCash: true }));
+    await assertSucceeds(room("host").update({ startWithCash: false }));
+  });
+
   it("lets only the host choose the bot level", async () => {
     await seed(lobby({ memberUids: ["host", "amy"] }));
     await assertFails(room("amy").update({ botLevel: "easy" }));
@@ -138,6 +166,10 @@ describe("during a game", () => {
   it("gives the host no special right to write on someone else's turn", async () => {
     await assertFails(room("host").update({ version: 6 }));
   });
+  it("keeps the starting cash setting fixed during play", async () => {
+    await assertFails(room("amy").update({ version: 6, startWithCash: true }));
+  });
+
   it("never lets the bot level change mid-game", async () => {
     await assertFails(room("amy").update({ version: 6, botLevel: "easy" }));
   });

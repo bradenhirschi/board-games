@@ -61,9 +61,9 @@ export function botMove(state: GameState): BotMove | null {
   switch (ph.t) {
     case "preRoll": {
       if (p.status === "work") {
+        if (mustGoToMarket(p)) return { type: "goToMarket", start: pick(START_SQUARES) };
         if (p.career === null)
           return { type: "setCareer", career: pick(level === "easy" ? EASY_CAREERS : BEST_CAREERS) };
-        if (mustGoToMarket(p)) return { type: "goToMarket", start: pick(START_SQUARES) };
         return { type: "rollDice" };
       }
       const dear = STOCK_ORDER.find((id) => p.shares[id] > 0 && pricePosition(id, state.market) >= style.sellAt);
