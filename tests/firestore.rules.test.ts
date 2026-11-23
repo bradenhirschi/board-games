@@ -69,27 +69,24 @@ describe("reading", () => {
 });
 
 describe("creating a room", () => {
-  it("is allowed as its host", async () => {
-    await assertSucceeds(room("host").set(lobby()));
+  const newRoom = (uid: string, code: string) => db(uid).doc(`stockMarketRooms/${code}`);
+  const newLobby = lobby({ code: "F01" });
+
+  it("lets the host create a three-character room using letters and numbers", async () => {
+    await assertSucceeds(newRoom("host", "F01").set(newLobby));
   });
   it("can't name someone else as host or start mid-game", async () => {
-    await assertFails(room("amy").set(lobby()));
-    await assertFails(room("host").set(lobby({ status: "playing" })));
+    await assertFails(newRoom("amy", "F01").set(newLobby));
+    await assertFails(newRoom("host", "F01").set({ ...newLobby, status: "playing" }));
   });
-  it("needs a valid code", async () => {
-    await assertFails(
-      db("host")
-        .doc("stockMarketRooms/abc")
-        .set(lobby({ code: "abc" })),
-    );
+  it("rejects new rooms with lowercase, short, or legacy-length codes", async () => {
+    for (const code of ["abc", "AB", "ABCD", "FAM01"]) {
+      await assertFails(newRoom("host", code).set(lobby({ code })));
+    }
   });
 });
 
-describe("custom codes and online presence", () => {
-  it("lets the first player create a lobby with any five-letter-or-number code", async () => {
-    await assertSucceeds(db("host").doc("stockMarketRooms/FAM01").set(lobby({ code: "FAM01" })));
-  });
-
+describe("online presence", () => {
   it("lets signed-in players see presence and update only their own entry", async () => {
     const data = { name: "Amy", status: "lobby", seenAt: firebase.firestore.FieldValue.serverTimestamp() };
     await assertSucceeds(db("amy").doc("stockMarketPresence/amy").set(data));

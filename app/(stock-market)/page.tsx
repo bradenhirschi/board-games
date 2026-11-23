@@ -24,7 +24,7 @@ import {
   signOutUser,
   useFirebaseUser,
 } from "@/shared/firebase";
-import { CODE_LENGTH, enterRoom, normalizeCode } from "@/games/stock-market/lib/rooms";
+import { enterRoom, isRoomCode, normalizeCode } from "@/games/stock-market/lib/rooms";
 import { useStockMarketPresence, type PresenceStatus } from "@/games/stock-market/lib/presence";
 
 const NAME_KEY = "stock-market:name";
@@ -105,7 +105,7 @@ export default function Home() {
     const savedTab = readStorage(TAB_KEY);
     if (savedTab === "local" || (savedTab === "online" && onlineAvailable)) setTab(savedTab);
     const fromUrl = normalizeCode(new URLSearchParams(window.location.search).get("room") ?? "");
-    if (fromUrl && onlineAvailable) setRoom(fromUrl);
+    if (isRoomCode(fromUrl) && onlineAvailable) setRoom(fromUrl);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [game]);
 
@@ -311,7 +311,7 @@ export default function Home() {
             ) : !onlinePlayers ? (
               <p className="muted">Checking who’s online…</p>
             ) : onlinePlayers.length === 0 ? (
-              <p className="muted">No players online yet.</p>
+              <p className="muted">Nobody is online.</p>
             ) : (
               <ul>
                 {onlinePlayers.map((player) => (
@@ -352,8 +352,8 @@ function OnlineStart({
 
   const join = async () => {
     if (busy) return;
-    if (code.length !== CODE_LENGTH) {
-      setError("Room codes are 5 letters and numbers.");
+    if (!isRoomCode(code)) {
+      setError("Enter a three-character room code using letters or numbers.");
       return;
     }
     setBusy(true);
@@ -387,7 +387,7 @@ function OnlineStart({
           <input
             id={codeId}
             value={code}
-            placeholder="e.g. FAM25"
+            placeholder="e.g. FAM"
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}

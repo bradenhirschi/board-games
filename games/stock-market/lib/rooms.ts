@@ -50,13 +50,19 @@ export interface Room {
   currentUid: string | null;
 }
 
-export const CODE_LENGTH = 5;
+const CODE_LENGTH = 3;
+const LEGACY_CODE_LENGTH = 5;
 
 export function normalizeCode(input: string): string {
   return input
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
-    .slice(0, CODE_LENGTH);
+    .slice(0, LEGACY_CODE_LENGTH);
+}
+
+/** Existing rooms retain their original five-character codes. */
+export function isRoomCode(code: string): boolean {
+  return (code.length === CODE_LENGTH || code.length === LEGACY_CODE_LENGTH) && code === normalizeCode(code);
 }
 
 /** Firestore collection for this game's rooms (the project may host other games too). */
@@ -99,14 +105,14 @@ export function joinRoom(code: string, uid: string, name: string): Promise<void>
 }
 
 async function takeSeat(code: string, uid: string, name: string, createIfMissing: boolean): Promise<void> {
-  if (code.length !== CODE_LENGTH || code !== normalizeCode(code)) {
-    throw new RoomError("Room codes are 5 letters and numbers.");
+  if (!isRoomCode(code)) {
+    throw new RoomError("Enter a three-character room code using letters or numbers.");
   }
   const ref = roomRef(code);
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) {
-      if (!createIfMissing) throw new RoomError(`There's no room ${code}.`);
+      if (!createIfMissing || code.length !== CODE_LENGTH) throw new RoomError(`There's no room ${code}.`);
       tx.set(ref, {
         code,
         hostUid: uid,
