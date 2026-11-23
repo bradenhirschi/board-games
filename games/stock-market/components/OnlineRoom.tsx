@@ -15,6 +15,8 @@ import { botDecision, isBotTurn, resolve, type Decision } from "@/games/stock-ma
 import {
   RoomError,
   editLobby,
+  fetchRoom,
+  isNewer,
   joinRoom,
   kickPlayer,
   startGame,
@@ -25,9 +27,15 @@ import {
 } from "@/games/stock-market/lib/rooms";
 import { BOT_THINK_MS, GameView, STEP_MS, animateRoll } from "./Game";
 import GameSettingsFields from "./GameSettingsFields";
+import { restartConnection } from "@/shared/firebase";
 
 /** Pause between replayed decisions (buying, ending a turn…) so they don't blur together. */
 const DECISION_MS = 350;
+
+/** Wait this long before reopening a live listener that failed. */
+const RECONNECT_MS = 2000;
+/** Check the server if the live listener has been silent this long. */
+const QUIET_MS = 10_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,10 +50,82 @@ export default function OnlineRoom({ code, uid, connectionError, header, name, o
 }) {
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to tear down and reopen the live listener when it's found to have gone quiet.
+  const [watchKey, setWatchKey] = useState(0);
+  const roomRef = useRef<Room | null | undefined>(undefined);
+  const lastHeard = useRef(0);
 
   useEffect(() => {
     if (!uid) return;
-    return watchRoom(code, setRoom, (e) => setError(e.message));
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const stop = watchRoom(
+      code,
+      (r) => {
+        lastHeard.current = Date.now();
+        roomRef.current = r;
+        setRoom(r);
+        setError(null);
+      },
+      (e) => {
+        // Don't give up on the room: reconnect after a moment. Only show the error if the
+        // room never loaded at all.
+        console.warn(`[stock-market] live updates stopped (${e.message}); reconnecting`);
+        if (roomRef.current === undefined) setError(e.message);
+        retry = setTimeout(() => setWatchKey((k) => k + 1), RECONNECT_MS);
+      },
+    );
+    return () => {
+      stop();
+      clearTimeout(retry);
+    };
+  }, [code, uid, watchKey]);
+
+  // Safety net for a listener that has gone quiet without an error (common on phones after the
+  // app was in the background): check the server when the page comes back into view, when the
+  // network comes back, and whenever nothing has been heard for a while. If the server is ahead,
+  // show its version and reopen the listener.
+  useEffect(() => {
+    if (!uid) return;
+    let stopped = false;
+    let checking = false;
+    const check = async (force: boolean) => {
+      if (stopped || checking || document.visibilityState !== "visible") return;
+      if (!force && Date.now() - lastHeard.current < QUIET_MS) return;
+      checking = true;
+      try {
+        const fresh = await fetchRoom(code);
+        const seen = roomRef.current;
+        lastHeard.current = Date.now();
+        if (stopped || !fresh || !seen || !isNewer(fresh, seen)) return;
+        console.warn(
+          `[stock-market] live updates fell behind (showing move ${seen.version}, server has ${fresh.version}); reconnecting`,
+        );
+        roomRef.current = fresh;
+        setRoom(fresh);
+        setError(null);
+        await restartConnection();
+        setWatchKey((k) => k + 1);
+      } catch {
+        // Offline or similar: try again on the next tick.
+      } finally {
+        checking = false;
+      }
+    };
+    const now = () => void check(true);
+    const onVisible = () => document.visibilityState === "visible" && now();
+    const timer = setInterval(() => void check(false), QUIET_MS / 2);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", now);
+    window.addEventListener("online", now);
+    window.addEventListener("pageshow", now);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", now);
+      window.removeEventListener("online", now);
+      window.removeEventListener("pageshow", now);
+    };
   }, [code, uid]);
 
   const status = error ? undefined : room?.status;
@@ -410,6 +490,11 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         if (saved && alive.current) {
           savedAt.current = { version: saved.version, at: performance.now() };
           adopt(saved);
+        } else if (!saved && alive.current) {
+          // Usually means this phone was behind (someone else's move hadn't reached it yet):
+          // catch up from the server rather than wait for the live listener.
+          const fresh = await fetchRoom(base.code).catch(() => null);
+          if (fresh && alive.current && fresh.status === "playing") adopt(fresh);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save your move.");

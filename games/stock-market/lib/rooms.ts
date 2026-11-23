@@ -273,3 +273,26 @@ export function watchRoom(code: string, onRoom: (room: Room | null) => void, onE
     (e) => onError(e),
   );
 }
+
+/**
+ * Read the room straight from the server, skipping the live listener. Phones sometimes let
+ * the listener's connection go quiet (after the app was in the background, on a flaky
+ * network) without any error, so the room screen checks this every so often to catch up.
+ * It reads in a (read-only) transaction because those use the same plain requests as saving
+ * a move; `getDocFromServer` would go through the live connection that may be stuck.
+ */
+export async function fetchRoom(code: string): Promise<Room | null> {
+  return runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    return snap.exists() ? parseRoom(snap.data()) : null;
+  });
+}
+
+/** Whether `fresh` (read from the server) has news that `seen` (from the listener) is missing. */
+export function isNewer(fresh: Room, seen: Room): boolean {
+  if (fresh.version !== seen.version) return fresh.version > seen.version;
+  if (fresh.status !== "lobby") return false;
+  // Lobby edits (seats, settings) don't bump the version.
+  const stamp = (r: Room) => JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash]);
+  return stamp(fresh) !== stamp(seen);
+}
