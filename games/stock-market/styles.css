@@ -3314,3 +3314,21 @@ button.link {
   margin-block: 12px;
   padding-block: 10px;
 }
+
+.stock-lobby-cash-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.stock-lobby-cash-switch:disabled {
+  cursor: default;
+}

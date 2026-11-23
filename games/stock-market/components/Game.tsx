@@ -775,7 +775,7 @@ function TurnControls({
       <div className="controls">
         {must && (
           <p className="hint">
-            You&apos;ve earned <b>${fmt(player.cash)}</b>. Time to play the market!
+            You have <b>${fmt(player.cash)}</b>. Time to play the market!
           </p>
         )}
         {!must && (

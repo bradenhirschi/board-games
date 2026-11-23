@@ -39,6 +39,7 @@ export interface Room {
   hostUid: string;
   status: "lobby" | "playing";
   target: number;
+  startWithCash: boolean;
   /** How well the room's bots play (chosen by the host in the lobby). */
   botLevel: BotLevel;
   seats: Seat[];
@@ -75,6 +76,7 @@ function parseRoom(data: DocumentData): Room {
     hostUid: data.hostUid,
     status: data.status,
     target: data.target,
+    startWithCash: data.startWithCash === true,
     botLevel: data.botLevel === "easy" ? "easy" : "normal",
     seats: data.seats,
     memberUids: data.memberUids,
@@ -140,10 +142,10 @@ async function takeSeat(code: string, uid: string, name: string, createIfMissing
   });
 }
 
-/** Change the lobby's seats or target (host), or leave it (anyone). */
+/** Change lobby settings and seats (host), or leave the lobby (anyone). */
 export async function editLobby(
   code: string,
-  edit: (room: Room) => { seats?: Seat[]; target?: number; botLevel?: BotLevel },
+  edit: (room: Room) => Partial<Pick<Room, "seats" | "target" | "botLevel" | "startWithCash">>,
 ): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
@@ -156,8 +158,8 @@ export async function editLobby(
       seats,
       memberUids: seats.flatMap((s) => (s.uid ? [s.uid] : [])),
       target: next.target ?? room.target,
-      // Only written when the host picks a level, so other players' edits (joining,
-      // leaving) never touch a field the rules reserve for the host.
+      // Leave optional settings untouched when a player only edits seats.
+      ...(next.startWithCash === undefined ? {} : { startWithCash: next.startWithCash }),
       ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
@@ -175,6 +177,7 @@ export async function startGame(code: string): Promise<void> {
       room.seats.map((s) => ({ name: s.name, isBot: s.isBot })),
       room.target,
       room.botLevel,
+      room.startWithCash,
     );
     tx.update(roomRef(code), {
       status: "playing",

@@ -123,6 +123,13 @@ describe("the lobby", () => {
     await assertFails(room("amy").update({ target: 5 }));
     await assertFails(room("amy").update({ status: "playing", version: 1 }));
   });
+  it("lets only the host change the starting cash switch and requires a boolean", async () => {
+    await assertFails(room("amy").update({ startWithCash: true }));
+    await assertFails(room("host").update({ startWithCash: "on" }));
+    await assertSucceeds(room("host").update({ startWithCash: true }));
+    await assertSucceeds(room("host").update({ startWithCash: false }));
+  });
+
   it("lets only the host choose the bot level", async () => {
     await seed(lobby({ memberUids: ["host", "amy"] }));
     await assertFails(room("amy").update({ botLevel: "easy" }));
@@ -159,6 +166,10 @@ describe("during a game", () => {
   it("gives the host no special right to write on someone else's turn", async () => {
     await assertFails(room("host").update({ version: 6 }));
   });
+  it("keeps the starting cash setting fixed during play", async () => {
+    await assertFails(room("amy").update({ version: 6, startWithCash: true }));
+  });
+
   it("never lets the bot level change mid-game", async () => {
     await assertFails(room("amy").update({ version: 6, botLevel: "easy" }));
   });

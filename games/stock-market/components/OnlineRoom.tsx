@@ -91,6 +91,7 @@ function Notice({ header, title, text, onQuit }: { header?: ReactNode; title: st
 
 function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: Room; uid: string; name: string; onQuit: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joinName, setJoinName] = useState(name);
   const [copied, setCopied] = useState(false);
@@ -98,15 +99,15 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
   const seated = room.memberUids.includes(uid);
   const link = typeof window === "undefined" ? "" : `${window.location.origin}/?room=${room.code}`;
 
-  const run = async (task: () => Promise<void>) => {
-    setBusy(true);
+  const run = async (task: () => Promise<void>, setPending = setBusy) => {
+    setPending(true);
     setError(null);
     try {
       await task();
     } catch (e) {
       setError(e instanceof RoomError || e instanceof Error ? e.message : "Something went wrong.");
     } finally {
-      setBusy(false);
+      setPending(false);
     }
   };
 
@@ -207,9 +208,11 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
                 disabled={busy}
                 onClick={() =>
                   run(() =>
-                    editLobby(room.code, (r) => ({
-                      seats: [...r.seats, { uid: null, name: `Bot ${bots + 1}`, isBot: true }],
-                    })),
+                    editLobby(room.code, (r) => {
+                      if (r.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
+                      const botCount = r.seats.filter((seat) => seat.isBot).length;
+                      return { seats: [...r.seats, { uid: null, name: `Bot ${botCount + 1}`, isBot: true }] };
+                    }),
                   )
                 }
               >
@@ -220,10 +223,10 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
               <span>Winning amount</span>
               <select
                 value={room.target}
-                disabled={busy}
+                disabled={savingSettings}
                 onChange={(e) => {
                   const target = Number(e.currentTarget.value);
-                  void run(() => editLobby(room.code, () => ({ target })));
+                  void run(() => editLobby(room.code, () => ({ target })), setSavingSettings);
                 }}
               >
                 {TARGETS.map((t) => (
@@ -234,15 +237,29 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="stock-lobby-cash-switch"
+              role="switch"
+              aria-checked={room.startWithCash}
+              disabled={savingSettings}
+              onClick={() => {
+                const startWithCash = !room.startWithCash;
+                void run(() => editLobby(room.code, () => ({ startWithCash })), setSavingSettings);
+              }}
+            >
+              <span>Everyone starts with $1000</span>
+              <span className={room.startWithCash ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
+            </button>
             {bots > 0 && (
               <label className="setup-target">
                 <span>Bots</span>
                 <select
                   value={room.botLevel}
-                  disabled={busy}
+                  disabled={savingSettings}
                   onChange={(e) => {
                     const botLevel = e.currentTarget.value as BotLevel;
-                    void run(() => editLobby(room.code, () => ({ botLevel })));
+                    void run(() => editLobby(room.code, () => ({ botLevel })), setSavingSettings);
                   }}
                 >
                   {BOT_LEVELS.map((l) => (
@@ -255,7 +272,7 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
             )}
             <button
               className="btn btn-primary btn-big stock-lobby-start"
-              disabled={busy || room.seats.length < MIN_PLAYERS}
+              disabled={busy || savingSettings || room.seats.length < MIN_PLAYERS}
               onClick={() => run(() => startGame(room.code))}
             >
               {room.seats.length < MIN_PLAYERS ? "Waiting for players…" : "Start game"}
