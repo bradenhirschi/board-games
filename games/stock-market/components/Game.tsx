@@ -648,8 +648,7 @@ function CareerChoice({
       <p className="hint">
         {viewer.career === null ? (
           <>
-            <b>Choose your occupation.</b> You&apos;re paid whenever <i>anyone</i> throws your numbers. The first roll
-            waits until everyone has picked.
+            You&apos;re paid whenever <i>anyone</i> throws your numbers. The first roll waits until everyone has picked.
           </>
         ) : (
           <>
