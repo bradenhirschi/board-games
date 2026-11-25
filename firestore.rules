@@ -33,6 +33,7 @@ service cloud.firestore {
         && request.resource.data.hostUid == request.auth.uid
         && request.resource.data.status == 'lobby'
         && request.resource.data.get('startWithCash', false) is bool
+        && request.resource.data.get('balancedCareers', false) is bool
         && request.resource.data.version == 0
         && request.resource.data.memberUids == [request.auth.uid];
 
@@ -42,11 +43,12 @@ service cloud.firestore {
         && resource.data.status == 'lobby'
         && unchanged(['code', 'hostUid', 'createdAt'])
         && request.resource.data.get('startWithCash', false) is bool
+        && request.resource.data.get('balancedCareers', false) is bool
         && (
           request.auth.uid == resource.data.hostUid
           || (
             request.resource.data.status == 'lobby'
-            && unchanged(['target', 'botLevel', 'startWithCash', 'version', 'stateJson', 'replayJson', 'currentUid'])
+            && unchanged(['target', 'botLevel', 'startWithCash', 'balancedCareers', 'version', 'stateJson', 'replayJson', 'currentUid'])
             && onlySelfJoinsOrLeaves()
           )
         );
@@ -56,7 +58,7 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid in resource.data.memberUids
-        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel', 'startWithCash'])
+        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers'])
         && request.resource.data.version == resource.data.version + 1
         && (
           resource.data.currentUid == request.auth.uid
@@ -68,7 +70,7 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid == resource.data.hostUid
-        && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel', 'startWithCash'])
+        && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers'])
         && request.resource.data.version == resource.data.version + 1
         && request.resource.data.seats.size() == resource.data.seats.size()
         && request.resource.data.memberUids.toSet().difference(resource.data.memberUids.toSet()).size() == 0

@@ -73,6 +73,7 @@ function parseRoom(data: DocumentData): Room {
     status: data.status,
     target: data.target,
     startWithCash: data.startWithCash === true,
+    balancedCareers: data.balancedCareers === true,
     botLevel: data.botLevel === "easy" ? "easy" : "normal",
     seats: data.seats,
     memberUids: data.memberUids,
@@ -156,6 +157,7 @@ export async function editLobby(
       target: next.target ?? room.target,
       // Leave optional settings untouched when a player only edits seats.
       ...(next.startWithCash === undefined ? {} : { startWithCash: next.startWithCash }),
+      ...(next.balancedCareers === undefined ? {} : { balancedCareers: next.balancedCareers }),
       ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
@@ -174,6 +176,7 @@ export async function startGame(code: string): Promise<void> {
       room.target,
       room.botLevel,
       room.startWithCash,
+      room.balancedCareers,
     );
     tx.update(roomRef(code), {
       status: "playing",
@@ -293,6 +296,7 @@ export function isNewer(fresh: Room, seen: Room): boolean {
   if (fresh.version !== seen.version) return fresh.version > seen.version;
   if (fresh.status !== "lobby") return false;
   // Lobby edits (seats, settings) don't bump the version.
-  const stamp = (r: Room) => JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash]);
+  const stamp = (r: Room) =>
+    JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash, r.balancedCareers]);
   return stamp(fresh) !== stamp(seen);
 }

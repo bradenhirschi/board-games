@@ -12,7 +12,7 @@ interface GameSettingsFieldsProps {
 }
 
 export default function GameSettingsFields({ settings, hasBots, disabled, onChange }: GameSettingsFieldsProps) {
-  const { target, botLevel, startWithCash } = settings;
+  const { target, botLevel, startWithCash, balancedCareers } = settings;
 
   return (
     <>
@@ -41,6 +41,18 @@ export default function GameSettingsFields({ settings, hasBots, disabled, onChan
       >
         <span>Everyone starts with $1000</span>
         <span className={startWithCash ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
+      </button>
+      <button
+        type="button"
+        className="stock-cash-switch"
+        role="switch"
+        aria-checked={balancedCareers}
+        disabled={disabled}
+        title="Policeman pays $150 and Prospector $600, so every occupation pays the same per throw on average"
+        onClick={() => onChange({ balancedCareers: !balancedCareers })}
+      >
+        <span>Balanced occupations</span>
+        <span className={balancedCareers ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
       </button>
       {hasBots && (
         <label className="setup-target">

@@ -9,6 +9,7 @@ import {
   exitDirection,
   laneAtEntrance,
   laneSplit,
+  salaryOf,
   step as stepIndex,
   type Dir,
 } from "./board";
@@ -107,6 +108,8 @@ export interface GameState {
   turnLogStart?: number;
   /** How well the computer players play (older saves: normal). */
   botLevel?: BotLevel;
+  /** "Balanced Occupations": Policeman pays $150 and Prospector $600 (older saves: off). */
+  balancedCareers?: boolean;
 }
 
 export type BotLevel = "easy" | "normal";
@@ -117,6 +120,7 @@ export interface GameSettings {
   target: number;
   botLevel: BotLevel;
   startWithCash: boolean;
+  balancedCareers: boolean;
 }
 
 export interface PlayerSetup {
@@ -149,6 +153,7 @@ export function newGame(
   target = DEFAULT_TARGET,
   botLevel: BotLevel = "normal",
   startWithCash = false,
+  balancedCareers = false,
 ): GameState {
   return {
     version: 3,
@@ -176,6 +181,7 @@ export function newGame(
     nextLogId: 1,
     turnLogStart: 1,
     botLevel,
+    balancedCareers,
   };
 }
 
@@ -418,8 +424,9 @@ function paySalaries(s: GameState, total: number) {
     if (w.status !== "work" || w.career === null) continue;
     const career = CAREERS[w.career];
     if (!career.rolls.includes(total)) continue;
-    w.cash += career.salary;
-    log(s, w.id, `earns a $${career.salary} ${career.name} salary`, "money");
+    const salary = salaryOf(career, s.balancedCareers);
+    w.cash += salary;
+    log(s, w.id, `earns a $${salary} ${career.name} salary`, "money");
   }
 }
 
