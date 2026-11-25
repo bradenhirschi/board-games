@@ -262,7 +262,7 @@ function apply(s: GameState, a: Action): boolean {
       }
       if (ph.t === "chooseCareers" && s.players.every((pl) => pl.career !== null)) {
         s.phase = { t: "preRoll" };
-        log(s, null, `Everyone has a job. ${s.players[s.current].name} rolls first.`);
+        log(s, null, firstRollNote(s));
       }
       return true;
     }
@@ -275,7 +275,7 @@ function apply(s: GameState, a: Action): boolean {
       log(s, chooser.id, `goes to work as a ${CAREERS[a.career].name}`);
       if (s.players.every((pl) => pl.career !== null)) {
         s.phase = { t: "preRoll" };
-        log(s, null, `Everyone has a job. ${s.players[s.current].name} rolls first.`);
+        log(s, null, firstRollNote(s));
       }
       return true;
     }
@@ -560,6 +560,13 @@ function endTurn(s: GameState) {
 function log(s: GameState, playerId: number | null, text: string, tone?: LogEntry["tone"], sound?: LogEntry["sound"]) {
   s.log.unshift({ id: s.nextLogId++, playerId, text, tone, ...(sound ? { sound } : {}) });
   if (s.log.length > 200) s.log.length = 200;
+}
+
+/** The ticker line when everyone has picked an occupation. */
+function firstRollNote(s: GameState): string {
+  return s.simultaneous
+    ? "Everyone has a job. Everyone rolls at once."
+    : `Everyone has a job. ${s.players[s.current].name} rolls first.`;
 }
 
 export function fmt(n: number): string {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Action, type GameState, type Player } from "@/games/stock-market/lib/engine";
+import { mustGoToMarket, type Action, type GameState, type Player } from "@/games/stock-market/lib/engine";
 import { kickPlayer, serverNow, submitMove, fetchRoom, type Room } from "@/games/stock-market/lib/rooms";
 import {
   SUMMARY_BOX_MS,
@@ -252,11 +252,7 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
           choosing || !sim
             ? undefined
             : {
-                heading: summaryOn
-                  ? `Round ${sim.round - 1} results`
-                  : sim.stage === "sell"
-                    ? "Sell, then roll"
-                    : "Buy & sell, then end turn",
+                heading: summaryOn ? `Round ${sim.round - 1} results` : stageHeading(sim.stage, mine?.player ?? null),
                 secondsLeft: summaryOn || !seated ? null : secondsLeft,
                 waitingFor: !seated ? [] : waiting ? others(waitingOn(state)) : null,
                 waitingButton: sim.stage === "sell" ? "Roll dice" : "End turn",
@@ -279,6 +275,16 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
       {error && <div className="toast bad">{error}</div>}
     </>
   );
+}
+
+/** The turn card's heading for this stage, by what the player can do in it. */
+function stageHeading(stage: "sell" | "act", p: Player | null): string {
+  if (p?.status === "work") {
+    // Workers only roll; after the reveal they wait for the others.
+    if (stage === "act") return "At work";
+    return mustGoToMarket(p) ? "Time to play the market" : "Roll for salary";
+  }
+  return stage === "sell" ? "Sell, then roll" : "Buy & sell, then end turn";
 }
 
 /**
