@@ -4,12 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mustGoToMarket, type Action, type GameState, type Player } from "@/games/stock-market/lib/engine";
 import { kickPlayer, serverNow, submitMove, fetchRoom, type Room } from "@/games/stock-market/lib/rooms";
 import {
-  SUMMARY_BOX_MS,
+  SUMMARY_STEP_MS,
   simulMove,
   simulTimeout,
   stageKey,
   stageMs,
-  summaryMs,
   view,
   waitingOn,
   type SimulDecision,
@@ -142,14 +141,6 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
     void save((s) => simulTimeout(s, key, d6));
   }, [seated, sim, over, outstanding, pending, lateBy, key, save]);
 
-  // ---- The end-of-round summary -----------------------------------------------------------------
-
-  const [skipped, setSkipped] = useState<string | null>(null);
-  const summary = sim?.summary ?? null;
-  const intoStage = now - stageStart;
-  const summaryOn = !!summary && skipped !== key && (sim!.stage === "sell" || over) && intoStage < summaryMs(state);
-  const shownBoxes = summary ? Math.min(summary.length, Math.max(1, Math.floor(intoStage / SUMMARY_BOX_MS) + 1)) : 0;
-
   // ---- This player's own move: dice tumble while waiting, then the token walks ----------------
 
   const round = sim?.round ?? 0;
@@ -172,6 +163,18 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
     const t = setTimeout(() => setWalk((w) => ({ ...w, shown: w.shown + 1 })), STEP_MS);
     return () => clearTimeout(t);
   }, [walking, walk]);
+
+  // ---- The end-of-round summary -----------------------------------------------------------------
+
+  // Shown when a round starts, until Continue; "Last round" brings it back. The sell timer runs
+  // meanwhile, so nobody has to wait for the results.
+  const [closed, setClosed] = useState<string | null>(null);
+  const summary = sim?.summary ?? null;
+  const summaryOn = !!summary && closed !== key && sim!.stage === "sell" && !over && !tumbling;
+  // The market slider steps through each player's move (a reopened list shows it all at once).
+  const shownBoxes = summary
+    ? Math.min(summary.length, Math.max(1, Math.floor((now - stageStart) / SUMMARY_STEP_MS) + 1))
+    : 0;
 
   const roll = useCallback(() => {
     if (!sim || sim.stage !== "sell" || !mine || mine.rolled || rollClicked === round || pending) return;
@@ -253,21 +256,23 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
             ? undefined
             : {
                 heading: summaryOn ? `Round ${sim.round - 1} results` : stageHeading(sim.stage, mine?.player ?? null),
-                secondsLeft: summaryOn || !seated ? null : secondsLeft,
+                secondsLeft: !seated ? null : secondsLeft,
                 waitingFor: !seated ? [] : waiting ? others(waitingOn(state)) : null,
                 waitingButton: sim.stage === "sell" ? "Roll dice" : "End turn",
                 summary:
                   summaryOn && summary ? (
-                    <RoundSummary state={state} entries={summary} shown={shownBoxes} />
-                  ) : undefined,
-                headingEnd:
-                  summaryOn && summary ? (
-                    <SummaryProgress
+                    <RoundResults
                       state={state}
                       entries={summary}
                       shown={shownBoxes}
-                      onSkip={() => setSkipped(key)}
+                      onContinue={() => setClosed(key)}
                     />
+                  ) : undefined,
+                headingEnd:
+                  !summaryOn && summary && sim.stage === "sell" && !over && !waiting ? (
+                    <button className="link small results-reopen" onClick={() => setClosed(null)}>
+                      Last round
+                    </button>
                   ) : undefined,
               }
         }
@@ -304,58 +309,83 @@ function duringSummary(state: GameState, entries: SummaryEntry[], shown: number)
   };
 }
 
-/** Last round, one player at a time in the round's order, each box applying their market move. */
-function RoundSummary({ state, entries, shown }: { state: GameState; entries: SummaryEntry[]; shown: number }) {
-  const entry = entries[shown - 1];
-  const p = state.players[entry.playerId];
-  const delta = entry.after - entry.before;
-  return (
-    <div className="controls round-summary">
-      <div className="summary-box" key={entry.playerId}>
-        <div className="summary-who">
-          <span className="token token-static" style={{ background: p.color }}>
-            {p.name.slice(0, 1).toUpperCase()}
-          </span>
-          <b style={{ color: p.color }}>{p.name}</b>
-          <span className={`summary-market ${delta > 0 ? "log-up" : delta < 0 ? "log-down" : ""}`}>
-            Market {entry.before} → {entry.after}
-          </span>
-        </div>
-        <ul>
-          {entry.lines.map((l, i) => (
-            <li key={i} className={l.tone ? `log-${l.tone}` : ""}>
-              {/* The box's heading shows the market move already. */}
-              {l.text.replace(/ \(\d+ → \d+\)$/, "")}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+/** One line for what else a player did (the throw and landing are on the row already). */
+function otherLines(e: SummaryEntry): SummaryEntry["lines"] {
+  return e.lines
+    .filter((l) => !/^(rolls \d|lands on |starts playing the market)/.test(l.text))
+    .map((l) => ({ ...l, text: l.text.replace(/ \(\d+ → \d+\)$/, "") }));
 }
 
-/** How far through the summary we are (a dot per player, in order), and a button to skip the rest. */
-function SummaryProgress({
+/**
+ * Last round, every player at once in the round's order: their throw, where it took them and
+ * their market move (the slider on the board steps through the moves), plus what else they did.
+ * Tap a row for all of it.
+ */
+function RoundResults({
   state,
   entries,
   shown,
-  onSkip,
+  onContinue,
 }: {
   state: GameState;
   entries: SummaryEntry[];
   shown: number;
-  onSkip: () => void;
+  onContinue: () => void;
 }) {
+  const [open, setOpen] = useState<number | null>(null);
   return (
-    <>
-      <span className="summary-dots" aria-label={`${shown} of ${entries.length}`}>
-        {entries.map((e, i) => (
-          <span key={e.playerId} style={{ background: i < shown ? state.players[e.playerId].color : undefined }} />
-        ))}
-      </span>
-      <button className="btn btn-small" onClick={onSkip}>
-        Skip
+    <div className="controls round-results">
+      <ol className="results-list">
+        {entries.map((e, i) => {
+          const p = state.players[e.playerId];
+          const delta = e.after - e.before;
+          const rest = otherLines(e);
+          const expanded = open === e.playerId;
+          return (
+            <li
+              key={e.playerId}
+              className={i === shown - 1 && shown < entries.length ? "results-now" : i >= shown ? "results-later" : ""}
+            >
+              <button
+                className="results-row"
+                onClick={() => setOpen(expanded ? null : e.playerId)}
+                aria-expanded={expanded}
+              >
+                <span className="token token-static" style={{ background: p.color }}>
+                  {p.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="results-text">
+                  <span className="results-main">
+                    <b style={{ color: p.color }}>{p.name}</b>
+                    {e.dice && <> rolled {e.dice[0] + e.dice[1]}</>}
+                    {e.where && <> · {e.where}</>}
+                  </span>
+                  {!expanded && (
+                    <span className="results-sub">
+                      {rest.length ? rest.map((l) => l.text).join(" · ") : "Nothing else"}
+                    </span>
+                  )}
+                </span>
+                <span className={`results-move ${delta > 0 ? "up" : delta < 0 ? "down" : ""}`}>
+                  {delta > 0 ? `▲${delta}` : delta < 0 ? `▼${-delta}` : "–"}
+                </span>
+              </button>
+              {expanded && (
+                <ul className="results-lines">
+                  {e.lines.map((l, k) => (
+                    <li key={k} className={l.tone ? `log-${l.tone}` : ""}>
+                      {l.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <button className="btn btn-primary btn-big" onClick={onContinue}>
+        Continue
       </button>
-    </>
+    </div>
   );
 }

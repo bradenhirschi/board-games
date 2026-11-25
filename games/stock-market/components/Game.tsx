@@ -426,7 +426,7 @@ export function GameView({
             </button>
           </section>
         ) : (
-          <section className="turn">
+          <section className={`turn ${simul?.summary && ph.t !== "chooseCareers" ? "turn-results" : ""}`}>
             <div className={`turn-heading ${simul && ph.t !== "chooseCareers" ? "turn-heading-row" : ""}`}>
               {simul && ph.t !== "chooseCareers"
                 ? simul.heading

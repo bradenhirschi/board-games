@@ -5,6 +5,7 @@ import {
   fmt,
   mustGoToMarket,
   netWorth,
+  posName,
   reducer,
   type Action,
   type GameState,
@@ -35,8 +36,8 @@ import { STOCK_ORDER, lowestPrice, moveMarket } from "./stocks";
 
 export const SELL_SECONDS = 60;
 export const ACT_SECONDS = 60;
-/** How long each player's box shows in the end-of-round summary. */
-export const SUMMARY_BOX_MS = 2200;
+/** In the round results, the market slider steps through each player's move this fast. */
+export const SUMMARY_STEP_MS = 700;
 
 export interface SimulTurn {
   /** This player's copy of themselves for the round. */
@@ -69,6 +70,9 @@ export interface SummaryEntry {
   /** The real market before and after their landing is applied. */
   before: number;
   after: number;
+  /** Their throw, and where it took them ("At work" for workers). Missing in older saves. */
+  dice?: [number, number] | null;
+  where?: string;
 }
 
 export interface SimulState {
@@ -94,16 +98,10 @@ export function stageKey(state: GameState): string {
   return `${state.simul.round}:${state.simul.stage}`;
 }
 
-/** How long the summary takes to play: the sell stage's timer starts after it. */
-export function summaryMs(state: GameState): number {
-  const n = state.simul?.summary?.length ?? 0;
-  return n ? n * SUMMARY_BOX_MS : 0;
-}
-
 /** Milliseconds from the stage starting until its timer runs out. */
 export function stageMs(state: GameState): number {
   if (!state.simul) return Infinity;
-  return state.simul.stage === "sell" ? summaryMs(state) + SELL_SECONDS * 1000 : ACT_SECONDS * 1000;
+  return (state.simul.stage === "sell" ? SELL_SECONDS : ACT_SECONDS) * 1000;
 }
 
 /** Players still to roll (`sell`) or to end their turn (`act`). */
@@ -280,6 +278,8 @@ function finishRound(s: GameState) {
       from: s.players[seat].pos,
       before,
       after: market,
+      dice: t.dice,
+      where: t.player.status === "work" ? "At work" : posName(t.player.pos),
     });
     merged.push(...lines);
   }
