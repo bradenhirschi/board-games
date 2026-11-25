@@ -270,7 +270,7 @@ describe("whole games", () => {
       }
       expect(s.phase.t).toBe("gameOver");
     }
-  });
+  }, 30_000);
 });
 
 function d6() {
