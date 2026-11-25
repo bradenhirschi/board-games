@@ -95,7 +95,11 @@ takes random cards; "enemy" means any other player without a treaty with you thi
 port" is any empty port the ship could reach by water, however far, ignoring the storm; cards move
 ships without tolls and without collecting treasure; a card that ends the turn ends it after the
 rest of that sail's treasure; losing your last ship to a card ends your turn, and a ship sunk by a
-card earns nobody a Plunder Point. Basic bots
+card earns nobody a Plunder Point. Confirmed by the owner: A Pirate's Life gives a Plunder Point and
+goes back under the deck like any other card (so it can come up again); Notorious still takes the
+life from the enemy ship when none of yours has room for it; taking White Flag's bribe also makes a
+treaty with that player for the rest of the turn; Plunder can steal any Plunder Point card, including
+one earned by burying gold. Basic bots
 (`games/plunder/lib/bot.ts`): they pick roomy starting islands, bury gold, repair and build, attack
 when the odds are good, sail for islands worth conquering or treasure, and recover when sunk.
 
