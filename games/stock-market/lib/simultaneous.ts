@@ -34,7 +34,7 @@ import { STOCK_ORDER, lowestPrice, moveMarket } from "./stocks";
  */
 
 export const SELL_SECONDS = 60;
-export const ACT_SECONDS = 90;
+export const ACT_SECONDS = 60;
 /** How long each player's box shows in the end-of-round summary. */
 export const SUMMARY_BOX_MS = 2200;
 

@@ -65,7 +65,7 @@ plan with no game server:
    and your turn enters any shareholders' meeting it passes.
 2. **Reveal:** each player sees only their own throw; their token walks and their own copy of the
    market moves by their landing alone. Workers are paid for every throw of the round.
-3. **Buy & sell, then end turn** (90 s, starting at the reveal): buy at your updated price, sell at
+3. **Buy & sell, then end turn** (60 s, starting at the reveal): buy at your updated price, sell at
    the lowest price, as usual. Out of time: the turn ends without trading (a fee you can't pay sells
    your biggest holding at the lowest price, or you go broke if that isn't enough).
 4. **Results:** each player's turn is shown in a box, one at a time, in a fixed order that rotates

@@ -63,7 +63,7 @@ export default function GameSettingsFields({ settings, hasBots, disabled, online
           role="switch"
           aria-checked={simultaneous}
           disabled={disabled}
-          title="Everyone takes their turn at the same time, in private: 60 seconds to sell and roll, then 90 to buy and sell"
+          title="Everyone takes their turn at the same time, in private: 60 seconds to sell and roll, then 60 to buy and sell"
           onClick={() => onChange({ simultaneous: !simultaneous })}
         >
           <span>Simultaneous turns</span>
