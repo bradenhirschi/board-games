@@ -15,6 +15,7 @@ import {
   type SimulDecision,
   type SummaryEntry,
 } from "@/games/stock-market/lib/simultaneous";
+import { resolve } from "@/games/stock-market/lib/online";
 import { playDice } from "@/games/stock-market/lib/sound";
 import { GameView, STEP_MS } from "./Game";
 import { Notice, useRemoved } from "./RoomNotice";
@@ -123,7 +124,9 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
   const send = useCallback(
     (decision: SimulDecision) => {
       if (!seated) return;
-      void save((s) => simulMove(s, mySeat, decision, d6));
+      // Before the first round (everyone picking an occupation) the normal rules apply; picking
+      // the last occupation starts round 1.
+      void save((s) => (s.simul ? simulMove(s, mySeat, decision, d6) : (resolve(s, decision, d6)?.state ?? null)));
     },
     [save, seated, mySeat],
   );
