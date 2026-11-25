@@ -37,7 +37,7 @@ describe("plunder online", () => {
     const notices = [
       { t: "drew" as const, player: 0, cards: ["wood" as const] },
       { t: "drew" as const, player: 1, cards: ["rum" as const] },
-      { t: "treasure" as const, player: 1, at: { r: 0, c: 0 } },
+      { t: "treasure" as const, player: 1, at: { r: 0, c: 0 }, card: "chest" as const, result: [] },
     ];
     expect(noticesFor(notices, 0).map((n) => n.t + n.player)).toEqual(["drew0", "treasure1"]);
     expect(noticesFor(notices, null).map((n) => n.t)).toEqual(["treasure"]);
