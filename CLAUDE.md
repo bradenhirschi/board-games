@@ -70,7 +70,8 @@ rules, how online play works, and the file map; read it first.
   an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
   sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
   attacking costs no moves and can happen before the roll; Treasure cards are the owner's printed deck
-  (`lib/treasureCards.ts`), with the readings listed in the README; ships built after the roll can't sail
+  (`lib/treasureCards.ts`), read as listed in the README (all confirmed by the owner; A Pirate's Life
+  goes back under the deck like any other card); ships built after the roll can't sail
   but can attack; the app rolls islands' defence; sinking against an unowned island gives no card.
   Trading follows the printed rules: offers go to every eligible player, each answers in seat order
   (pass the device), the offerer picks among those who accepted; counters go back and forth; only

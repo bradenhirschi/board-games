@@ -90,12 +90,12 @@ shuffled at the start. Sailing over an X draws the top card; it's carried out on
 then goes under the deck. Cards that need a choice wait for it (`treasureNeed`): an enemy player, a
 resource, a die roll, cards to lose, yes/no, or something tapped on the board (a ship, a port, a
 square in the storm, an island). White Flag asks its target for a bribe on their own device. How the
-cards are read (the owner may correct these): "your ship" is the ship that found the X; "steal"
+cards are read (all confirmed by the owner): "your ship" is the ship that found the X; "steal"
 takes random cards; "enemy" means any other player without a treaty with you this turn; "accessible
 port" is any empty port the ship could reach by water, however far, ignoring the storm; cards move
 ships without tolls and without collecting treasure; a card that ends the turn ends it after the
 rest of that sail's treasure; losing your last ship to a card ends your turn, and a ship sunk by a
-card earns nobody a Plunder Point. Confirmed by the owner: A Pirate's Life gives a Plunder Point and
+card earns nobody a Plunder Point; A Pirate's Life gives a Plunder Point and
 goes back under the deck like any other card (so it can come up again); Notorious still takes the
 life from the enemy ship when none of yours has room for it; taking White Flag's bribe also makes a
 treaty with that player for the rest of the turn; Plunder can steal any Plunder Point card, including
