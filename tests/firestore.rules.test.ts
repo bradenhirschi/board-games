@@ -129,6 +129,12 @@ describe("the lobby", () => {
     await assertSucceeds(room("host").update({ startWithCash: true }));
     await assertSucceeds(room("host").update({ startWithCash: false }));
   });
+  it("lets only the host change the balanced occupations switch and requires a boolean", async () => {
+    await assertFails(room("amy").update({ balancedCareers: true }));
+    await assertFails(room("host").update({ balancedCareers: "on" }));
+    await assertSucceeds(room("host").update({ balancedCareers: true }));
+    await assertSucceeds(room("host").update({ balancedCareers: false }));
+  });
 
   it("lets only the host choose the bot level", async () => {
     await seed(lobby({ memberUids: ["host", "amy"] }));
@@ -168,6 +174,9 @@ describe("during a game", () => {
   });
   it("keeps the starting cash setting fixed during play", async () => {
     await assertFails(room("amy").update({ version: 6, startWithCash: true }));
+  });
+  it("keeps the balanced occupations setting fixed during play", async () => {
+    await assertFails(room("amy").update({ version: 6, balancedCareers: true }));
   });
 
   it("never lets the bot level change mid-game", async () => {

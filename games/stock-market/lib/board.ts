@@ -250,13 +250,23 @@ export interface Career {
   name: string;
   rolls: [number, number];
   salary: number;
+  /**
+   * The salary with "Balanced Occupations" on: every occupation then pays the same per throw on
+   * average (chance of its numbers × salary ≈ $33.33).
+   */
+  balancedSalary: number;
   corner: "tl" | "tr" | "bl" | "br";
   icon: string;
 }
 
+// Chance per throw: 5 or 9 is 8/36, 2 or 12 is 2/36, 4 or 10 is 6/36, 3 or 11 is 4/36.
 export const CAREERS: Career[] = [
-  { name: "Policeman", rolls: [5, 9], salary: 100, corner: "tl", icon: "★" },
-  { name: "Prospector", rolls: [2, 12], salary: 400, corner: "tr", icon: "⛏" },
-  { name: "Doctor", rolls: [4, 10], salary: 200, corner: "bl", icon: "✚" },
-  { name: "Deep Sea Diver", rolls: [3, 11], salary: 300, corner: "br", icon: "⚓" },
+  { name: "Policeman", rolls: [5, 9], salary: 100, balancedSalary: 150, corner: "tl", icon: "★" },
+  { name: "Prospector", rolls: [2, 12], salary: 400, balancedSalary: 600, corner: "tr", icon: "⛏" },
+  { name: "Doctor", rolls: [4, 10], salary: 200, balancedSalary: 200, corner: "bl", icon: "✚" },
+  { name: "Deep Sea Diver", rolls: [3, 11], salary: 300, balancedSalary: 300, corner: "br", icon: "⚓" },
 ];
+
+/** What an occupation pays, with or without the "Balanced Occupations" setting. */
+export const salaryOf = (career: Career, balanced: boolean | undefined) =>
+  balanced ? career.balancedSalary : career.salary;

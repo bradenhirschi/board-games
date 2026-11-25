@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   CAREERS,
+  salaryOf,
   GRID,
   LANES,
   TRACK,
@@ -32,6 +33,8 @@ interface BoardProps {
   /** Phones show the dice on the board, under the price tracker. */
   dice?: [number, number] | null;
   rolling?: boolean;
+  /** The "Balanced Occupations" salaries are in play. */
+  balancedCareers?: boolean;
 }
 
 const at = (row: number, col: number, rowSpan = 1, colSpan = 1): CSSProperties => ({
@@ -98,6 +101,7 @@ export default function Board({
   onPickStart,
   dice,
   rolling,
+  balancedCareers,
 }: BoardProps) {
   const byCell = new Map<string, Player[]>();
   for (const p of players) {
@@ -144,6 +148,7 @@ export default function Board({
           <CareerCorner
             key={career.name}
             career={career}
+            salary={salaryOf(career, balancedCareers)}
             // Only light up an occupation the throw paid: someone still at work in it.
             active={
               diceTotal !== null &&
@@ -352,7 +357,17 @@ const CAREER_POS: Record<Career["corner"], [number, number]> = {
   br: [10, 10],
 };
 
-function CareerCorner({ career, active, children }: { career: Career; active: boolean; children: ReactNode }) {
+function CareerCorner({
+  career,
+  salary,
+  active,
+  children,
+}: {
+  career: Career;
+  salary: number;
+  active: boolean;
+  children: ReactNode;
+}) {
   const [r, c] = CAREER_POS[career.corner];
   return (
     <div className={`career ${active ? "career-active" : ""}`} style={at(r, c, 3, 3)}>
@@ -360,7 +375,7 @@ function CareerCorner({ career, active, children }: { career: Career; active: bo
       <div className="career-name">{career.name.toUpperCase()}</div>
       <div className="career-rule">
         {career.rolls[0]} OR {career.rolls[1]} PAYS
-        <br />${career.salary} SALARY
+        <br />${salary} SALARY
       </div>
       <div className="career-tokens">{children}</div>
     </div>
