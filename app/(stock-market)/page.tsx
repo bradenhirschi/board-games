@@ -69,6 +69,7 @@ export default function Home() {
     target: DEFAULT_TARGET,
     botLevel: "normal",
     startWithCash: false,
+    balancedCareers: false,
   });
   const [game, setGame] = useState<{ key: number; state: GameState } | null>(null);
   const [saved, setSaved] = useState<GameState | null>(null);
@@ -143,7 +144,10 @@ export default function Home() {
 
   const start = () => {
     const clean = players.map((p, i) => ({ ...p, name: p.name.trim() || `Player ${i + 1}` }));
-    setGame({ key: Date.now(), state: newGame(clean, settings.target, settings.botLevel, settings.startWithCash) });
+    setGame({
+      key: Date.now(),
+      state: newGame(clean, settings.target, settings.botLevel, settings.startWithCash, settings.balancedCareers),
+    });
   };
 
   if (game) return <LocalGame key={game.key} initial={game.state} onQuit={leaveLocalGame} />;

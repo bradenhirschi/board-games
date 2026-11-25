@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { botMove } from "./bot";
-import { CAREERS, START_SQUARES, TRACK, arrowFor, directionFor } from "./board";
+import { CAREERS, START_SQUARES, TRACK, arrowFor, directionFor, salaryOf } from "./board";
 import { newGame, reducer, netWorth, type Action, type GameState, type Pos } from "./engine";
 import { lowestPrice, moveMarket, priceAt } from "./stocks";
 
@@ -126,6 +126,36 @@ describe("working", () => {
     expect(reducer(s, { type: "roll", dice: [2, 2] })).toBe(s);
     s = run(s, { type: "goToMarket", start: 6 }, { type: "roll", dice: [1, 2] });
     expect(s.phase.t).not.toBe("preRoll");
+  });
+});
+
+describe("balanced occupations", () => {
+  /** Chance that two dice total one of `rolls`. */
+  const chance = (rolls: number[]) => {
+    let hits = 0;
+    for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) if (rolls.includes(a + b)) hits++;
+    return hits / 36;
+  };
+
+  it("gives every occupation the same average pay per throw", () => {
+    const perThrow = CAREERS.map((c) => chance(c.rolls) * salaryOf(c, true));
+    for (const pay of perThrow) expect(pay).toBeCloseTo(100 / 3);
+    // Without the setting, Policeman and Prospector pay less per throw than Doctor and Diver.
+    expect(CAREERS.map((c) => Math.round(chance(c.rolls) * salaryOf(c, false)))).toEqual([22, 22, 33, 33]);
+  });
+
+  it("pays a Policeman $150 and a Prospector $600 when it's on", () => {
+    const players = [
+      { name: "P1", isBot: false },
+      { name: "P2", isBot: false },
+    ];
+    let s = newGame(players, undefined, "normal", false, true);
+    s = run(s, { type: "chooseCareer", playerId: 0, career: 0 }, { type: "chooseCareer", playerId: 1, career: 1 });
+    s = run(s, { type: "roll", dice: [2, 3] }); // 5: Policeman
+    expect(s.players[0].cash).toBe(150);
+    s = run(s, { type: "endTurn" }, { type: "roll", dice: [6, 6] }); // 12: Prospector
+    expect(s.players[1].cash).toBe(600);
+    expect(newGame(players).balancedCareers).toBe(false);
   });
 });
 

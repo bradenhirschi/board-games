@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { botMove } from "@/games/stock-market/lib/bot";
-import { CAREERS, START_SQUARES, TRACK, arrowFor, sideOf } from "@/games/stock-market/lib/board";
+import { CAREERS, START_SQUARES, TRACK, arrowFor, salaryOf, sideOf } from "@/games/stock-market/lib/board";
 import {
   canRoll,
   feeName,
@@ -367,6 +367,7 @@ export function GameView({
           diceTotal={diceTotal}
           dice={dice}
           rolling={!!rolling}
+          balancedCareers={state.balancedCareers}
           onPickStart={
             pickingStart && canAct
               ? (start) => {
@@ -647,8 +648,7 @@ function CareerChoice({
       <p className="hint">
         {viewer.career === null ? (
           <>
-            <b>Choose your occupation.</b> You&apos;re paid whenever <i>anyone</i> throws your numbers. The first roll
-            waits until everyone has picked.
+            You&apos;re paid whenever <i>anyone</i> throws your numbers. The first roll waits until everyone has picked.
           </>
         ) : (
           <>
@@ -658,6 +658,7 @@ function CareerChoice({
       </p>
       <div className="career-picks">
         <CareerPicks
+          balanced={state.balancedCareers}
           selected={viewer.career}
           disabled={disabled}
           onPick={(career) => dispatch({ type: "chooseCareer", playerId: viewer.id, career })}
@@ -671,21 +672,24 @@ function CareerChoice({
 }
 
 /** Occupation indices, cheapest salary first (the index itself is what the game stores). */
-const CAREERS_BY_SALARY = CAREERS.map((_, i) => i).sort((a, b) => CAREERS[a].salary - CAREERS[b].salary);
+const careersBySalary = (balanced: boolean | undefined) =>
+  CAREERS.map((_, i) => i).sort((a, b) => salaryOf(CAREERS[a], balanced) - salaryOf(CAREERS[b], balanced));
 
-/** The occupation buttons, $100 to $400. */
+/** The occupation buttons, cheapest salary first. */
 function CareerPicks({
+  balanced,
   selected,
   disabled,
   onPick,
 }: {
+  balanced: boolean | undefined;
   selected: number | null;
   disabled: boolean;
   onPick: (career: number) => void;
 }) {
   return (
     <>
-      {CAREERS_BY_SALARY.map((i) => {
+      {careersBySalary(balanced).map((i) => {
         const c = CAREERS[i];
         return (
           <button
@@ -699,7 +703,7 @@ function CareerPicks({
               {c.name}
             </span>
             <small>
-              {c.rolls[0]} or {c.rolls[1]} · ${c.salary}
+              {c.rolls[0]} or {c.rolls[1]} · ${salaryOf(c, balanced)}
             </small>
           </button>
         );
@@ -781,6 +785,7 @@ function TurnControls({
         {!must && (
           <div className="career-picks">
             <CareerPicks
+              balanced={state.balancedCareers}
               selected={player.career}
               disabled={disabled}
               onPick={(career) => dispatch({ type: "setCareer", career })}
