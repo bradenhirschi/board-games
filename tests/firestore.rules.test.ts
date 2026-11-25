@@ -135,6 +135,11 @@ describe("the lobby", () => {
     await assertSucceeds(room("host").update({ balancedCareers: true }));
     await assertSucceeds(room("host").update({ balancedCareers: false }));
   });
+  it("lets only the host change the simultaneous turns switch and requires a boolean", async () => {
+    await assertFails(room("amy").update({ simultaneous: true }));
+    await assertFails(room("host").update({ simultaneous: "on" }));
+    await assertSucceeds(room("host").update({ simultaneous: true }));
+  });
 
   it("lets only the host choose the bot level", async () => {
     await seed(lobby({ memberUids: ["host", "amy"] }));
@@ -178,6 +183,9 @@ describe("during a game", () => {
   it("keeps the balanced occupations setting fixed during play", async () => {
     await assertFails(room("amy").update({ version: 6, balancedCareers: true }));
   });
+  it("keeps the simultaneous turns setting fixed during play", async () => {
+    await assertFails(room("amy").update({ version: 6, simultaneous: true }));
+  });
 
   it("never lets the bot level change mid-game", async () => {
     await assertFails(room("amy").update({ version: 6, botLevel: "easy" }));
@@ -185,6 +193,21 @@ describe("during a game", () => {
   it("never lets seats or membership change", async () => {
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));
     await assertFails(room("amy").update({ version: 6, seats: [] }));
+  });
+});
+
+describe("simultaneous rounds", () => {
+  const now = () => firebase.firestore.FieldValue.serverTimestamp();
+  beforeEach(() => seed(playing({ simultaneous: true, currentUid: null })));
+
+  it("let any seated player save the next version", async () => {
+    await assertSucceeds(room("amy").update({ version: 6 }));
+    await assertSucceeds(room("host").update({ version: 7 }));
+    await assertFails(room("stranger").update({ version: 8 }));
+  });
+  it("start a stage's timer only at the server's time", async () => {
+    await assertSucceeds(room("amy").update({ version: 6, stageStartedAt: now() }));
+    await assertFails(room("amy").update({ version: 7, stageStartedAt: new Date(Date.now() - 60_000) }));
   });
 });
 

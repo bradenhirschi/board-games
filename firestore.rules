@@ -21,6 +21,11 @@ service cloud.firestore {
         && before.difference(after).hasOnly([request.auth.uid]);
     }
 
+    // Simultaneous turns: a stage's timer starts at the server's time of the write that starts it.
+    function stageTimeHonest() {
+      return unchanged(['stageStartedAt']) || request.resource.data.stageStartedAt == request.time;
+    }
+
     match /stockMarketRooms/{code} {
       // Anyone signed in who knows the code can watch.
       allow read: if signedIn();
@@ -34,6 +39,7 @@ service cloud.firestore {
         && request.resource.data.status == 'lobby'
         && request.resource.data.get('startWithCash', false) is bool
         && request.resource.data.get('balancedCareers', false) is bool
+        && request.resource.data.get('simultaneous', false) is bool
         && request.resource.data.version == 0
         && request.resource.data.memberUids == [request.auth.uid];
 
@@ -44,21 +50,24 @@ service cloud.firestore {
         && unchanged(['code', 'hostUid', 'createdAt'])
         && request.resource.data.get('startWithCash', false) is bool
         && request.resource.data.get('balancedCareers', false) is bool
+        && request.resource.data.get('simultaneous', false) is bool
         && (
           request.auth.uid == resource.data.hostUid
           || (
             request.resource.data.status == 'lobby'
-            && unchanged(['target', 'botLevel', 'startWithCash', 'balancedCareers', 'version', 'stateJson', 'replayJson', 'currentUid'])
+            && unchanged(['target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous', 'version', 'stateJson', 'replayJson', 'currentUid'])
             && onlySelfJoinsOrLeaves()
           )
         );
 
       // Game: seated players only, one version at a time, and only on their own
-      // turn or a bot's turn.
+      // turn or a bot's turn (or anyone's, when `currentUid` is null: picking occupations, and
+      // simultaneous rounds, where everyone plays at once).
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid in resource.data.memberUids
-        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers'])
+        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous'])
+        && stageTimeHonest()
         && request.resource.data.version == resource.data.version + 1
         && (
           resource.data.currentUid == request.auth.uid
@@ -70,7 +79,8 @@ service cloud.firestore {
       allow update: if signedIn()
         && resource.data.status == 'playing'
         && request.auth.uid == resource.data.hostUid
-        && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers'])
+        && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous'])
+        && stageTimeHonest()
         && request.resource.data.version == resource.data.version + 1
         && request.resource.data.seats.size() == resource.data.seats.size()
         && request.resource.data.memberUids.toSet().difference(resource.data.memberUids.toSet()).size() == 0

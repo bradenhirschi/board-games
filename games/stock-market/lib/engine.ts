@@ -13,6 +13,7 @@ import {
   step as stepIndex,
   type Dir,
 } from "./board";
+import type { SimulState } from "./simultaneous";
 import { MARKET_START, STOCKS, STOCK_ORDER, lowestPrice, moveMarket, priceAt, type StockId } from "./stocks";
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,10 @@ export interface GameState {
   botLevel?: BotLevel;
   /** "Balanced Occupations": Policeman pays $150 and Prospector $600 (older saves: off). */
   balancedCareers?: boolean;
+  /** Online "Simultaneous turns": everyone plays each round at once (see `simultaneous.ts`). */
+  simultaneous?: boolean;
+  /** The round in progress in a simultaneous game (absent while occupations are chosen). */
+  simul?: SimulState;
 }
 
 export type BotLevel = "easy" | "normal";
@@ -121,6 +126,8 @@ export interface GameSettings {
   botLevel: BotLevel;
   startWithCash: boolean;
   balancedCareers: boolean;
+  /** Online only: everyone takes their turns at the same time. */
+  simultaneous?: boolean;
 }
 
 export interface PlayerSetup {
@@ -154,6 +161,7 @@ export function newGame(
   botLevel: BotLevel = "normal",
   startWithCash = false,
   balancedCareers = false,
+  simultaneous = false,
 ): GameState {
   return {
     version: 3,
@@ -182,6 +190,7 @@ export function newGame(
     turnLogStart: 1,
     botLevel,
     balancedCareers,
+    ...(simultaneous ? { simultaneous: true } : {}),
   };
 }
 
@@ -216,7 +225,8 @@ export type Action =
   | { type: "chooseCareer"; playerId: number; career: number }
   | { type: "goToMarket"; start: number }
   | { type: "sell"; stock: StockId; qty: number }
-  | { type: "roll"; dice: [number, number] }
+  /** `noSalaries`: a simultaneous round, where salaries for every roll are paid together. */
+  | { type: "roll"; dice: [number, number]; noSalaries?: boolean }
   | { type: "step" }
   | { type: "detour"; enter: boolean }
   | { type: "buy"; qty: number }
@@ -237,6 +247,8 @@ function apply(s: GameState, a: Action): boolean {
   const ph = s.phase;
   const p = s.players[s.current];
   if (ph.t === "gameOver") return false;
+  // A simultaneous round runs each player's turn on its own copy (see `simultaneous.ts`).
+  if (s.simul) return false;
 
   switch (a.type) {
     case "replaceWithBot": {
@@ -305,7 +317,7 @@ function apply(s: GameState, a: Action): boolean {
       s.lastLanding = null;
       s.lastMarketDelta = 0;
       log(s, p.id, `rolls ${d1} + ${d2} = ${total}`);
-      paySalaries(s, total);
+      if (!a.noSalaries) paySalaries(s, total);
       if (p.status === "work") {
         endTurn(s);
         return true;

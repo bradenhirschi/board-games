@@ -1,6 +1,6 @@
 "use client";
 
-import { doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
+import { Timestamp, doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
 import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
@@ -12,6 +12,7 @@ import {
 } from "./engine";
 import { firebase } from "@/shared/firebase";
 import { resolve, type Resolved } from "./online";
+import { beginRounds, simulReplaceWithBot, stageKey } from "./simultaneous";
 
 /**
  * Online rooms live in Firestore at stockMarketRooms/{code}. The game state is stored as JSON
@@ -45,6 +46,8 @@ export interface Room extends GameSettings {
   replay: Replay | null;
   /** Whose turn it is (null on a bot's turn): the security rules let only them write. */
   currentUid: string | null;
+  /** Simultaneous turns: when the current stage started (server time, ms), for its timer. */
+  stageStartedAt: number | null;
 }
 
 const ROOM_CODE_MIN_LENGTH = 3;
@@ -74,6 +77,7 @@ function parseRoom(data: DocumentData): Room {
     target: data.target,
     startWithCash: data.startWithCash === true,
     balancedCareers: data.balancedCareers === true,
+    simultaneous: data.simultaneous === true,
     botLevel: data.botLevel === "easy" ? "easy" : "normal",
     seats: data.seats,
     memberUids: data.memberUids,
@@ -81,16 +85,38 @@ function parseRoom(data: DocumentData): Room {
     state: data.stateJson ? (JSON.parse(data.stateJson) as GameState) : null,
     replay: data.replayJson ? (JSON.parse(data.replayJson) as Replay) : null,
     currentUid: data.currentUid ?? null,
+    stageStartedAt: data.stageStartedAt instanceof Timestamp ? data.stageStartedAt.toMillis() : null,
   };
+}
+
+/**
+ * The server's clock minus this device's, so every phone runs a round's timer to the same
+ * deadline. Each room update read from the server carries its server write time, which can
+ * only be earlier than when it arrives here, so the largest difference seen is the best guess.
+ */
+let serverOffset: number | null = null;
+
+function noteServerTime(data: DocumentData | undefined) {
+  if (!(data?.updatedAt instanceof Timestamp)) return;
+  const offset = data.updatedAt.toMillis() - Date.now();
+  if (serverOffset === null || offset > serverOffset) serverOffset = offset;
+}
+
+/** The server's time now (ms), as best this device knows it. */
+export function serverNow(): number {
+  return Date.now() + (serverOffset ?? 0);
 }
 
 /** Who may save the next move: the current player, or anyone seated (null) while occupations are chosen. */
 export function seatUid(state: GameState, seats: Seat[]): string | null {
-  if (state.phase.t === "chooseCareers") return null;
+  // In a simultaneous round everyone plays at once.
+  if (state.phase.t === "chooseCareers" || state.simul) return null;
   return seats[state.current]?.uid ?? null;
 }
 
 export class RoomError extends Error {}
+
+const d6 = () => 1 + Math.floor(Math.random() * 6);
 
 /** Open a room and take a seat atomically. The first successful entrant hosts a new room. */
 export function enterRoom(code: string, uid: string, name: string): Promise<void> {
@@ -158,6 +184,7 @@ export async function editLobby(
       // Leave optional settings untouched when a player only edits seats.
       ...(next.startWithCash === undefined ? {} : { startWithCash: next.startWithCash }),
       ...(next.balancedCareers === undefined ? {} : { balancedCareers: next.balancedCareers }),
+      ...(next.simultaneous === undefined ? {} : { simultaneous: next.simultaneous }),
       ...(next.botLevel ? { botLevel: next.botLevel } : {}),
       updatedAt: serverTimestamp(),
     });
@@ -171,19 +198,22 @@ export async function startGame(code: string): Promise<void> {
     const room = parseRoom(snap.data());
     if (room.status !== "lobby") return;
     if (room.seats.length < MIN_PLAYERS) throw new RoomError(`You need at least ${MIN_PLAYERS} players.`);
-    const state = newGame(
+    const created = newGame(
       room.seats.map((s) => ({ name: s.name, isBot: s.isBot })),
       room.target,
       room.botLevel,
       room.startWithCash,
       room.balancedCareers,
+      room.simultaneous,
     );
+    const state = beginRounds(created, d6) ?? created;
     tx.update(roomRef(code), {
       status: "playing",
       version: 1,
       stateJson: JSON.stringify(state),
       replayJson: null,
       currentUid: seatUid(state, room.seats),
+      ...(state.simul ? { stageStartedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
     });
   });
@@ -220,14 +250,17 @@ export async function submitMove(
       replay,
       currentUid: seatUid(move.state, room.seats),
     };
+    const newStage = !!saved.state?.simul && stageKey(saved.state) !== stageKey(room.state);
     tx.update(roomRef(code), {
       version: saved.version,
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),
       currentUid: saved.currentUid,
+      // A new stage of a simultaneous round restarts the timer for everyone.
+      ...(newStage ? { stageStartedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
     });
-    return saved;
+    return newStage ? { ...saved, stageStartedAt: null } : saved;
   });
 }
 
@@ -243,8 +276,10 @@ export async function kickPlayer(code: string, hostUid: string, seat: number): P
     const kicked = room.seats[seat];
     if (room.status !== "playing" || !room.state || room.hostUid !== hostUid) return null;
     if (!kicked?.uid || kicked.uid === hostUid) return null;
-    const move = resolve(room.state, { type: "replaceWithBot", playerId: seat });
+    const simul = room.state.simul ? simulReplaceWithBot(room.state, seat, d6) : null;
+    const move = simul ? { state: simul, actions: [] } : resolve(room.state, { type: "replaceWithBot", playerId: seat });
     if (!move) return null;
+    const newStage = !!move.state.simul && stageKey(move.state) !== stageKey(room.state);
     const seats = room.seats.map((s, i) => (i === seat ? { uid: null, name: s.name, isBot: true } : s));
     const replay: Replay = { from: room.version, by: hostUid, actions: move.actions };
     const saved: Room = {
@@ -263,6 +298,7 @@ export async function kickPlayer(code: string, hostUid: string, seat: number): P
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),
       currentUid: saved.currentUid,
+      ...(newStage ? { stageStartedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
     });
     return saved;
@@ -272,7 +308,10 @@ export async function kickPlayer(code: string, hostUid: string, seat: number): P
 export function watchRoom(code: string, onRoom: (room: Room | null) => void, onError: (e: Error) => void): () => void {
   return onSnapshot(
     roomRef(code),
-    (snap) => onRoom(snap.exists() ? parseRoom(snap.data()) : null),
+    (snap) => {
+      if (snap.exists() && !snap.metadata.hasPendingWrites && !snap.metadata.fromCache) noteServerTime(snap.data());
+      onRoom(snap.exists() ? parseRoom(snap.data()) : null);
+    },
     (e) => onError(e),
   );
 }
@@ -287,6 +326,7 @@ export function watchRoom(code: string, onRoom: (room: Room | null) => void, onE
 export async function fetchRoom(code: string): Promise<Room | null> {
   return runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
+    if (snap.exists()) noteServerTime(snap.data());
     return snap.exists() ? parseRoom(snap.data()) : null;
   });
 }
@@ -297,6 +337,6 @@ export function isNewer(fresh: Room, seen: Room): boolean {
   if (fresh.status !== "lobby") return false;
   // Lobby edits (seats, settings) don't bump the version.
   const stamp = (r: Room) =>
-    JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash, r.balancedCareers]);
+    JSON.stringify([r.status, r.seats, r.target, r.botLevel, r.startWithCash, r.balancedCareers, r.simultaneous]);
   return stamp(fresh) !== stamp(seen);
 }

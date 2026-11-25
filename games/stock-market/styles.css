@@ -3332,3 +3332,91 @@ button.link {
 .stock-cash-switch:disabled {
   cursor: default;
 }
+
+/* ---------- Simultaneous turns: stage timer, waiting, end-of-round summary ---------- */
+.action-col .turn-heading.turn-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.turn-heading-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+}
+.turn-timer {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.turn-timer-low {
+  color: #b91c1c;
+}
+.round-summary {
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+.summary-box {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 8px 10px;
+  animation: summary-in 0.25s ease-out;
+}
+@keyframes summary-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.summary-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.summary-market {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.summary-market.log-up {
+  color: var(--up);
+}
+.summary-market.log-down {
+  color: var(--down);
+}
+.summary-box ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.summary-box li {
+  padding-left: 8px;
+  border-left: 3px solid #e0dbc6;
+}
+.summary-box li + li {
+  margin-top: 2px;
+}
+.summary-dots {
+  display: flex;
+  gap: 5px;
+}
+.summary-dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rule);
+}

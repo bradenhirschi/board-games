@@ -1,5 +1,6 @@
 import { botMove } from "./bot";
 import { reducer, type Action, type GameState } from "./engine";
+import { beginRounds } from "./simultaneous";
 
 /**
  * Online play (no server): the phone whose turn it is applies the move with the
@@ -32,6 +33,9 @@ export function resolve(state: GameState, decision: Decision, rollDie: () => num
     next = reducer(next, { type: "step" });
     actions.push({ type: "step" });
   }
+  // A simultaneous game starts its rounds once everyone has an occupation.
+  const rounds = beginRounds(next, rollDie);
+  if (rounds) return { state: rounds, actions: [] };
   return { state: next, actions };
 }
 
@@ -42,6 +46,7 @@ export function replay(state: GameState, actions: Action[]): GameState {
 
 export function isBotTurn(state: GameState): boolean {
   const t = state.phase.t;
+  if (state.simul) return false;
   return t !== "gameOver" && t !== "chooseCareers" && state.players[state.current].isBot;
 }
 

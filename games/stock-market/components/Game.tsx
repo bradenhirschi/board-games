@@ -158,6 +158,23 @@ export interface GameViewProps {
   waitingNote?: string;
   /** A short status shown under the turn heading (e.g. "Saving…"). */
   statusNote?: string;
+  /** Simultaneous turns: the stage's heading, timer and waiting state (see `SimulGame`). */
+  simul?: SimulPanel;
+}
+
+export interface SimulPanel {
+  /** The turn card's heading, e.g. "Sell, then roll". */
+  heading: string;
+  /** Seconds left on the stage's timer, or null for no timer. */
+  secondsLeft: number | null;
+  /** While the viewer waits for others: who is still playing (else null). */
+  waitingFor: string[] | null;
+  /** The button shown (disabled) while waiting. */
+  waitingButton: string;
+  /** The end-of-round summary, shown in place of the controls while it plays. */
+  summary?: ReactNode;
+  /** Shown at the right of the heading instead of the timer (the summary's progress and Skip). */
+  headingEnd?: ReactNode;
 }
 
 /** The "Auto-roll at work" switch, shown beside "Roll for salary". */
@@ -194,6 +211,7 @@ export function GameView({
   onKick,
   waitingNote,
   statusNote,
+  simul,
 }: GameViewProps) {
   const [pickingStart, setPickingStart] = useState(false);
   /** Phones: the slide-up sheet showing the full ticker ("log") or one player's details. */
@@ -260,6 +278,8 @@ export function GameView({
   }, [autoRollNow, roll, state.turn]);
 
   const round = Math.floor((state.turn - 1) / state.players.length) + 1;
+  // Simultaneous turns: no "your turn" highlight while waiting for the others.
+  const meActive = viewer.id === current.id && !winner && !simul?.waitingFor;
   const ranked = [...state.players].sort((a, b) => netWorth(b, state.market) - netWorth(a, state.market));
   const rollAndClose = () => {
     setPickingStart(false);
@@ -329,7 +349,7 @@ export function GameView({
           )}
         </button>
         <button
-          className={`m-me-strip ${viewer.id === current.id && !winner ? "m-chip-current" : ""}`}
+          className={`m-me-strip ${meActive ? "m-chip-current" : ""}`}
           onClick={() => setSheet(viewer.id)}
           aria-label="Your money and stocks"
         >
@@ -407,8 +427,10 @@ export function GameView({
           </section>
         ) : (
           <section className="turn">
-            <div className="turn-heading">
-              {ph.t === "chooseCareers"
+            <div className={`turn-heading ${simul && ph.t !== "chooseCareers" ? "turn-heading-row" : ""}`}>
+              {simul && ph.t !== "chooseCareers"
+                ? simul.heading
+                : ph.t === "chooseCareers"
                 ? "Choose an occupation"
                 : isTurn
                   ? "Your turn"
@@ -416,8 +438,28 @@ export function GameView({
                     ? `${current.name} is playing`
                     : `${current.name}'s turn`}
               {statusNote && <span className="status-note">{statusNote}</span>}
+              {simul?.headingEnd && ph.t !== "chooseCareers" && <span className="turn-heading-end">{simul.headingEnd}</span>}
+              {simul?.secondsLeft != null && ph.t !== "chooseCareers" && (
+                <span className={`turn-timer ${simul.secondsLeft <= 10 ? "turn-timer-low" : ""}`}>
+                  {Math.floor(simul.secondsLeft / 60)}:{String(simul.secondsLeft % 60).padStart(2, "0")}
+                </span>
+              )}
             </div>
-            {ph.t === "chooseCareers" ? (
+            {simul?.summary && ph.t !== "chooseCareers" ? (
+              simul.summary
+            ) : simul?.waitingFor && ph.t !== "chooseCareers" ? (
+              <div className="controls">
+                <p className="hint">
+                  Waiting for other players…
+                  {simul.waitingFor.length > 0 && (
+                    <span className="muted"> ({simul.waitingFor.join(", ")})</span>
+                  )}
+                </p>
+                <button className="btn btn-primary btn-big" disabled>
+                  {simul.waitingButton}
+                </button>
+              </div>
+            ) : ph.t === "chooseCareers" ? (
               <CareerChoice state={state} viewer={viewer} disabled={!canAct} dispatch={dispatch} />
             ) : isTurn ? (
               <TurnControls
@@ -464,7 +506,7 @@ export function GameView({
           </ul>
         </section>
 
-        <MeCard p={viewer} market={state.market} active={viewer.id === current.id && !winner} />
+        <MeCard p={viewer} market={state.market} active={meActive} />
       </aside>
 
       {sheet !== null && (
@@ -479,7 +521,7 @@ export function GameView({
                 <LogList state={state} />
               </section>
             ) : sheet === viewer.id ? (
-              <MeCard p={viewer} market={state.market} active={viewer.id === current.id && !winner} />
+              <MeCard p={viewer} market={state.market} active={meActive} />
             ) : (
               <section className="card others">
                 <ul className="players">

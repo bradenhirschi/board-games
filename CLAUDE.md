@@ -90,6 +90,12 @@ rules, how online play works, and the file map; read it first.
 - `lib/online.ts`, `lib/rooms.ts`, `components/OnlineRoom.tsx`: online rooms in Firestore
   (`stockMarketRooms/{code}`), moves saved in transactions and replayed with animation on every
   phone. No server code (Firebase free tier, no Cloud Functions).
+- `lib/simultaneous.ts`, `components/SimulGame.tsx`: the online "Simultaneous turns" mode. Each
+  player's turn runs on a private copy (`view`) through the normal reducer; `GameState.simul` holds
+  the round (stage `sell` 60 s / `act` 90 s, per-seat turns, last round's summary). Settled with
+  the owner: salaries for every throw of the round; Phase 2's timer starts at the reveal; the order
+  rotates a seat per round; timeouts enter meetings and cover fees by selling the biggest holding;
+  richest wins if several reach the target. The room's `stageStartedAt` (server time) drives timers.
 - `lib/sound.ts`: Web Audio synthesized sounds (dice, turn bell, ca-ching, "womp womp").
 - `components/Game.tsx`: the game screen (`GameView`), local game, turn controls.
 - `styles.css`: all Stock Market styles (imported by `app/(stock-market)/layout.tsx`). It has many layered phone/desktop overrides appended over time,
