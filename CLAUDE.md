@@ -78,7 +78,8 @@ rules, how online play works, and the file map; read it first.
   Trading follows the printed rules: offers go to every eligible player, each answers in seat order
   (pass the device), the offerer picks among those who accepted; counters go back and forth; only
   the current player starts trades, bribes come from the player being attacked; treaties are
-  enforced. `waitingOn(state)` says who must act. The trading panel (`components/Trade.tsx`) copies
+  enforced. `waitingOn(state)` says who must act. Scoreboard: `components/Crew.tsx` (phones: ☰ and a chip
+  per other player in place of the header, tap for the standings sheet; wide screens: sidebar cards). The trading panel (`components/Trade.tsx`) copies
   the owner's reference layout (want row, two give/get rows, hand, big buttons on the right).
   Bots: `games/plunder/lib/bot.ts` (`botAction`, one action at a time; the UI rolls their dice).
   Online: `lib/online.ts` (resolve/replay, notices are local to each device), `lib/rooms.ts`

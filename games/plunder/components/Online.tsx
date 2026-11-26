@@ -507,6 +507,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         onAct={(a) => void send(a)}
         onDismiss={() => setNotices((n) => n.slice(1))}
         onNewGame={onQuit}
+        onMenu={onQuit}
       />
       {error && (
         <div className="pl-toast pl-toast-error" role="alert" onClick={() => setError(null)}>

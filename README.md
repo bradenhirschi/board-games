@@ -178,6 +178,7 @@ in its own folder; the only shared code is the account (Firebase sign-in), so on
 | `games/stock-market/components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
 | `app/(plunder)/plunder/`, `games/plunder/` | Plunder, a pirate game in progress, served at `/plunder` (`/plunder/tiles` shows each tile) |
 | `games/plunder/lib/tiles.ts` | Plunder's six board tiles: gameplay map (land, half land, edges, ports, skulls, barrels) and icon positions |
+| `games/plunder/components/Crew.tsx` | Plunder's scoreboard: on phones a chip per other player over the board (tap for the standings sheet), on wide screens a card per player in the sidebar |
 | `games/plunder/lib/tileArt.ts` | Plunder's island outlines, traced from `games/plunder/art/sample-board.webp` by `scripts/trace-plunder-tiles.py` (generated; rerun the script to change) |
 | `shared/firebase.ts` | Firebase setup and the account: guest sign-in, Google sign-in, sign-out, `useFirebaseUser()` |
 | `firestore.rules` | Who may read and write online rooms (each game has its own collection) |
