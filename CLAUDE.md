@@ -8,7 +8,8 @@ rules, how online play works, and the file map; read it first.
 
 ## Workflow (the owner relies on this)
 
-- **Work on `dev`.** Never push to `main`. Commit to `dev` and push.
+- **Work on `dev`.** Never push to `main`. Commit to `dev` and push. Never create other branches, not even
+  for backups or work awaiting approval (it lands on `dev`; the owner reviews it on the dev site).
 - **Whenever `dev` differs from `main`, there must be an open PR `dev` → `main`.** Check after
   every push to `dev` (and at the start of a session): if `dev` is ahead of `main` and no PR is
   open, open one right away (title "dev → main"), without being asked and without waiting for
