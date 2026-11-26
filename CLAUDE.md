@@ -68,7 +68,9 @@ rules, how online play works, and the file map; read it first.
   a seeded generator in the state). Status and open questions are in the README's Plunder section.
   Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
   an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
-  sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
+  sailing over an X collects it (several per turn is fine); a moved X that lands on another X spins
+  again, and one that lands on a ship is found by that ship at once, then spins again (a card that
+  ends "your turn" only ends the current player's); the first turn has no resource draw;
   attacking costs no moves and can happen before the roll; Treasure cards are the owner's printed deck
   (`lib/treasureCards.ts`), read as listed in the README (all confirmed by the owner; A Pirate's Life
   goes back under the deck like any other card); ships built after the roll can't sail

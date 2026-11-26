@@ -688,11 +688,15 @@ export function newGame(
   const cards: Resource[] = RESOURCES.flatMap((r) => Array<Resource>(CARDS_PER_RESOURCE).fill(r));
   const [deck, shuffled] = shuffle(cards, seed >>> 0);
   let rng = shuffled;
-  // Place the X tokens: spin the compasses for each; land is fine (collected from next door).
+  // Place the X tokens: spin the compasses for each; land is fine (collected from next door). Two
+  // X's never share a square: landing on one spins again.
   const xs: Pos[] = [];
   for (let i = 0; i < X_TOKENS; i++) {
-    const [p, after] = spin(rng);
-    rng = after;
+    let p: Pos;
+    let tries = 0;
+    do {
+      [p, rng] = spin(rng);
+    } while (xs.some((q) => same(q, p)) && ++tries < 100);
     xs.push(p);
   }
   const n = setup.length;
@@ -785,12 +789,46 @@ function collectXs(s: GameState, ship: Ship): GameState {
     // From next door only when the X is on land, and never across a barrier or land edge.
     const fromNextDoor = side !== null && onLand && !map.walls.has(edgeKey(ship.pos, side));
     if (!onIt && !(fromNextDoor && sameSide(out, ship.pos, x))) continue;
-    const [p, rng] = spin(out.rng);
-    const xs = out.xs.map((q, k) => (k === i ? p : q));
-    const [card, drawn] = drawTreasure({ ...out, xs, rng });
-    const found: Found = { card, player: ship.owner, ship: ship.id, at: x };
-    out = log({ ...drawn, found: [...(drawn.found ?? []), found] }, `${out.players[ship.owner].name} found treasure!`);
+    out = respawnX(out, i, ship, x);
   }
+  return out;
+}
+
+/** `ship` finds the treasure at `at`: draw a Treasure card for it (carried out once it settles). */
+function findTreasure(s: GameState, ship: Ship, at: Pos): GameState {
+  const [card, drawn] = drawTreasure(s);
+  const found: Found = { card, player: ship.owner, ship: ship.id, at };
+  return log({ ...drawn, found: [...(drawn.found ?? []), found] }, `${s.players[ship.owner].name} found treasure!`);
+}
+
+/**
+ * X token `i` was collected by `finder` (at `at`): spin the compasses for its new spot. On another X,
+ * spin again. On a ship, that ship finds the treasure straight away and the compasses spin again.
+ */
+function respawnX(s: GameState, i: number, finder: Ship, at: Pos): GameState {
+  let p: Pos;
+  let rng = s.rng;
+  let tries = 0;
+  do {
+    [p, rng] = spin(rng);
+  } while (s.xs.some((q, k) => k !== i && same(q, p)) && ++tries < 100);
+  let out = findTreasure({ ...s, rng, xs: s.xs.map((q, k) => (k === i ? p : q)) }, finder, at);
+  const onShip = shipAt(out, p);
+  if (onShip && tries < 100) out = respawnX(out, i, onShip, p);
+  return out;
+}
+
+/** A starting ship was put on an X (before play begins, so no treasure): move the X elsewhere. */
+function clearStartingXs(s: GameState): GameState {
+  let out = s;
+  out.xs.forEach((x, i) => {
+    let p = x;
+    let rng = out.rng;
+    for (let tries = 0; tries < 100 && (shipAt(out, p) || out.xs.some((q, k) => k !== i && same(q, p))); tries++) {
+      [p, rng] = spin(rng);
+    }
+    if (p !== x) out = { ...out, rng, xs: out.xs.map((q, k) => (k === i ? p : q)) };
+  });
   return out;
 }
 
@@ -1431,8 +1469,9 @@ function finishFind(s: GameState, f: Found, lines: string[], endTurn: boolean): 
     ...s,
     found: (s.found ?? []).slice(1),
     notices: [...s.notices, notice],
-    // A turn also ends when the finder's last ship goes down.
-    turnOver: s.turnOver || endTurn || !s.ships.some((sh) => sh.owner === f.player),
+    // A turn also ends when the finder's last ship goes down. Only the current player's turn can end
+    // this way: another player's ship can find treasure too (an X that reappears under it).
+    turnOver: s.turnOver || (f.player === s.turn && (endTurn || !s.ships.some((sh) => sh.owner === f.player))),
   };
   out = log(out, `${s.players[f.player].name} found ${TREASURE_CARDS[f.card].title}. ${lines.join(" ")}`);
   return checkWin(out);
@@ -1532,7 +1571,7 @@ export function reducer(s: GameState, a: Action): GameState {
         ships: [...s.ships, ship],
         nextShipId: s.nextShipId + 1,
       };
-      out = log(out, `${s.players[player].name} claimed an island.`);
+      out = clearStartingXs(log(out, `${s.players[player].name} claimed an island.`));
       const index = s.phase.index + 1;
       if (index < s.phase.order.length) return { ...out, turn: s.phase.order[index], phase: { ...s.phase, index } };
       // The last to pick goes first. No resource draw on this very first turn: everyone has their three.

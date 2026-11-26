@@ -232,6 +232,73 @@ describe("plunder turns and treasure", () => {
     // The used card goes under the deck.
     expect(s.treasureDeck).toEqual(["purse", "chest"]);
   });
+
+  it("never puts two X's on the same square at the start", () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const xs = newGame(setup, seed).xs;
+      expect(new Set(xs.map((p) => `${p.r},${p.c}`)).size).toBe(xs.length);
+    }
+  });
+
+  it("moves an X out from under a starting ship", () => {
+    const fresh = { ...newGame(setup, 42, DEFAULT_LAYOUT, [2, 6]), storm: undefined };
+    const port = startingIslands(DEFAULT_LAYOUT).find((i) => i.id === "4d")!.ports[0];
+    const s = play({ ...fresh, xs: [port, ...fresh.xs.slice(1)] }, { t: "pickIsland", island: "4d" });
+    expect(s.ships[0].pos).toEqual(port);
+    expect(s.xs.some((x) => x.r === port.r && x.c === port.c)).toBe(false);
+    expect(s.found ?? []).toEqual([]);
+  });
+
+  /** Every square in the bottom half of the board (rows 6 to 11). */
+  const bottomHalf = (): Pos[] => Array.from({ length: 6 * 18 }, (_, k) => ({ r: 6 + Math.floor(k / 18), c: k % 18 }));
+  const inBottom = (p: Pos) => p.r >= 6;
+
+  it("spins again when a moved X lands on another X", () => {
+    expect(inBottom(sq("C3"))).toBe(false);
+    for (let rng = 1; rng <= 200; rng++) {
+      let s = play(started(), { t: "roll", die: 3 });
+      const ship = s.ships.find((sh) => sh.owner === s.turn)!;
+      // Other X's fill the bottom half, so the collected X has to come back in the top half.
+      s = { ...s, rng, xs: [sq("C3"), ...bottomHalf()], notices: [], treasureDeck: ["chest"] };
+      s = play(s, { t: "sail", ship: ship.id, path: [sq("C2"), sq("C3")] });
+      expect(inBottom(s.xs[0])).toBe(false);
+      expect(s.xs[0]).not.toEqual(sq("C3"));
+    }
+  });
+
+  it("lets a ship that a moved X lands on find it at once, then moves the X again", () => {
+    let bartFinds = 0;
+    for (let rng = 1; rng <= 1500; rng++) {
+      let s = play(started(), { t: "roll", die: 3 });
+      const anne = s.ships.find((sh) => sh.owner === 0)!;
+      const base = s.ships.find((sh) => sh.owner === 1)!;
+      // Bart has seven more ships about the bottom half (more would win him the game on points);
+      // Blackout would end the finder's turn.
+      const fleet = bottomHalf()
+        .filter((_, k) => k % 15 === 7)
+        .map((pos, k) => ({ ...base, id: 100 + k, pos }));
+      expect(fleet).toHaveLength(7);
+      s = {
+        ...s,
+        rng,
+        ships: [...s.ships, ...fleet],
+        xs: [sq("C3")],
+        notices: [],
+        treasureDeck: ["chest", "blackout"],
+      };
+      s = play(s, { t: "sail", ship: anne.id, path: [sq("C2"), sq("C3")] });
+      const finds = s.notices.filter((n) => n.t === "treasure");
+      expect(finds[0]).toMatchObject({ player: 0, card: "chest" });
+      if (finds.some((n) => n.player === 1)) {
+        bartFinds++;
+        // Bart's card can't end Anne's turn.
+        expect(s.turn).toBe(0);
+      }
+      // The X ends up somewhere no ship is.
+      expect(s.ships.some((sh) => sh.pos.r === s.xs[0].r && sh.pos.c === s.xs[0].c)).toBe(false);
+    }
+    expect(bartFinds).toBeGreaterThan(5);
+  });
 });
 
 describe("plunder treasure cards", () => {

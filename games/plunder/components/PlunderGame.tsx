@@ -378,6 +378,29 @@ export default function PlunderGame({
       act({ t: "placeShip", at: p });
       return;
     }
+    // Choosing a ship to upgrade or a spot for a new ship: taps only do that. (Checked before
+    // attacks: a ship in an island's port sits on one of the island's squares.)
+    if (phase.t === "turn" && upgrading) {
+      const target = upgradable.find((sh) => same(sh.pos, p));
+      if (target) {
+        act({ t: "build", item: upgrading, ship: target.id });
+        setUpgrading(null);
+      }
+      return;
+    }
+    if (phase.t === "turn" && placing) {
+      if (spots.some((q) => same(q, p))) {
+        act({ t: "build", item: "ship", at: p });
+        setPlacing(false);
+      }
+      return;
+    }
+    // Tapping your own ship selects it, even in the port of an island you could attack.
+    const tapped = s.ships.find((sh) => same(sh.pos, p));
+    if (phase.t === "turn" && tapped && tapped.owner === current) {
+      setSelected(tapped.id === selected ? null : tapped.id);
+      return;
+    }
     // Tapping something you can attack attacks it.
     const target = targets.find((t) => targetSquares(t).some((q) => same(q, p)));
     if (target) {
@@ -390,26 +413,6 @@ export default function PlunderGame({
       return;
     }
     if (phase.t !== "turn") return;
-    if (upgrading) {
-      const target = upgradable.find((sh) => same(sh.pos, p));
-      if (target) {
-        act({ t: "build", item: upgrading, ship: target.id });
-        setUpgrading(null);
-      }
-      return;
-    }
-    if (placing) {
-      if (spots.some((q) => same(q, p))) {
-        act({ t: "build", item: "ship", at: p });
-        setPlacing(false);
-      }
-      return;
-    }
-    const tapped = s.ships.find((sh) => same(sh.pos, p));
-    if (tapped && tapped.owner === current) {
-      setSelected(tapped.id === selected ? null : tapped.id);
-      return;
-    }
     const path = reach.get(key(p));
     if (ship && path) {
       const id = ship.id;
