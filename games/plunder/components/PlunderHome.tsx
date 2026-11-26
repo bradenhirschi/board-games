@@ -112,6 +112,13 @@ export default function PlunderHome() {
     save(g);
   }, []);
 
+  const leaveGame = () => {
+    if (!game || game.phase.t === "gameOver" || window.confirm("Leave this game? It stays saved on this device.")) {
+      setSaved(loadSaved());
+      setGame(null);
+    }
+  };
+
   return (
     <main className={`pl-screen${game || room ? " pl-screen-game" : ""}`}>
       <header className="pl-header">
@@ -121,15 +128,7 @@ export default function PlunderHome() {
             Menu
           </button>
         ) : game ? (
-          <button
-            className="pl-link"
-            onClick={() => {
-              if (game.phase.t === "gameOver" || window.confirm("Leave this game? It stays saved on this device.")) {
-                setSaved(loadSaved());
-                setGame(null);
-              }
-            }}
-          >
+          <button className="pl-link" onClick={leaveGame}>
             Menu
           </button>
         ) : (
@@ -145,6 +144,7 @@ export default function PlunderHome() {
           onAct={(a) => change(reducer(game, a))}
           onDismiss={() => change({ ...game, notices: game.notices.slice(1) })}
           onNewGame={() => setGame(null)}
+          onMenu={leaveGame}
           holder={holder}
           onHolder={setHolder}
         />

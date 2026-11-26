@@ -41,6 +41,7 @@ import {
 } from "@/games/plunder/lib/engine";
 import type { Pos } from "@/games/plunder/lib/tiles";
 import Board from "./Board";
+import { CrewRow, CrewSide, Standings } from "./Crew";
 import TradePanel from "./Trade";
 import { TreasureDialog, TreasureResult, boardNeed, treasurePrompt } from "./Treasure";
 import {
@@ -83,6 +84,8 @@ type Props = {
   locked?: boolean;
   /** Shown in the strip, e.g. the room code. */
   note?: string;
+  /** The ☰ button over the board on phones (leave the game or room). */
+  onMenu: () => void;
 };
 
 /** How long a bot pauses before each move, so people can follow it. */
@@ -129,6 +132,7 @@ export default function PlunderGame({
   seat,
   locked = false,
   note,
+  onMenu,
 }: Props) {
   const online = seat !== undefined;
   /** Can the person at this device act for player `p`? */
@@ -163,6 +167,7 @@ export default function PlunderGame({
   const [upgrading, setUpgrading] = useState<"mast" | "cannon" | "life" | null>(null);
   const [buildOpen, setBuildOpen] = useState(false);
   const [rolling, setRolling] = useState(false);
+  const [standings, setStandings] = useState(false);
 
   const s = game;
   // Online, the room holds back a move made during a replay until the board has caught up.
@@ -478,8 +483,12 @@ export default function PlunderGame({
         : "No moves left";
   }
 
+  // Online, "you" is this device's seat; pass-and-play, the chips leave out whoever the strip shows.
+  const you = online ? (seat ?? null) : null;
+
   return (
     <>
+      <CrewRow game={s} hide={online ? you : current} onMenu={onMenu} onOpen={() => setStandings(true)} />
       <Board layout={s.layout} onSquareTap={onSquareTap} focus={focus}>
         {allIslands.map((isl) =>
           s.owners[isl.id] !== undefined ? (
@@ -532,9 +541,9 @@ export default function PlunderGame({
         <div className="pl-strip">
           <span className="pl-dot" style={{ background: COLOR_HEX[me.color] }} />
           <span className="pl-strip-name">{me.name}</span>
-          <span className="pl-strip-points">
+          <button className="pl-strip-points" onClick={() => setStandings(true)} aria-label="Show the standings">
             {points(s, current)}/{WIN_POINTS} pts
-          </span>
+          </button>
           {phase.t === "turn" && phase.roll !== null && <Die value={phase.roll} />}
         </div>
         {/* While there's something to attack, the attack buttons say it all (and the space is needed). */}
@@ -670,7 +679,10 @@ export default function PlunderGame({
             </button>
           </div>
         )}
+        <CrewSide game={s} you={you} />
       </section>
+
+      {standings && <Standings game={s} you={you} onClose={() => setStandings(false)} />}
 
       {buildOpen && phase.t === "turn" && (
         <BuildSheet
