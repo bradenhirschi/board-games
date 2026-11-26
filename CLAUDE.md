@@ -8,7 +8,8 @@ rules, how online play works, and the file map; read it first.
 
 ## Workflow (the owner relies on this)
 
-- **Work on `dev`.** Never push to `main`. Commit to `dev` and push.
+- **Work on `dev`.** Never push to `main`. Commit to `dev` and push. Never create other branches, not even
+  for backups or work awaiting approval (it lands on `dev`; the owner reviews it on the dev site).
 - **Whenever `dev` differs from `main`, there must be an open PR `dev` → `main`.** Check after
   every push to `dev` (and at the start of a session): if `dev` is ahead of `main` and no PR is
   open, open one right away (title "dev → main"), without being asked and without waiting for
@@ -21,14 +22,18 @@ rules, how online play works, and the file map; read it first.
   same Firebase project (same accounts and rooms, and the published `firestore.rules`).
 - **Keep `dev` alive.** It's a permanent branch: never delete it, and recreate it from `main` if
   it's ever missing.
-- **Firestore rules:** whenever `firestore.rules` changes, tell the owner to publish it in the
-  Firebase console (Firestore → Rules → Publish) after merging; the live site uses the published
-  copy, not the repo.
+- **Firestore rules publish themselves:** when a change to `firestore.rules` reaches `main`, the GitHub
+  Action `.github/workflows/firestore-rules.yml` runs the rules tests and publishes it (secret
+  `FIREBASE_SERVICE_ACCOUNT`). Both sites use the published copy. Tell the owner when a PR changes the rules,
+  and to check the Actions tab after merging; it can be re-run from there.
 - **Look before committing UI changes.** The owner iterates on look and feel. For layout and
   visual work, render it with Playwright (Chromium is preinstalled) and send screenshots or
   mockups. When they ask for a mockup or rendering first, or the change is a big redesign,
   don't commit until they approve. They often reject a version, so make reverting easy.
 - **Say "device" in Plunder's UI text,** never "phone" or "computer": it's cross-platform.
+- **Every game's home screens share one layout** (Stock Market's is the standard; see "Adding a game" step 5
+  in the README): same header, tabs, room-code flow, setup page and lobby, each in the game's own style and
+  components. Change them together.
 - **Phones first.** Most play is on iPhones (Brave, Safari, and the installed Home Screen app).
   Check phone layouts at 390×664 (browser) and 390×800 (installed app); desktop at 1440×900.
   Nothing on a phone may need page scrolling, and the main turn button must always be visible.

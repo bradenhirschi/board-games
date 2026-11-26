@@ -139,7 +139,8 @@ attacks between those two. Bots answer by what they need, counter, bribe when it
 one offer a turn.
 
 **Online play** works like Stock Market's: rooms in Firestore at `plunderRooms/{code}`
-(`games/plunder/lib/rooms.ts`), joined by code or invite link (`/plunder?room=CODE`). The device the
+(`games/plunder/lib/rooms.ts`), opened or joined by any code of 3+ letters and numbers (the first to use a
+new code hosts), or by invite link (`/plunder?room=CODE`); who's online is in `plunderPresence`. The device the
 game waits on applies the move with the shared rules and saves the new state plus the actions it
 applied, in a transaction; every other device replays them (other players' ships sail square by
 square, and each device shows the news itself: battles, treasure, its own card draws). The game can
@@ -178,6 +179,7 @@ in its own folder; the only shared code is the account (Firebase sign-in), so on
 | `games/stock-market/components/` | Board, price tracker, dice, the game screen, and the online lobby/game (`OnlineRoom.tsx`) |
 | `app/(plunder)/plunder/`, `games/plunder/` | Plunder, a pirate game in progress, served at `/plunder` (`/plunder/tiles` shows each tile) |
 | `games/plunder/lib/tiles.ts` | Plunder's six board tiles: gameplay map (land, half land, edges, ports, skulls, barrels) and icon positions |
+| `.github/workflows/firestore-rules.yml` | Publishes `firestore.rules` to Firebase when a change to it is merged into `main` (after the rules tests pass) |
 | `games/plunder/components/Crew.tsx` | Plunder's scoreboard: on phones a chip per other player over the board (tap for the standings sheet), on wide screens a card per player in the sidebar |
 | `games/plunder/lib/tileArt.ts` | Plunder's island outlines, traced from `games/plunder/art/sample-board.webp` by `scripts/trace-plunder-tiles.py` (generated; rerun the script to change) |
 | `shared/firebase.ts` | Firebase setup and the account: guest sign-in, Google sign-in, sign-out, `useFirebaseUser()` |
@@ -196,3 +198,19 @@ The board redraws from that data.
    `public/manifests/<game>.webmanifest` (`start_url` and `scope` set to the game's path) with icons in
    `public/icons/<game>/`, and `manifest` in the layout's metadata. Add it to the picker in `app/(home)/page.tsx`.
 4. Use `shared/firebase.ts` for sign-in; give online rooms their own Firestore collection and rules.
+5. Lay out its home screens like every other game's (Stock Market's is the standard; Plunder follows it), in the
+   game's own components and styles:
+   - **Home:** one card. Header: the title and a line about the game on the left, the account menu (a profile
+     picture opening "Signed in as … / Playing as guest" and Sign in with Google / Sign out) on the right. Then
+     **Online | On this device** tabs (Online first, remembered per device).
+   - **Online tab:** "Your name", then "Room code" with **Join** (any code of 3+ letters and numbers: a new code
+     opens a room and you host it, an existing one joins it; hint "Pick a code to open a room, or enter the code
+     your friends are using."), then "N online now" (a presence collection like `stockMarketPresence`).
+   - **On this device tab:** a "Game in progress · names" row with **Continue** when there's a saved game, then
+     **New local game**, which opens the setup page.
+   - **Setup page:** "Back to home", the title "New local game", a row per player (token, name, Human / Bot, ✕),
+     "+ Add player" and "+ Add bot", the game's own settings, then a big **Start game**.
+   - **Lobby:** the header, the room code, **Share invite** and **Copy link**, "Players" (token, name, BOT / HOST
+     tags, "(you)", ✕ for the host), a name field and **Join game** for someone who arrived by link, then for the
+     host "+ Add bot", the settings and **Start game** (others see "Waiting for the host to start…"), then "Leave
+     room" and "Back to menu".

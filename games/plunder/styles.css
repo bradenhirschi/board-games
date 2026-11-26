@@ -75,20 +75,6 @@ body {
   text-shadow: 0 2px 0 #000a;
 }
 
-.pl-account {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-  font-size: 15px;
-}
-
-.pl-account-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .pl-link {
   font: inherit;
   border: 0;
@@ -783,38 +769,7 @@ body {
   font-weight: 700;
 }
 
-/* ---- Setup ---- */
-
-.pl-setup {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-}
-
-.pl-setup-lead {
-  margin: 0;
-  font-size: 15px;
-  opacity: 0.85;
-}
-
-.pl-setup-players {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pl-setup-players li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px 8px;
-  align-items: center;
-}
+/* ---- Text fields ---- */
 
 .pl-input {
   min-width: 0;
@@ -827,87 +782,9 @@ body {
   font-size: 16px; /* 16px stops iOS zooming in on focus */
 }
 
-.pl-swatches {
-  grid-column: 1;
-  display: flex;
-  gap: 8px;
-}
-
-.pl-swatch {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 2px solid #0006;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.pl-swatch.on {
-  outline: 2.5px solid var(--pl-parchment);
-  outline-offset: 1px;
-}
-
-.pl-swatch:disabled {
-  opacity: 0.2;
-  cursor: default;
-}
-
-.pl-setup .pl-btn {
-  flex: none;
-}
-
-.pl-setup .pl-btn-main {
-  margin-top: auto;
-  margin-bottom: 4px;
-}
-
-.pl-setup .pl-link {
-  align-self: flex-start;
-  font-size: 16px;
-}
-
 .pl-dialog .pl-btn {
   flex: none;
   margin-top: 6px;
-}
-
-/* ---- Bots ---- */
-
-.pl-setup-players {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.pl-setup-players li {
-  grid-template-columns: 1fr auto auto;
-}
-
-.pl-setup-players .pl-swatches {
-  grid-column: 1 / -1;
-}
-
-.pl-toggle {
-  display: flex;
-  border: 1px solid #d9a44188;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.pl-toggle button {
-  padding: 8px 10px;
-  border: 0;
-  background: none;
-  color: var(--pl-parchment);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.pl-toggle button.on {
-  background: var(--pl-gold);
-  color: var(--pl-sea);
-  font-weight: 700;
 }
 
 .pl-toast {
@@ -925,28 +802,6 @@ body {
   font-weight: 700;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.pl-setup-players li > .pl-close {
-  grid-row: 1;
-  grid-column: 3;
-}
-
-.pl-setup-players li > .pl-swatches {
-  grid-row: 2;
-}
-
-.pl-setup-players .pl-input {
-  padding: 6px 10px;
-}
-
-.pl-setup-players .pl-toggle button {
-  padding: 6px 9px;
-}
-
-.pl-setup-players {
-  padding: 4px;
-  margin: -4px;
 }
 
 /* ---- Wide screens (desktop, tablets sideways): board on the left, sidebar on the right ---- */
@@ -1598,149 +1453,7 @@ body {
   stroke-width: 0.12;
 }
 
-/* ---- Online: home tabs, start, lobby ---- */
-
-.pl-home-tabs {
-  display: flex;
-  margin: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-  border: 1px solid #d9a44188;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.pl-home-tabs button {
-  flex: 1;
-  padding: 9px;
-  border: 0;
-  background: none;
-  color: var(--pl-parchment);
-  font: inherit;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.pl-home-tabs button[aria-selected="true"] {
-  background: var(--pl-gold);
-  color: var(--pl-sea);
-  font-weight: 700;
-}
-
-.pl-online {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 4px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-}
-
-.pl-online .pl-btn,
-.pl-lobby .pl-btn {
-  flex: none;
-}
-
-.pl-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 15px;
-}
-
-.pl-join {
-  display: flex;
-  gap: 8px;
-}
-
-.pl-join .pl-input {
-  flex: 1;
-}
-
-.pl-join .pl-btn {
-  min-width: 96px;
-}
-
-.pl-code {
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-}
-
-.pl-online .pl-link,
-.pl-lobby .pl-link {
-  align-self: flex-start;
-  font-size: 16px;
-}
-
-.pl-room-code {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 12px;
-  font-size: 15px;
-}
-
-.pl-room-code b {
-  font-size: 34px;
-  letter-spacing: 0.18em;
-  color: var(--pl-gold);
-}
-
-.pl-lobby-share {
-  margin-top: 0;
-}
-
-.pl-lobby-share .pl-btn {
-  flex: 1;
-  height: 42px;
-}
-
-.pl-lobby-seats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pl-lobby-seats li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #0003;
-}
-
-.pl-lobby-name {
-  flex: 1;
-  font-size: 17px;
-}
-
-.pl-tag {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: #d9a44133;
-  color: var(--pl-gold);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pl-lobby-swatches {
-  flex-basis: 100%;
-}
-
-.pl-lobby-foot {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
-  padding-bottom: 4px;
-}
-
-.pl-lobby-links {
-  display: flex;
-  justify-content: space-between;
-}
+/* ---- Online games ---- */
 
 .pl-toast-error {
   top: auto;
@@ -2391,3 +2104,427 @@ body {
     height: 100%;
   }
 }
+
+/* ---- Home screens (components/PlunderHome.tsx, Setup.tsx, the lobby in Online.tsx) ----
+   Laid out like every game's home (Stock Market's is the standard): one card with the header
+   (title, tagline, account), then Online / On this device tabs, fields, the "online now" list;
+   the setup and lobby pages use the same card. Plunder's own look: sea, gold and parchment. */
+
+.pl-screen-home {
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+}
+
+.pl-home {
+  flex: none;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 20px;
+  border: 1px solid #d9a44155;
+  border-radius: 18px;
+  background: linear-gradient(#1b2a38f2, #15222ef2);
+  box-shadow: 0 10px 30px #0006;
+}
+
+.pl-home-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pl-home-header .pl-title {
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.pl-muted {
+  margin: 0;
+  color: #efe2c2b3;
+}
+
+.pl-small {
+  font-size: 13px;
+}
+
+.pl-home-header .pl-muted {
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.pl-home-title {
+  margin: 0;
+  color: var(--pl-gold);
+  font-size: 30px;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 0 #000a;
+}
+
+.pl-home-title-small {
+  font-size: 22px;
+}
+
+.pl-home-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #efe2c2b3;
+}
+
+.pl-home-label {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pl-home .pl-btn {
+  flex: none;
+  min-height: 48px;
+  height: auto;
+  padding: 10px 16px;
+}
+
+.pl-btn-big {
+  min-height: 56px !important;
+  font-size: 19px;
+}
+
+.pl-back {
+  align-self: flex-start;
+  padding: 0;
+  font-size: 15px;
+}
+
+/* Account: a profile picture that opens a small panel. */
+.pl-account {
+  position: relative;
+  flex: none;
+}
+
+.pl-account summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.pl-account summary::-webkit-details-marker {
+  display: none;
+}
+
+.pl-profile-picture {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--pl-gold);
+  border-radius: 50%;
+  background: #0004;
+  fill: var(--pl-gold);
+}
+
+.pl-account-panel {
+  position: absolute;
+  right: 0;
+  top: 52px;
+  z-index: 20;
+  width: min(280px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px solid var(--pl-gold);
+  border-radius: 12px;
+  background: #1b2a38;
+  box-shadow: 0 10px 30px #0008;
+}
+
+.pl-account-panel p {
+  margin: 0;
+}
+
+/* Online / On this device. */
+.pl-home-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d9a44166;
+  border-radius: 12px;
+  background: #0003;
+}
+
+.pl-home-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #efe2c2b3;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pl-home-tabs button.on {
+  background: var(--pl-gold);
+  color: var(--pl-sea);
+}
+
+.pl-online-start,
+.pl-local-start {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pl-home .pl-input {
+  min-height: 46px;
+}
+
+.pl-join {
+  display: flex;
+  gap: 8px;
+}
+
+.pl-join .pl-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pl-join .pl-btn {
+  min-width: 84px;
+}
+
+.pl-saved {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d9a44155;
+  border-radius: 12px;
+  background: #0003;
+}
+
+.pl-saved span {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+}
+
+/* Online now. */
+.pl-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #ffffff1a;
+}
+
+.pl-roster-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5fbf6a;
+  box-shadow: 0 0 6px #5fbf6a;
+}
+
+.pl-roster ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-roster li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #ffffff12;
+}
+
+.pl-roster li > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pl-roster li b {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #d9a44133;
+  color: var(--pl-gold);
+  font-size: 14px;
+}
+
+/* Player rows: token, name, Human / Bot, remove. */
+.pl-setup-rows,
+.pl-lobby-seats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pl-setup-rows li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.pl-token {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid var(--pl-parchment);
+  border-radius: 50%;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #0009;
+  box-shadow: 0 1px 3px #0008;
+}
+
+.pl-token-pick {
+  cursor: pointer;
+}
+
+.pl-token-pick:disabled {
+  cursor: default;
+}
+
+.pl-seg {
+  display: flex;
+  border: 1px solid #d9a44188;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.pl-seg button {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: #efe2c2b3;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.pl-seg button.on {
+  background: var(--pl-gold);
+  color: var(--pl-sea);
+  font-weight: 700;
+}
+
+.pl-remove {
+  padding: 6px;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+.pl-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.pl-link-row .pl-link {
+  padding: 0;
+  font-size: 16px;
+}
+
+.pl-home-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The lobby. */
+.pl-room-code {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.pl-room-code b {
+  color: var(--pl-gold);
+  font-size: 32px;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+}
+
+.pl-btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pl-btn-row .pl-btn {
+  flex: 1;
+}
+
+.pl-lobby-seats li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pl-lobby-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.pl-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #ffffff1f;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+@media (min-width: 700px) {
+  .pl-screen-home {
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  /* Centred on the page (auto margins never push the top out of reach, unlike centring). */
+  .pl-home {
+    margin: auto;
+    padding: 26px 28px 28px;
+  }
+}
+
