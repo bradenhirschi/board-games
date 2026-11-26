@@ -1,0 +1,55 @@
+# Publishes firestore.rules to the Firebase project when a change to it reaches main (a merged
+# dev → main PR), after the rules tests pass. Both sites use this one project's published rules.
+# Needs the repository secret FIREBASE_SERVICE_ACCOUNT: a service account key (JSON) from the
+# Firebase console (Project settings → Service accounts → Generate new private key).
+name: Publish Firestore rules
+
+on:
+  push:
+    branches: [main]
+    paths: [firestore.rules]
+  # Re-run by hand from the Actions tab if a publish failed.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firestore-rules
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The Firestore emulator (for the rules tests) runs on Java.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Test the rules
+        run: npm run test:rules
+
+      - name: Publish the rules
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::The FIREBASE_SERVICE_ACCOUNT secret isn't set (repo Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          key="$RUNNER_TEMP/service-account.json"
+          printf '%s' "$SERVICE_ACCOUNT" > "$key"
+          GOOGLE_APPLICATION_CREDENTIALS="$key" npx firebase deploy --only firestore:rules \
+            --project braden-board-games --non-interactive
+          rm -f "$key"

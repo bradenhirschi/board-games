@@ -22,9 +22,10 @@ rules, how online play works, and the file map; read it first.
   same Firebase project (same accounts and rooms, and the published `firestore.rules`).
 - **Keep `dev` alive.** It's a permanent branch: never delete it, and recreate it from `main` if
   it's ever missing.
-- **Firestore rules:** whenever `firestore.rules` changes, tell the owner to publish it in the
-  Firebase console (Firestore → Rules → Publish) after merging; the live site uses the published
-  copy, not the repo.
+- **Firestore rules publish themselves:** when a change to `firestore.rules` reaches `main`, the GitHub
+  Action `.github/workflows/firestore-rules.yml` runs the rules tests and publishes it (secret
+  `FIREBASE_SERVICE_ACCOUNT`). Both sites use the published copy. Tell the owner when a PR changes the rules,
+  and to check the Actions tab after merging; it can be re-run from there.
 - **Look before committing UI changes.** The owner iterates on look and feel. For layout and
   visual work, render it with Playwright (Chromium is preinstalled) and send screenshots or
   mockups. When they ask for a mockup or rendering first, or the change is a big redesign,
