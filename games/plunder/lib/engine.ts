@@ -688,7 +688,8 @@ export function newGame(
   const cards: Resource[] = RESOURCES.flatMap((r) => Array<Resource>(CARDS_PER_RESOURCE).fill(r));
   const [deck, shuffled] = shuffle(cards, seed >>> 0);
   let rng = shuffled;
-  // Place the X tokens: spin the compasses for each; land is fine (collected from next door).
+  // Place the X tokens: spin the compasses for each; land is fine (collected from next door), and
+  // several X's may share a square.
   const xs: Pos[] = [];
   for (let i = 0; i < X_TOKENS; i++) {
     const [p, after] = spin(rng);
@@ -777,19 +778,46 @@ function acquireShip(s: GameState): GameState {
 function collectXs(s: GameState, ship: Ship): GameState {
   const map = mapOf(s.layout);
   let out = s;
+  const done: Pos[] = [];
   for (let i = 0; i < out.xs.length; i++) {
     const x = out.xs[i];
+    // Several X's on one square are dealt with one at a time: the next is collected once the first
+    // card is done, if it hasn't stopped the ship (see `finishFind`).
+    if (done.some((q) => same(q, x))) continue;
     const onIt = same(x, ship.pos);
     const side = sideBetween(ship.pos, x);
     const onLand = !isSailable(map.squares[x.r]?.[x.c]);
     // From next door only when the X is on land, and never across a barrier or land edge.
     const fromNextDoor = side !== null && onLand && !map.walls.has(edgeKey(ship.pos, side));
     if (!onIt && !(fromNextDoor && sameSide(out, ship.pos, x))) continue;
-    const [p, rng] = spin(out.rng);
-    const xs = out.xs.map((q, k) => (k === i ? p : q));
-    const [card, drawn] = drawTreasure({ ...out, xs, rng });
-    const found: Found = { card, player: ship.owner, ship: ship.id, at: x };
-    out = log({ ...drawn, found: [...(drawn.found ?? []), found] }, `${out.players[ship.owner].name} found treasure!`);
+    done.push(x);
+    out = takeX(out, i, ship, x);
+  }
+  return out;
+}
+
+/**
+ * `ship` finds the treasure of X token `i` (at `at`): draw a Treasure card for it (carried out once
+ * the ship settles), then spin the compasses for the X's new spot. It may land on other X's. If it
+ * lands under one of the finder's own ships, that counts as finding it again; under an opponent's
+ * ship it stays put until that ship is sunk or its owner collects it at the start of their turn.
+ */
+function takeX(s: GameState, i: number, ship: Ship, at: Pos): GameState {
+  const [card, drawn] = drawTreasure(s);
+  const found: Found = { card, player: ship.owner, ship: ship.id, at };
+  let out = log({ ...drawn, found: [...(drawn.found ?? []), found] }, `${s.players[ship.owner].name} found treasure!`);
+  const [p, rng] = spin(out.rng);
+  out = { ...out, rng, xs: out.xs.map((q, k) => (k === i ? p : q)) };
+  const under = shipAt(out, p);
+  return under && under.owner === ship.owner ? takeX(out, i, under, p) : out;
+}
+
+/** Start of a turn: the player's ships collect any X beneath them (one per square at a time). */
+function collectBeneath(s: GameState): GameState {
+  let out = s;
+  for (const ship of s.ships.filter((sh) => sh.owner === s.turn)) {
+    const i = out.xs.findIndex((x) => same(x, ship.pos));
+    if (i >= 0) out = takeX(out, i, ship, ship.pos);
   }
   return out;
 }
@@ -1416,7 +1444,7 @@ function resolveFind(s: GameState, f: Found, a: TreasureAction | null): GameStat
       break;
     }
   }
-  return finishFind(out, f, lines, endTurn);
+  return finishFind(out, f, lines, endTurn, s.ships.find((sh) => sh.id === f.ship)?.pos);
 }
 
 /** A board square's name, like "C7" (rows A–L, columns 1–18). */
@@ -1425,7 +1453,7 @@ function posName(p: Pos): string {
 }
 
 /** The card is done: off the queue, with its news, and the turn marked to end if it says so. */
-function finishFind(s: GameState, f: Found, lines: string[], endTurn: boolean): GameState {
+function finishFind(s: GameState, f: Found, lines: string[], endTurn: boolean, shipWas?: Pos): GameState {
   const notice: Notice = { t: "treasure", player: f.player, at: f.at, card: f.card, result: lines };
   let out: GameState = {
     ...s,
@@ -1435,6 +1463,11 @@ function finishFind(s: GameState, f: Found, lines: string[], endTurn: boolean): 
     turnOver: s.turnOver || endTurn || !s.ships.some((sh) => sh.owner === f.player),
   };
   out = log(out, `${s.players[f.player].name} found ${TREASURE_CARDS[f.card].title}. ${lines.join(" ")}`);
+  // Another X on the same square comes next, unless this card stopped the ship: sank it, moved it,
+  // or ended the turn.
+  const ship = out.ships.find((sh) => sh.id === f.ship);
+  const next = out.xs.findIndex((x) => same(x, f.at));
+  if (ship && next >= 0 && !out.turnOver && shipWas && same(ship.pos, shipWas)) out = takeX(out, next, ship, f.at);
   return checkWin(out);
 }
 
@@ -1536,7 +1569,7 @@ export function reducer(s: GameState, a: Action): GameState {
       const index = s.phase.index + 1;
       if (index < s.phase.order.length) return { ...out, turn: s.phase.order[index], phase: { ...s.phase, index } };
       // The last to pick goes first. No resource draw on this very first turn: everyone has their three.
-      return { ...out, turn: player, phase: { t: "turn", roll: null, moves: 0 } };
+      return settle(collectBeneath({ ...out, turn: player, phase: { t: "turn", roll: null, moves: 0 } }));
     }
 
     case "roll": {
@@ -1923,7 +1956,8 @@ export function reducer(s: GameState, a: Action): GameState {
         const freeCard = owned === 0 && out.players[turn].plunderCards === 0;
         out = { ...out, captain: { freeCard, rolled: false, acquired: false, spots: null } };
       }
-      return out;
+      // Any X beneath their ships (it moved there, or they were moved onto it) is theirs now.
+      return settle(collectBeneath(out));
     }
   }
 }

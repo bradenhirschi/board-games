@@ -185,8 +185,9 @@ export default function PlunderGame({
   const covered = !online && !actorBot && phase.t !== "gameOver" && humans > 1 && holder !== actor;
   const notice: Notice | undefined = covered ? undefined : s.notices[0];
   // News that shows for a moment and moves on: anything from a bot's turn, and finished deals.
-  // News about someone not played from this device also passes by on its own.
-  const botNotice = !!notice && !canControl(notice.player) && notice.t !== "drew";
+  // News about someone not played from this device also passes by on its own (a bot's card draw
+  // at the start of its turn isn't shown at all).
+  const botNotice = !!notice && !canControl(notice.player);
   const passing = !!notice && (botNotice || notice.t === "deal" || notice.t === "noDeal");
   const negotiating = !!s.trade || s.pendingAttack?.stage === "bribe";
   // A Treasure card waiting on a choice (this device's, or someone else's to watch).
@@ -266,6 +267,16 @@ export default function PlunderGame({
   );
   const allIslands = useMemo(() => islandsOf(s.layout), [s.layout]);
   const targets = useMemo(() => (ship && !isBot && !found ? attackTargets(s, ship) : []), [s, ship, isBot, found]);
+  // X tokens by square (several can share one). One under a ship shows as a badge on the ship.
+  const xStacks = useMemo(() => {
+    const stacks = new Map<string, { at: Pos; count: number; underShip: boolean }>();
+    for (const x of s.xs) {
+      const st = stacks.get(key(x));
+      if (st) st.count++;
+      else stacks.set(key(x), { at: x, count: 1, underShip: s.ships.some((sh) => same(sh.pos, x)) });
+    }
+    return [...stacks.values()];
+  }, [s.xs, s.ships]);
   // A captain without a ship (and not yet back on the water).
   const captain = phase.t === "turn" && !myShips.length ? (s.captain ?? null) : null;
   const captainSpots = captain?.spots ?? [];
@@ -377,6 +388,29 @@ export default function PlunderGame({
       act({ t: "placeShip", at: p });
       return;
     }
+    // Choosing a ship to upgrade or a spot for a new ship: taps only do that. (Checked before
+    // attacks: a ship in an island's port sits on one of the island's squares.)
+    if (phase.t === "turn" && upgrading) {
+      const target = upgradable.find((sh) => same(sh.pos, p));
+      if (target) {
+        act({ t: "build", item: upgrading, ship: target.id });
+        setUpgrading(null);
+      }
+      return;
+    }
+    if (phase.t === "turn" && placing) {
+      if (spots.some((q) => same(q, p))) {
+        act({ t: "build", item: "ship", at: p });
+        setPlacing(false);
+      }
+      return;
+    }
+    // Tapping your own ship selects it, even in the port of an island you could attack.
+    const tapped = s.ships.find((sh) => same(sh.pos, p));
+    if (phase.t === "turn" && tapped && tapped.owner === current) {
+      setSelected(tapped.id === selected ? null : tapped.id);
+      return;
+    }
     // Tapping something you can attack attacks it.
     const target = targets.find((t) => targetSquares(t).some((q) => same(q, p)));
     if (target) {
@@ -389,26 +423,6 @@ export default function PlunderGame({
       return;
     }
     if (phase.t !== "turn") return;
-    if (upgrading) {
-      const target = upgradable.find((sh) => same(sh.pos, p));
-      if (target) {
-        act({ t: "build", item: upgrading, ship: target.id });
-        setUpgrading(null);
-      }
-      return;
-    }
-    if (placing) {
-      if (spots.some((q) => same(q, p))) {
-        act({ t: "build", item: "ship", at: p });
-        setPlacing(false);
-      }
-      return;
-    }
-    const tapped = s.ships.find((sh) => same(sh.pos, p));
-    if (tapped && tapped.owner === current) {
-      setSelected(tapped.id === selected ? null : tapped.id);
-      return;
-    }
     const path = reach.get(key(p));
     if (ship && path) {
       const id = ship.id;
@@ -493,9 +507,11 @@ export default function PlunderGame({
         {tMarks.map((m) => (
           <SquareMark key={`t${key(m.at)}`} at={m.at} kind={m.kind} />
         ))}
-        {s.xs.map((x, i) => (
-          <XMark key={`x${i}`} at={x} />
-        ))}
+        {xStacks
+          .filter((st) => !st.underShip)
+          .map((st) => (
+            <XMark key={`x${key(st.at)}`} at={st.at} count={st.count} />
+          ))}
         {s.ships.map((sh) => (
           <ShipPiece
             key={sh.id}
@@ -505,6 +521,11 @@ export default function PlunderGame({
             at={moving?.ship === sh.id ? moving.pos : undefined}
           />
         ))}
+        {xStacks
+          .filter((st) => st.underShip)
+          .map((st) => (
+            <XMark key={`xb${key(st.at)}`} at={st.at} count={st.count} badge />
+          ))}
       </Board>
 
       <section className="pl-controls" aria-label="Your turn">

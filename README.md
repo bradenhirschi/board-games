@@ -57,6 +57,27 @@ plan with no game server:
   the app deployment so presence and custom codes work.
 - The Firebase web config lives in `shared/firebase.ts` (public values).
 
+**Simultaneous turns** (a lobby setting, online only): everyone plays each round at once, privately
+(`games/stock-market/lib/simultaneous.ts`, `components/SimulGame.tsx`).
+
+1. **Sell, then roll** (60 s): sell at the board price, change occupation or go to market, then press
+   Roll. The dice keep tumbling while you wait for the others. Out of time: you roll without selling,
+   and your turn enters any shareholders' meeting it passes.
+2. **Reveal:** each player sees only their own throw; their token walks and their own copy of the
+   market moves by their landing alone. Workers are paid for every throw of the round.
+3. **Buy & sell, then end turn** (60 s, starting at the reveal): buy at your updated price, sell at
+   the lowest price, as usual. Out of time: the turn ends without trading (a fee you can't pay sells
+   your biggest holding at the lowest price, or you go broke if that isn't enough).
+4. **Results:** each player's turn is shown in a box, one at a time, in a fixed order that rotates
+   by one seat each round, and their market move is applied to the real market in that order
+   (bounces included). Then the next round starts for everyone. A winner is checked at the start of
+   each round; if several players reach the target, the richest wins.
+
+Every phone plays its own part and saves it to the room; the save that completes a stage moves the
+round on (bots play their part in the same save). Timers run on server time (`stageStartedAt`), and
+once a stage's time is up any seated phone plays for whoever is still out. Everyone's choices are in
+the room document, so the privacy is only on screen, like the dice.
+
 ```bash
 npm run test:rules   # security rules tests against the Firestore emulator
 # Run the app against local emulators:
@@ -81,7 +102,11 @@ Plunder Point card / give up an island; one ship per turn this way);
 the storm (a 3×3 square, first placed off the one-skull islands' ports; rolling a 1 moves it and you
 still sail 1; sailing in or out costs 2 cards of your choice, so a ship with nothing to pay is trapped;
 no attacks, treasure or new-ship placement across its edge; islands with every port inside give no
-card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn);
+card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn; after
+its card the X moves at once. Several X's may share a square, collected one at a time, and a card can
+stop the next being collected. An X that moves under one of your own ships counts as found again;
+under an opponent's ship it waits until that ship is sunk or its owner collects it at the start of
+their turn. An X under a ship shows as a small badge on it, and stacked X's show a count);
 Plunder Points (ships + islands + Plunder Point cards) and winning at 10.
 
 **Treasure cards** (`games/plunder/lib/treasureCards.ts` for the printed text, `resolveFind` in

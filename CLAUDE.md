@@ -68,7 +68,9 @@ rules, how online play works, and the file map; read it first.
   a seeded generator in the state). Status and open questions are in the README's Plunder section.
   Settled rules: rolling a 1 moves the storm and you still sail 1; new ships go in an empty port of
   an island you own (or beside one of your ships); ships can sail through ports; storm is 3×3;
-  sailing over an X collects it (several per turn is fine); the first turn has no resource draw;
+  sailing over an X collects it (several per turn is fine); X's follow the rulebook's relocation
+  rules (README: stacking allowed, one at a time; under your own ship = found again; under an
+  opponent's ship = theirs at the start of their turn unless it's sunk first); the first turn has no resource draw;
   attacking costs no moves and can happen before the roll; Treasure cards are the owner's printed deck
   (`lib/treasureCards.ts`), read as listed in the README (all confirmed by the owner; A Pirate's Life
   goes back under the deck like any other card); ships built after the roll can't sail
@@ -90,6 +92,12 @@ rules, how online play works, and the file map; read it first.
 - `lib/online.ts`, `lib/rooms.ts`, `components/OnlineRoom.tsx`: online rooms in Firestore
   (`stockMarketRooms/{code}`), moves saved in transactions and replayed with animation on every
   phone. No server code (Firebase free tier, no Cloud Functions).
+- `lib/simultaneous.ts`, `components/SimulGame.tsx`: the online "Simultaneous turns" mode. Each
+  player's turn runs on a private copy (`view`) through the normal reducer; `GameState.simul` holds
+  the round (stage `sell` 60 s / `act` 60 s, per-seat turns, last round's summary). Settled with
+  the owner: salaries for every throw of the round; Phase 2's timer starts at the reveal; the order
+  rotates a seat per round; timeouts enter meetings and cover fees by selling the biggest holding;
+  richest wins if several reach the target. The room's `stageStartedAt` (server time) drives timers.
 - `lib/sound.ts`: Web Audio synthesized sounds (dice, turn bell, ca-ching, "womp womp").
 - `components/Game.tsx`: the game screen (`GameView`), local game, turn controls.
 - `styles.css`: all Stock Market styles (imported by `app/(stock-market)/layout.tsx`). It has many layered phone/desktop overrides appended over time,

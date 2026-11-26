@@ -3332,3 +3332,148 @@ button.link {
 .stock-cash-switch:disabled {
   cursor: default;
 }
+
+/* ---------- Simultaneous turns: stage timer, waiting, end-of-round summary ---------- */
+.action-col .turn-heading.turn-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.turn-heading-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+}
+.turn-timer {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.turn-timer-low {
+  color: #b91c1c;
+}
+.results-reopen {
+  font-family: var(--sans, inherit);
+  white-space: nowrap;
+}
+/* The list scrolls inside the card; Continue stays pinned below it. */
+.action-col .turn.turn-results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.action-col .controls.round-results {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+.round-results .btn-big {
+  flex: none;
+  position: static;
+}
+.action-col .round-results .results-list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.results-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.results-list > li {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+  transition: opacity 0.3s, border-color 0.3s;
+}
+.results-list > li.results-later {
+  opacity: 0.45;
+}
+.results-list > li.results-now {
+  border-color: var(--accent);
+}
+.results-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.results-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.results-main {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.results-sub {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.results-move {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.results-move.up {
+  color: var(--up);
+}
+.results-move.down {
+  color: var(--down);
+}
+.results-lines {
+  margin: 0;
+  padding: 0 8px 6px 44px;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.results-lines li {
+  padding-left: 6px;
+  border-left: 3px solid #e0dbc6;
+}
+/* Phones: the round results rise over the lower half of the board (the market slider stays in view). */
+@media (max-width: 900px) {
+  .game > .action-col > .turn.turn-results {
+    position: fixed;
+    top: 52%;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 30;
+    max-height: none;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.18);
+  }
+}

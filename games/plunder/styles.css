@@ -1801,6 +1801,15 @@ body {
   fill: var(--pl-paper);
 }
 
+.pl-x-count {
+  font-size: 3.2px;
+  font-weight: 800;
+  fill: #3a0b08;
+  paint-order: stroke;
+  stroke: #fff8e6;
+  stroke-width: 0.8px;
+}
+
 .pl-x .pl-x-line {
   stroke: var(--pl-ink);
   stroke-width: var(--pl-ink-width);

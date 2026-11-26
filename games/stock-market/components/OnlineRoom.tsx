@@ -27,6 +27,8 @@ import {
 } from "@/games/stock-market/lib/rooms";
 import { BOT_THINK_MS, GameView, STEP_MS, animateRoll } from "./Game";
 import GameSettingsFields from "./GameSettingsFields";
+import { Notice, useRemoved } from "./RoomNotice";
+import SimulGame from "./SimulGame";
 import { restartConnection } from "@/shared/firebase";
 
 /** Pause between replayed decisions (buying, ending a turn…) so they don't blur together. */
@@ -138,27 +140,8 @@ export default function OnlineRoom({ code, uid, connectionError, header, name, o
   if (room === null) return <Notice header={header} title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
 
   if (room.status === "lobby") return <Lobby header={header} room={room} uid={uid} name={name} onQuit={onQuit} />;
+  if (room.state?.simultaneous) return <SimulGame room={room} uid={uid} onQuit={onQuit} />;
   return <OnlineGame room={room} uid={uid} onQuit={onQuit} />;
-}
-
-/** Was this account seated when the game screen opened, and isn't any more? Then the host removed it. */
-function useRemoved(room: Room, uid: string): boolean {
-  const [wasSeated] = useState(() => room.memberUids.includes(uid));
-  return wasSeated && !room.memberUids.includes(uid);
-}
-
-function Notice({ header, title, text, onQuit }: { header?: ReactNode; title: string; text: string; onQuit: () => void }) {
-  return (
-    <main className="setup">
-      <div className="setup-card">
-        {header ? <>{header}<h2 className="lobby-heading">{title}</h2></> : <h1 className="setup-logo">{title}</h1>}
-        <p className="muted">{text}</p>
-        <button className="btn" onClick={onQuit}>
-          Back to menu
-        </button>
-      </div>
-    </main>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +279,7 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
               </button>
             )}
             <GameSettingsFields
+              online
               settings={room}
               hasBots={bots > 0}
               disabled={savingSettings}
@@ -312,7 +296,8 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
         ) : (
           seated && (
             <p className="muted">
-              First to <b>${fmt(room.target)}</b>. Waiting for the host to start…
+              First to <b>${fmt(room.target)}</b>
+            {room.simultaneous ? ", simultaneous turns" : ""}. Waiting for the host to start…
             </p>
           )
         )}

@@ -8,11 +8,13 @@ interface GameSettingsFieldsProps {
   settings: GameSettings;
   hasBots: boolean;
   disabled?: boolean;
+  /** Online lobbies also offer simultaneous turns. */
+  online?: boolean;
   onChange: (change: Partial<GameSettings>) => void;
 }
 
-export default function GameSettingsFields({ settings, hasBots, disabled, onChange }: GameSettingsFieldsProps) {
-  const { target, botLevel, startWithCash, balancedCareers } = settings;
+export default function GameSettingsFields({ settings, hasBots, disabled, online, onChange }: GameSettingsFieldsProps) {
+  const { target, botLevel, startWithCash, balancedCareers, simultaneous = false } = settings;
 
   return (
     <>
@@ -54,6 +56,20 @@ export default function GameSettingsFields({ settings, hasBots, disabled, onChan
         <span>Balanced occupations</span>
         <span className={balancedCareers ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
       </button>
+      {online && (
+        <button
+          type="button"
+          className="stock-cash-switch"
+          role="switch"
+          aria-checked={simultaneous}
+          disabled={disabled}
+          title="Everyone takes their turn at the same time, in private: 60 seconds to sell and roll, then 60 to buy and sell"
+          onClick={() => onChange({ simultaneous: !simultaneous })}
+        >
+          <span>Simultaneous turns</span>
+          <span className={simultaneous ? "switch switch-on" : "switch"} aria-hidden="true"><span /></span>
+        </button>
+      )}
       {hasBots && (
         <label className="setup-target">
           <span>Bots</span>
