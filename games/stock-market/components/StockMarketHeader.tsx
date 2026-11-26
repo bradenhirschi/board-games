@@ -21,7 +21,7 @@ export default function StockMarketHeader(props: HeaderProps) {
     <header className="stock-market-header">
       <div>
         <h1 className="setup-logo">Stock Market</h1>
-        <p className="muted">Buy low, sell high. For 2–8 players.</p>
+        <p className="muted">Buy low, sell high. For 2–32 players.</p>
       </div>
       {onlineAvailable && <AccountMenu {...props} />}
     </header>

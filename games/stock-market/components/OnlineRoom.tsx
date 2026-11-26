@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
-  PLAYER_COLORS,
+  playerColor,
   fmt,
   reducer,
   type Action,
@@ -217,7 +217,7 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
         <ul className="lobby-seats">
           {room.seats.map((s, i) => (
             <li key={i}>
-              <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
+              <span className="token token-static" style={{ background: playerColor(i) }}>
                 {s.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="lobby-name">

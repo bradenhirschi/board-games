@@ -9,7 +9,8 @@ npm run dev   # http://localhost:3000
 
 ## The game
 
-Pass-and-play for 2–8 players on one screen, with optional computer players.
+Pass-and-play for 2–32 players on one screen, with optional computer players (big groups are best online
+with simultaneous turns).
 
 - **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. You can't
   play the market until you've earned $1,000; then you must.
