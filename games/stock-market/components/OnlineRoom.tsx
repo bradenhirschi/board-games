@@ -156,7 +156,7 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
   const [copied, setCopied] = useState(false);
   const isHost = room.hostUid === uid;
   const seated = room.memberUids.includes(uid);
-  const link = typeof window === "undefined" ? "" : `${window.location.origin}/?room=${room.code}`;
+  const link = typeof window === "undefined" ? "" : `${window.location.origin}/stock-market?room=${room.code}`;
 
   const run = async (task: () => Promise<void>, setPending = setBusy) => {
     setPending(true);

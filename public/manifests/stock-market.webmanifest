@@ -1,0 +1,17 @@
+{
+  "name": "Stock Market",
+  "short_name": "Stock Market",
+  "description": "A stock market board game.",
+  "id": "/stock-market",
+  "start_url": "/stock-market",
+  "scope": "/stock-market",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f4ea",
+  "theme_color": "#f6f4ea",
+  "icons": [
+    { "src": "/icons/stock-market/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/stock-market/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/stock-market/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

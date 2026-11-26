@@ -165,8 +165,10 @@ in its own folder; the only shared code is the account (Firebase sign-in), so on
 
 | Path | What it holds |
 | --- | --- |
-| `app/(stock-market)/` | Stock Market's pages: its own root layout (`<html>`, metadata, icons), served at `/` for now |
-| `app/manifest.ts` | The site's Home Screen app manifest (one per site) |
+| `app/(home)/` | The game picker at `/`: its own root layout, styles (`home.css`) and Home Screen icon |
+| `app/(stock-market)/stock-market/` | Stock Market's pages: its own root layout (`<html>`, metadata, icons), served at `/stock-market` (old `/?room=CODE` links redirect there, see `next.config.ts`) |
+| `public/manifests/`, `public/icons/<game>/` | One Home Screen app manifest and icon set per game (and one for the picker), so each game installs as its own app |
+| `scripts/render-icons.mjs` | Renders Plunder's and the picker's icons with Playwright (Stock Market's are hand-made) |
 | `games/stock-market/styles.css` | All of Stock Market's styles, loaded only by its layout |
 | `games/stock-market/lib/stocks.ts` | The eight companies (names, colors) and their quotation board price ladders |
 | `games/stock-market/lib/board.ts` | Every square on the track: company, dividend, market move and arrow direction. Also movement rules |
@@ -189,4 +191,7 @@ The board redraws from that data.
 2. Give it a route group with its own root layout, e.g. `app/(<game>)/<game>/layout.tsx` and `page.tsx`. The layout
    renders its own `<html>`/`<body>` and imports only that game's CSS, so no styles leak between games (moving
    between games is a full page load).
-3. Use `shared/firebase.ts` for sign-in; give online rooms their own Firestore collection and rules.
+3. Give it its own Home Screen app: icons (`icon.png`, `apple-icon.png`) next to its layout, a manifest in
+   `public/manifests/<game>.webmanifest` (`start_url` and `scope` set to the game's path) with icons in
+   `public/icons/<game>/`, and `manifest` in the layout's metadata. Add it to the picker in `app/(home)/page.tsx`.
+4. Use `shared/firebase.ts` for sign-in; give online rooms their own Firestore collection and rules.

@@ -4,6 +4,8 @@ import "@/games/stock-market/styles.css";
 export const metadata: Metadata = {
   title: "Stock Market",
   description: "A stock market board game.",
+  // Its own Home Screen app: name, icon and start page are Stock Market's, not the site's.
+  manifest: "/manifests/stock-market.webmanifest",
   // Pinned to an iPhone Home Screen, open full screen like an app (no browser bars).
   appleWebApp: { capable: true, title: "Stock Market", statusBarStyle: "default" },
   other: {
@@ -20,7 +22,7 @@ export const viewport: Viewport = {
   themeColor: "#f6f4ea",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: LayoutProps<"/stock-market">) {
   return (
     <html lang="en">
       <body>{children}</body>
