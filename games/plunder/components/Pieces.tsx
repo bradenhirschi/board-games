@@ -113,12 +113,25 @@ export function ShipPiece({
 const X_POINTS = "30,36 18,24 24,18 36,30 48,18 54,24 42,36 54,48 48,54 36,42 24,54 18,48";
 
 /** An X-marks-the-spot token on the board. */
-export function XMark({ at }: { at: Pos }) {
-  const { x, y } = centre(at);
+/**
+ * An X-marks-the-spot token. `count`: how many X's share the square (shown when more than one).
+ * `badge`: a small X in the square's corner, drawn over a ship that has X's beneath it.
+ */
+export function XMark({ at, count = 1, badge = false }: { at: Pos; count?: number; badge?: boolean }) {
+  const c = centre(at);
+  const x = badge ? c.x + S * 0.3 : c.x;
+  const y = badge ? c.y - S * 0.3 : c.y;
   return (
-    <g transform={`translate(${x} ${y}) scale(0.16) translate(-36 -36)`} className="pl-x pl-ink">
-      <polygon className="pl-x-fill" points={X_POINTS} />
-      <polygon className="pl-x-line" points={X_POINTS} />
+    <g className="pl-x-mark">
+      <g transform={`translate(${x} ${y}) scale(${badge ? 0.075 : 0.16}) translate(-36 -36)`} className="pl-x pl-ink">
+        <polygon className="pl-x-fill" points={X_POINTS} />
+        <polygon className="pl-x-line" points={X_POINTS} />
+      </g>
+      {count > 1 && (
+        <text className="pl-x-count" x={c.x + S * 0.42} y={c.y + S * (badge ? -0.08 : 0.44)} textAnchor="end">
+          ×{count}
+        </text>
+      )}
     </g>
   );
 }

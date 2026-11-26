@@ -102,8 +102,11 @@ Plunder Point card / give up an island; one ship per turn this way);
 the storm (a 3×3 square, first placed off the one-skull islands' ports; rolling a 1 moves it and you
 still sail 1; sailing in or out costs 2 cards of your choice, so a ship with nothing to pay is trapped;
 no attacks, treasure or new-ship placement across its edge; islands with every port inside give no
-card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn; an
-X never shares a square with another, and one that reappears under a ship is found by that ship at once, then moves again);
+card); X-marks-the-spot tokens (sailing over one collects it, so a ship can collect several in a turn; after
+its card the X moves at once. Several X's may share a square, collected one at a time, and a card can
+stop the next being collected. An X that moves under one of your own ships counts as found again;
+under an opponent's ship it waits until that ship is sunk or its owner collects it at the start of
+their turn. An X under a ship shows as a small badge on it, and stacked X's show a count);
 Plunder Points (ships + islands + Plunder Point cards) and winning at 10.
 
 **Treasure cards** (`games/plunder/lib/treasureCards.ts` for the printed text, `resolveFind` in

@@ -267,6 +267,16 @@ export default function PlunderGame({
   );
   const allIslands = useMemo(() => islandsOf(s.layout), [s.layout]);
   const targets = useMemo(() => (ship && !isBot && !found ? attackTargets(s, ship) : []), [s, ship, isBot, found]);
+  // X tokens by square (several can share one). One under a ship shows as a badge on the ship.
+  const xStacks = useMemo(() => {
+    const stacks = new Map<string, { at: Pos; count: number; underShip: boolean }>();
+    for (const x of s.xs) {
+      const st = stacks.get(key(x));
+      if (st) st.count++;
+      else stacks.set(key(x), { at: x, count: 1, underShip: s.ships.some((sh) => same(sh.pos, x)) });
+    }
+    return [...stacks.values()];
+  }, [s.xs, s.ships]);
   // A captain without a ship (and not yet back on the water).
   const captain = phase.t === "turn" && !myShips.length ? (s.captain ?? null) : null;
   const captainSpots = captain?.spots ?? [];
@@ -497,9 +507,11 @@ export default function PlunderGame({
         {tMarks.map((m) => (
           <SquareMark key={`t${key(m.at)}`} at={m.at} kind={m.kind} />
         ))}
-        {s.xs.map((x, i) => (
-          <XMark key={`x${i}`} at={x} />
-        ))}
+        {xStacks
+          .filter((st) => !st.underShip)
+          .map((st) => (
+            <XMark key={`x${key(st.at)}`} at={st.at} count={st.count} />
+          ))}
         {s.ships.map((sh) => (
           <ShipPiece
             key={sh.id}
@@ -509,6 +521,11 @@ export default function PlunderGame({
             at={moving?.ship === sh.id ? moving.pos : undefined}
           />
         ))}
+        {xStacks
+          .filter((st) => st.underShip)
+          .map((st) => (
+            <XMark key={`xb${key(st.at)}`} at={st.at} count={st.count} badge />
+          ))}
       </Board>
 
       <section className="pl-controls" aria-label="Your turn">
