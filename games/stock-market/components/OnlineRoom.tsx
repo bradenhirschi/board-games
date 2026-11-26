@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
-  PLAYER_COLORS,
+  playerColor,
   fmt,
   reducer,
   type Action,
@@ -19,6 +19,7 @@ import {
   isNewer,
   joinRoom,
   kickPlayer,
+  playAgain,
   startGame,
   submitMove,
   watchRoom,
@@ -216,7 +217,7 @@ function Lobby({ header, room, uid, name, onQuit }: { header: ReactNode; room: R
         <ul className="lobby-seats">
           {room.seats.map((s, i) => (
             <li key={i}>
-              <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
+              <span className="token token-static" style={{ background: playerColor(i) }}>
                 {s.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="lobby-name">
@@ -506,6 +507,15 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
     [room.code, uid, adopt],
   );
   const removed = useRemoved(room, uid);
+  /** Back to the lobby with everyone (the room shows it as soon as it's saved). */
+  const again = async () => {
+    setError(null);
+    try {
+      await playAgain(room.code, uid);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't go back to the lobby.");
+    }
+  };
 
   const roll = useCallback(() => {
     if (rolling || pending) return;
@@ -554,6 +564,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
+        onPlayAgain={mySeat >= 0 ? () => void again() : undefined}
         kickable={
           isHost && display.phase.t !== "gameOver"
             ? display.players.filter((p) => room.seats[p.id]?.uid && room.seats[p.id].uid !== uid)

@@ -135,3 +135,60 @@ describe("plunder presence", () => {
     await assertFails(entry.set({ name: "Amy", status: "home", seenAt: now, email: "amy@example.com" }));
   });
 });
+
+describe("reusing a room after its game", () => {
+  const serverTime = firebase.firestore.FieldValue.serverTimestamp();
+  const daysAgo = (days: number) => firebase.firestore.Timestamp.fromMillis(Date.now() - days * 86_400_000);
+  const backToLobby = { status: "lobby", version: 6, stateJson: null, replayJson: null, currentUid: null, over: false };
+  const ownLobby = (uid: string, seat: Record<string, unknown>) => ({
+    hostUid: uid,
+    status: "lobby",
+    seats: [seat],
+    memberUids: [uid],
+    version: 6,
+    stateJson: null,
+    replayJson: null,
+    currentUid: null,
+    over: false,
+    updatedAt: serverTime,
+  });
+  const zed = { uid: "stranger", name: "Zed", color: "red", isBot: false };
+
+  it("lets any of the players take everyone back to the lobby once the game is over", async () => {
+    await seed(playing({ over: true, currentUid: null }));
+    await assertSucceeds(room("host").update(backToLobby));
+    await seed(playing({ over: true, currentUid: null }));
+    await assertSucceeds(room("amy").update(backToLobby));
+  });
+  it("doesn't let players end a game that isn't over, or strangers play again", async () => {
+    await seed(playing());
+    await assertFails(room("amy").update(backToLobby));
+    await seed(playing({ over: true }));
+    await assertFails(room("stranger").update(backToLobby));
+    await assertFails(room("amy").update({ ...backToLobby, version: 9 }));
+    await assertFails(room("amy").update({ ...backToLobby, hostUid: "amy" }));
+  });
+  it("lets anyone open a new lobby in a finished game's room", async () => {
+    await seed(playing({ over: true, updatedAt: daysAgo(0) }));
+    await assertSucceeds(room("stranger").update(ownLobby("stranger", zed)));
+  });
+  it("lets anyone open a new lobby in a room left alone for 12 hours", async () => {
+    await seed(playing({ updatedAt: daysAgo(3) }));
+    await assertSucceeds(room("stranger").update(ownLobby("stranger", zed)));
+    await seed(lobby({ updatedAt: daysAgo(1) }));
+    await assertSucceeds(room("stranger").update({ ...ownLobby("stranger", zed), version: 1 }));
+  });
+  it("doesn't let anyone take over a game in progress", async () => {
+    await seed(playing({ updatedAt: daysAgo(0.1) }));
+    await assertFails(room("stranger").update(ownLobby("stranger", zed)));
+    await seed(playing());
+    await assertFails(room("stranger").update(ownLobby("stranger", zed)));
+  });
+  it("only opens a lobby hosted by, and holding only, whoever reopens it", async () => {
+    await seed(playing({ over: true }));
+    await assertFails(room("stranger").update({ ...ownLobby("stranger", zed), hostUid: "amy" }));
+    await assertFails(room("stranger").update({ ...ownLobby("stranger", zed), memberUids: ["stranger", "amy"] }));
+    await assertFails(room("stranger").update({ ...ownLobby("stranger", zed), stateJson: "{}" }));
+    await assertFails(room("stranger").update({ ...ownLobby("stranger", zed), version: 0 }));
+  });
+});

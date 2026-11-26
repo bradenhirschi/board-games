@@ -24,7 +24,8 @@ rules, how online play works, and the file map; read it first.
   it's ever missing.
 - **Firestore rules publish themselves:** when a change to `firestore.rules` reaches `main`, the GitHub
   Action `.github/workflows/firestore-rules.yml` runs the rules tests and publishes it (secret
-  `FIREBASE_SERVICE_ACCOUNT`). Both sites use the published copy. Tell the owner when a PR changes the rules,
+  `FIREBASE_SERVICE_ACCOUNT`; its account needs the IAM roles Service Usage Consumer and Firebase Rules
+  Admin). Both sites use the published copy. Tell the owner when a PR changes the rules,
   and to check the Actions tab after merging; it can be re-run from there.
 - **Look before committing UI changes.** The owner iterates on look and feel. For layout and
   visual work, render it with Playwright (Chromium is preinstalled) and send screenshots or

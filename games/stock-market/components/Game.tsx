@@ -149,6 +149,8 @@ export interface GameViewProps {
   dispatch: (a: Action) => void;
   roll: () => void;
   onQuit: () => void;
+  /** Online, for the game's players once it's won: back to the room's lobby for another game. */
+  onPlayAgain?: () => void;
   /** Extra items for the top bar (e.g. the room code). */
   headerExtra?: ReactNode;
   /** Online, for the host: players they may remove from the game (a bot takes over each seat). */
@@ -206,6 +208,7 @@ export function GameView({
   dispatch,
   roll,
   onQuit,
+  onPlayAgain,
   headerExtra,
   kickable,
   onKick,
@@ -421,8 +424,8 @@ export function GameView({
                 </li>
               ))}
             </ol>
-            <button className="btn btn-primary" onClick={onQuit}>
-              New game
+            <button className="btn btn-primary" onClick={onPlayAgain ?? onQuit}>
+              {onPlayAgain ? "Play again" : "New game"}
             </button>
           </section>
         ) : (

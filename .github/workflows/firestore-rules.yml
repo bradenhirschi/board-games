@@ -1,7 +1,9 @@
 # Publishes firestore.rules to the Firebase project when a change to it reaches main (a merged
 # dev → main PR), after the rules tests pass. Both sites use this one project's published rules.
 # Needs the repository secret FIREBASE_SERVICE_ACCOUNT: a service account key (JSON) from the
-# Firebase console (Project settings → Service accounts → Generate new private key).
+# Firebase console (Project settings → Service accounts → Generate new private key). In Google Cloud
+# IAM, that account (firebase-adminsdk-…) also needs the roles "Service Usage Consumer" (the deploy
+# first checks that the Firestore API is on) and "Firebase Rules Admin".
 name: Publish Firestore rules
 
 on:

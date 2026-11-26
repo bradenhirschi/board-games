@@ -9,7 +9,7 @@ import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
   MIN_PLAYERS,
-  PLAYER_COLORS,
+  playerColor,
   newGame,
   type GameState,
   type PlayerSetup,
@@ -166,7 +166,7 @@ export default function Home() {
           >
             {players.map((p, i) => (
               <div key={i} className="setup-row">
-                <span className="token token-static" style={{ background: PLAYER_COLORS[i] }}>
+                <span className="token token-static" style={{ background: playerColor(i) }}>
                   {(p.name.trim() || "P").slice(0, 1).toUpperCase()}
                 </span>
                 <input

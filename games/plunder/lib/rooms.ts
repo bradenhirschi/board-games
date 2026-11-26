@@ -1,6 +1,6 @@
 "use client";
 
-import { doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
+import { Timestamp, doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
 import { firebase } from "@/shared/firebase";
 import {
   MAX_PLAYERS,
@@ -47,6 +47,10 @@ export interface Room {
   state: GameState | null;
   replay: Replay | null;
   currentUid: string | null;
+  /** The game has been won: its players may play again, and anyone may reuse the code. */
+  over: boolean;
+  /** When the room was last saved (server time, ms). */
+  updatedAt: number | null;
 }
 
 export const ROOMS = "plunderRooms";
@@ -77,6 +81,8 @@ function parseRoom(data: DocumentData): Room {
     state: data.stateJson ? (JSON.parse(data.stateJson) as GameState) : null,
     replay: data.replayJson ? (JSON.parse(data.replayJson) as Replay) : null,
     currentUid: data.currentUid ?? null,
+    over: data.over === true,
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : null,
   };
 }
 
@@ -92,6 +98,23 @@ export function freeColor(seats: Seat[]): PlayerColor {
 }
 
 export class RoomError extends Error {}
+
+/**
+ * A room untouched for this long counts as abandoned: entering its code opens a new lobby there.
+ * The security rules allow it after 12 hours; the extra minutes cover a device's clock being off.
+ */
+const ABANDONED_MS = (12 * 60 + 10) * 60 * 1000;
+
+/**
+ * Whether entering this room's code should open a new lobby in its place: its game is over, or
+ * nobody has touched it for half a day and this player isn't in it (they'd rather pick their game
+ * back up).
+ */
+function reopens(room: Room, uid: string): boolean {
+  if (room.over) return true;
+  const abandoned = room.updatedAt !== null && Date.now() - room.updatedAt > ABANDONED_MS;
+  return abandoned && !room.memberUids.includes(uid);
+}
 
 /** Open a room and take a seat atomically: the first to enter a new code hosts its room. */
 export function enterRoom(code: string, uid: string, name: string): Promise<void> {
@@ -125,6 +148,22 @@ async function takeSeat(code: string, uid: string, name: string, createIfMissing
       return;
     }
     const room = parseRoom(snap.data());
+    if (createIfMissing && reopens(room, uid)) {
+      // A new lobby for this player.
+      tx.update(roomRef(code), {
+        hostUid: uid,
+        status: "lobby",
+        seats: [{ uid, name, color: PLAYER_COLORS[0], isBot: false }],
+        memberUids: [uid],
+        version: room.version + 1,
+        stateJson: null,
+        replayJson: null,
+        currentUid: null,
+        over: false,
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
     if (room.memberUids.includes(uid)) return;
     if (room.status !== "lobby") throw new RoomError("That game has already started.");
     if (room.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
@@ -152,6 +191,26 @@ export async function editLobby(code: string, edit: (room: Room) => Seat[]): Pro
   });
 }
 
+/** "Play again": once the game is won, take everyone back to the lobby with the same seats. */
+export async function playAgain(code: string, uid: string): Promise<void> {
+  await runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) throw new RoomError("That room no longer exists.");
+    const room = parseRoom(snap.data());
+    if (room.status === "lobby") return;
+    if (!room.over || !room.memberUids.includes(uid)) throw new RoomError("This game isn't over yet.");
+    tx.update(roomRef(code), {
+      status: "lobby",
+      version: room.version + 1,
+      stateJson: null,
+      replayJson: null,
+      currentUid: null,
+      over: false,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 export async function startGame(code: string): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
@@ -172,7 +231,9 @@ export async function startGame(code: string): Promise<void> {
     );
     tx.update(roomRef(code), {
       status: "playing",
-      version: 1,
+      // Counting on from the last game, so devices never mistake the new game for an old move.
+      version: room.version + 1,
+      over: false,
       stateJson: JSON.stringify(state),
       replayJson: null,
       currentUid: seatUid(state, room.seats),
@@ -206,12 +267,14 @@ export async function submitMove(
       state: move.state,
       replay,
       currentUid: seatUid(move.state, room.seats),
+      over: move.state.phase.t === "gameOver",
     };
     tx.update(roomRef(code), {
       version: saved.version,
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),
       currentUid: saved.currentUid,
+      over: saved.over,
       updatedAt: serverTimestamp(),
     });
     return { room: saved, move };

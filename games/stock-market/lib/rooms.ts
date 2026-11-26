@@ -48,6 +48,10 @@ export interface Room extends GameSettings {
   currentUid: string | null;
   /** Simultaneous turns: when the current stage started (server time, ms), for its timer. */
   stageStartedAt: number | null;
+  /** The game has been won: its players may play again, and anyone may reuse the code. */
+  over: boolean;
+  /** When the room was last saved (server time, ms). */
+  updatedAt: number | null;
 }
 
 const ROOM_CODE_MIN_LENGTH = 3;
@@ -86,6 +90,8 @@ function parseRoom(data: DocumentData): Room {
     replay: data.replayJson ? (JSON.parse(data.replayJson) as Replay) : null,
     currentUid: data.currentUid ?? null,
     stageStartedAt: data.stageStartedAt instanceof Timestamp ? data.stageStartedAt.toMillis() : null,
+    over: data.over === true,
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : null,
   };
 }
 
@@ -115,6 +121,23 @@ export function seatUid(state: GameState, seats: Seat[]): string | null {
 }
 
 export class RoomError extends Error {}
+
+/**
+ * A room untouched for this long counts as abandoned: entering its code opens a new lobby there.
+ * The security rules allow it after 12 hours; the extra minutes cover a device's clock being off.
+ */
+const ABANDONED_MS = (12 * 60 + 10) * 60 * 1000;
+
+/**
+ * Whether entering this room's code should open a new lobby in its place: its game is over, or
+ * nobody has touched it for half a day and this player isn't in it (they'd rather pick their game
+ * back up).
+ */
+function reopens(room: Room, uid: string): boolean {
+  if (room.over) return true;
+  const abandoned = room.updatedAt !== null && serverNow() - room.updatedAt > ABANDONED_MS;
+  return abandoned && !room.memberUids.includes(uid);
+}
 
 const d6 = () => 1 + Math.floor(Math.random() * 6);
 
@@ -154,6 +177,23 @@ async function takeSeat(code: string, uid: string, name: string, createIfMissing
       return;
     }
     const room = parseRoom(snap.data());
+    if (createIfMissing && reopens(room, uid)) {
+      // A new lobby for this player, keeping the last game's settings.
+      tx.update(ref, {
+        hostUid: uid,
+        status: "lobby",
+        seats: [{ uid, name, isBot: false }],
+        memberUids: [uid],
+        version: room.version + 1,
+        stateJson: null,
+        replayJson: null,
+        currentUid: null,
+        stageStartedAt: null,
+        over: false,
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
     if (room.memberUids.includes(uid)) return;
     if (room.status !== "lobby") throw new RoomError("That game has already started.");
     if (room.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
@@ -191,6 +231,27 @@ export async function editLobby(
   });
 }
 
+/** "Play again": once the game is won, take everyone back to the lobby with the same seats and settings. */
+export async function playAgain(code: string, uid: string): Promise<void> {
+  await runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) throw new RoomError("That room no longer exists.");
+    const room = parseRoom(snap.data());
+    if (room.status === "lobby") return;
+    if (!room.over || !room.memberUids.includes(uid)) throw new RoomError("This game isn't over yet.");
+    tx.update(roomRef(code), {
+      status: "lobby",
+      version: room.version + 1,
+      stateJson: null,
+      replayJson: null,
+      currentUid: null,
+      stageStartedAt: null,
+      over: false,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 export async function startGame(code: string): Promise<void> {
   await runTransaction(firebase().db, async (tx) => {
     const snap = await tx.get(roomRef(code));
@@ -209,7 +270,9 @@ export async function startGame(code: string): Promise<void> {
     const state = beginRounds(created, d6) ?? created;
     tx.update(roomRef(code), {
       status: "playing",
-      version: 1,
+      // Counting on from the last game, so devices never mistake the new game for an old move.
+      version: room.version + 1,
+      over: false,
       stateJson: JSON.stringify(state),
       replayJson: null,
       currentUid: seatUid(state, room.seats),
@@ -249,6 +312,7 @@ export async function submitMove(
       state: move.state,
       replay,
       currentUid: seatUid(move.state, room.seats),
+      over: move.state.phase.t === "gameOver",
     };
     const newStage = !!saved.state?.simul && stageKey(saved.state) !== stageKey(room.state);
     tx.update(roomRef(code), {
@@ -256,6 +320,7 @@ export async function submitMove(
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),
       currentUid: saved.currentUid,
+      over: saved.over,
       // A new stage of a simultaneous round restarts the timer for everyone.
       ...(newStage ? { stageStartedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
@@ -290,6 +355,7 @@ export async function kickPlayer(code: string, hostUid: string, seat: number): P
       state: move.state,
       replay,
       currentUid: seatUid(move.state, seats),
+      over: move.state.phase.t === "gameOver",
     };
     tx.update(roomRef(code), {
       seats: saved.seats,
@@ -298,6 +364,7 @@ export async function kickPlayer(code: string, hostUid: string, seat: number): P
       stateJson: JSON.stringify(saved.state),
       replayJson: JSON.stringify(replay),
       currentUid: saved.currentUid,
+      over: saved.over,
       ...(newStage ? { stageStartedAt: serverTimestamp() } : {}),
       updatedAt: serverTimestamp(),
     });

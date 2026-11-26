@@ -137,8 +137,16 @@ export interface PlayerSetup {
 
 // Deep, slightly muted tones that sit with the cream board and the stock colors
 // without matching any single stock.
-export const PLAYER_COLORS = ["#1f3f6e", "#8e2f23", "#2d5a3d", "#a87412", "#5c3566", "#1e6670", "#9c4a1a", "#3a3a38"];
-export const MAX_PLAYERS = 8;
+// Past 16 players the colours repeat (each token also shows its player's initial).
+// prettier-ignore
+export const PLAYER_COLORS = [
+  "#1f3f6e", "#8e2f23", "#2d5a3d", "#a87412", "#5c3566", "#1e6670", "#9c4a1a", "#3a3a38",
+  "#6d1f3c", "#4f6b1a", "#2b5fa8", "#7a3d8c", "#0d5a4a", "#b0463a", "#5a4a2a", "#4a4a7a",
+];
+/** The colour of seat `i`. */
+export const playerColor = (i: number) => PLAYER_COLORS[i % PLAYER_COLORS.length];
+/** Up to 32 players: big groups play online with simultaneous turns. */
+export const MAX_PLAYERS = 32;
 export const MIN_PLAYERS = 2;
 export const START_FEE = 100;
 export const BROKER_FEE_PER_SHARE = 10;
@@ -168,7 +176,7 @@ export function newGame(
     players: setup.map((p, i) => ({
       id: i,
       name: p.name,
-      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+      color: playerColor(i),
       isBot: p.isBot,
       // Bots go straight to work in the best-paying occupations (Doctor, Deep Sea Diver).
       career: p.isBot && !startWithCash ? botCareer(i, botLevel) : null,

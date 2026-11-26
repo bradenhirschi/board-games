@@ -21,6 +21,40 @@ service cloud.firestore {
         && before.difference(after).hasOnly([request.auth.uid]);
     }
 
+    // A room code can be used again once its game is over (`over`, saved with the winning move), or
+    // once the room has sat untouched for 12 hours (an abandoned game or lobby).
+    function reopenable() {
+      return resource.data.get('over', false) == true
+        || ('updatedAt' in resource.data && request.time > resource.data.updatedAt + duration.value(12, 'h'));
+    }
+
+    // Whoever enters a reopenable room's code turns it into a new lobby that they host, alone.
+    // The version keeps counting up so devices still watching the old game never step back.
+    function reopensAsOwnLobby() {
+      return reopenable()
+        && unchanged(['code', 'createdAt'])
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.status == 'lobby'
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.seats.size() == 1
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.stateJson == null
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    // "Play again": once the game is over, any of its players takes the whole table back to the
+    // lobby (same host, seats and settings).
+    function backToLobby(settings) {
+      return resource.data.status == 'playing'
+        && resource.data.get('over', false) == true
+        && request.auth.uid in resource.data.memberUids
+        && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids'])
+        && unchanged(settings)
+        && request.resource.data.status == 'lobby'
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.stateJson == null;
+    }
+
     // Simultaneous turns: a stage's timer starts at the server's time of the write that starts it.
     function stageTimeHonest() {
       return unchanged(['stageStartedAt']) || request.resource.data.stageStartedAt == request.time;
@@ -87,6 +121,16 @@ service cloud.firestore {
         && resource.data.memberUids.toSet().difference(request.resource.data.memberUids.toSet()).size() == 1
         && request.auth.uid in request.resource.data.memberUids;
 
+      // Play again, or reuse the code for a new lobby (see the functions above).
+      allow update: if signedIn()
+        && request.resource.data.get('startWithCash', false) is bool
+        && request.resource.data.get('balancedCareers', false) is bool
+        && request.resource.data.get('simultaneous', false) is bool
+        && (
+          backToLobby(['target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous'])
+          || reopensAsOwnLobby()
+        );
+
       allow delete: if signedIn() && request.auth.uid == resource.data.hostUid;
     }
 
@@ -150,6 +194,8 @@ service cloud.firestore {
           resource.data.currentUid == request.auth.uid
           || resource.data.currentUid == null
         );
+
+      allow update: if signedIn() && (backToLobby([]) || reopensAsOwnLobby());
 
       allow delete: if signedIn() && request.auth.uid == resource.data.hostUid;
     }

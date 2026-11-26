@@ -9,7 +9,8 @@ npm run dev   # http://localhost:3000
 
 ## The game
 
-Pass-and-play for 2–8 players on one screen, with optional computer players.
+Pass-and-play for 2–32 players on one screen, with optional computer players (big groups are best online
+with simultaneous turns).
 
 - **Going to work.** Pick one of four occupations. Whenever anyone throws your numbers you're paid. You can't
   play the market until you've earned $1,000; then you must.
@@ -44,6 +45,10 @@ Enter a room code with at least three letters or numbers and tap **Join**. The f
 Friends use the same code or the invite link from the lobby. Online play runs on Firebase’s free Spark
 plan with no game server:
 
+- **Reusing a code:** when a game is won, any of its players can tap **Play again** to take everyone back
+  to the lobby (same seats and settings). Entering the code of a finished game, or of a room nobody has
+  touched for 12 hours, opens a new lobby there for whoever entered it; players still in an unfinished
+  room pick their game back up instead. Plunder's rooms work the same way.
 - **Accounts:** everyone gets a guest account automatically (Firebase anonymous sign-in), and can link it to
   Google to keep the same account across devices.
 - **Rooms** are Firestore documents (`stockMarketRooms/{code}`). The player whose turn it is applies their move
