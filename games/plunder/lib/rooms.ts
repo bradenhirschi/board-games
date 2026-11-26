@@ -51,18 +51,17 @@ export interface Room {
 
 export const ROOMS = "plunderRooms";
 
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I
-const CODE_LENGTH = 5;
+const ROOM_CODE_MIN_LENGTH = 3;
+// Firestore document IDs are limited to 1,500 bytes. Room codes are ASCII.
+export const ROOM_CODE_MAX_LENGTH = 1500;
 
 export function normalizeCode(input: string): string {
-  return input
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, CODE_LENGTH);
+  return input.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function randomCode(): string {
-  return Array.from({ length: CODE_LENGTH }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+/** Any code of 3 or more letters and numbers (the same as Stock Market's rooms). */
+export function isRoomCode(code: string): boolean {
+  return code.length >= ROOM_CODE_MIN_LENGTH && code.length <= ROOM_CODE_MAX_LENGTH && code === normalizeCode(code);
 }
 
 const roomRef = (code: string) => doc(firebase().db, ROOMS, code);
@@ -94,13 +93,22 @@ export function freeColor(seats: Seat[]): PlayerColor {
 
 export class RoomError extends Error {}
 
-export async function createRoom(uid: string, name: string): Promise<string> {
-  const { db } = firebase();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = randomCode();
-    const created = await runTransaction(db, async (tx) => {
-      const snap = await tx.get(roomRef(code));
-      if (snap.exists()) return false;
+/** Open a room and take a seat atomically: the first to enter a new code hosts its room. */
+export function enterRoom(code: string, uid: string, name: string): Promise<void> {
+  return takeSeat(code, uid, name, true);
+}
+
+/** Take a seat in an existing lobby (or do nothing if already seated). */
+export function joinRoom(code: string, uid: string, name: string): Promise<void> {
+  return takeSeat(code, uid, name, false);
+}
+
+async function takeSeat(code: string, uid: string, name: string, createIfMissing: boolean): Promise<void> {
+  if (!isRoomCode(code)) throw new RoomError("Enter a room code with at least 3 letters or numbers.");
+  await runTransaction(firebase().db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) {
+      if (!createIfMissing) throw new RoomError(`There's no room ${code}.`);
       tx.set(roomRef(code), {
         code,
         hostUid: uid,
@@ -114,18 +122,8 @@ export async function createRoom(uid: string, name: string): Promise<string> {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      return true;
-    });
-    if (created) return code;
-  }
-  throw new RoomError("Couldn't create a room. Try again.");
-}
-
-/** Take a seat in a room's lobby (or do nothing if already seated). */
-export async function joinRoom(code: string, uid: string, name: string): Promise<void> {
-  await runTransaction(firebase().db, async (tx) => {
-    const snap = await tx.get(roomRef(code));
-    if (!snap.exists()) throw new RoomError(`There's no room ${code}.`);
+      return;
+    }
     const room = parseRoom(snap.data());
     if (room.memberUids.includes(uid)) return;
     if (room.status !== "lobby") throw new RoomError("That game has already started.");

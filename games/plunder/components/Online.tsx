@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
-  PLAYER_COLORS,
+  WIN_POINTS,
   type Action,
   type GameState,
   type Notice,
@@ -12,11 +12,9 @@ import {
 import { noticesFor, replay, resolve, seatToAct } from "@/games/plunder/lib/online";
 import {
   RoomError,
-  createRoom,
   editLobby,
   freeColor,
   joinRoom,
-  normalizeCode,
   startGame,
   submitMove,
   watchRoom,
@@ -24,10 +22,10 @@ import {
   type Room,
 } from "@/games/plunder/lib/rooms";
 import { ensureUser } from "@/shared/firebase";
-import { COLOR_HEX } from "./Pieces";
 import PlunderGame, { turnKey } from "./PlunderGame";
+import type { PresenceStatus } from "@/games/plunder/lib/presence";
+import { PlayerToken } from "./Setup";
 
-const NAME_KEY = "plunder:name";
 /** How long another player's ship takes per square when their move is replayed here. */
 const SAIL_STEP_MS = 190;
 /** Pause between other replayed actions so they don't blur together. */
@@ -35,107 +33,29 @@ const STEP_MS = 350;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function readName(): string {
-  try {
-    return localStorage.getItem(NAME_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function writeName(name: string) {
-  try {
-    localStorage.setItem(NAME_KEY, name);
-  } catch {
-    /* storage unavailable */
-  }
-}
-
 const message = (e: unknown) =>
   e instanceof RoomError || e instanceof Error ? e.message : "Something went wrong. Try again.";
 
 // ---------------------------------------------------------------------------
-// Creating or joining a room
+// A room: lobby, then the game (the lobby is laid out like every game's)
 // ---------------------------------------------------------------------------
 
-export function OnlineStart({ onRoom, lastRoom }: { onRoom: (code: string) => void; lastRoom: string | null }) {
-  const [name, setName] = useState(readName);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function run(task: () => Promise<string>) {
-    setBusy(true);
-    setError(null);
-    try {
-      writeName(name.trim());
-      onRoom(await task());
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const player = name.trim() || "Captain";
-  return (
-    <div className="pl-online">
-      <label className="pl-field">
-        <span>Your name</span>
-        <input
-          className="pl-input"
-          value={name}
-          maxLength={14}
-          placeholder="Captain"
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <button
-        className="pl-btn pl-btn-main pl-btn-wide"
-        disabled={busy}
-        onClick={() => run(async () => createRoom((await ensureUser()).uid, player))}
-      >
-        Create a room
-      </button>
-      <form
-        className="pl-join"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const c = normalizeCode(code);
-          if (c.length === 5)
-            run(async () => {
-              await joinRoom(c, (await ensureUser()).uid, player);
-              return c;
-            });
-        }}
-      >
-        <input
-          className="pl-input pl-code"
-          value={code}
-          placeholder="ROOM CODE"
-          aria-label="Room code"
-          autoCapitalize="characters"
-          onChange={(e) => setCode(normalizeCode(e.target.value))}
-        />
-        <button className="pl-btn" disabled={busy || code.length !== 5}>
-          Join
-        </button>
-      </form>
-      {lastRoom && (
-        <button className="pl-link" onClick={() => onRoom(lastRoom)}>
-          Back to room {lastRoom}
-        </button>
-      )}
-      {error && <p className="pl-error">{error}</p>}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// A room: lobby, then the game
-// ---------------------------------------------------------------------------
-
-export function OnlineRoom({ code, onQuit }: { code: string; onQuit: () => void }) {
+export function OnlineRoom({
+  code,
+  header,
+  name,
+  onQuit,
+  onStatusChange,
+}: {
+  code: string;
+  /** The home screens' header, shown above the lobby. */
+  header: ReactNode;
+  /** Your name, from the home screen (for taking a seat from an invite link). */
+  name: string;
+  onQuit: () => void;
+  /** For "online now": in the lobby or playing. */
+  onStatusChange: (status: PresenceStatus | undefined) => void;
+}) {
   const [uid, setUid] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -156,28 +76,69 @@ export function OnlineRoom({ code, onQuit }: { code: string; onQuit: () => void 
     };
   }, [code]);
 
-  if (error) return <Message text={error} onQuit={onQuit} />;
-  if (!uid || room === undefined) return <Message text="Connecting…" onQuit={onQuit} />;
-  if (room === null) return <Message text={`There's no room ${code}.`} onQuit={onQuit} />;
-  if (room.status === "lobby") return <Lobby room={room} uid={uid} onQuit={onQuit} />;
-  return <OnlineGame room={room} uid={uid} onQuit={onQuit} />;
+  const status = error || !room ? undefined : room.status === "lobby" ? "lobby" : "playing";
+  useEffect(() => {
+    onStatusChange(status);
+  }, [onStatusChange, status]);
+
+  if (error) return <RoomNotice header={header} title="Something went wrong" text={error} onQuit={onQuit} />;
+  if (!uid || room === undefined)
+    return <RoomNotice header={header} title={`Room ${code}`} text="Connecting…" onQuit={onQuit} />;
+  if (room === null)
+    return <RoomNotice header={header} title={`Room ${code}`} text="There's no room with that code." onQuit={onQuit} />;
+  if (room.status === "lobby") return <Lobby header={header} room={room} uid={uid} name={name} onQuit={onQuit} />;
+  return (
+    <>
+      <header className="pl-header">
+        <h1 className="pl-title">Plunder</h1>
+        <button className="pl-link" onClick={onQuit}>
+          Menu
+        </button>
+      </header>
+      <OnlineGame room={room} uid={uid} onQuit={onQuit} />
+    </>
+  );
 }
 
-function Message({ text, onQuit }: { text: string; onQuit: () => void }) {
+function RoomNotice({
+  header,
+  title,
+  text,
+  onQuit,
+}: {
+  header: ReactNode;
+  title: string;
+  text: string;
+  onQuit: () => void;
+}) {
   return (
-    <div className="pl-setup">
-      <p className="pl-setup-lead">{text}</p>
-      <button className="pl-btn pl-btn-wide" onClick={onQuit}>
-        Back
+    <div className="pl-home">
+      {header}
+      <h2 className="pl-home-title pl-home-title-small">{title}</h2>
+      <p className="pl-muted">{text}</p>
+      <button className="pl-btn" onClick={onQuit}>
+        Back to menu
       </button>
     </div>
   );
 }
 
-function Lobby({ room, uid, onQuit }: { room: Room; uid: string; onQuit: () => void }) {
+function Lobby({
+  header,
+  room,
+  uid,
+  name,
+  onQuit,
+}: {
+  header: ReactNode;
+  room: Room;
+  uid: string;
+  name: string;
+  onQuit: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [joinName, setJoinName] = useState(readName);
+  const [joinName, setJoinName] = useState(name);
   const [copied, setCopied] = useState(false);
   const isHost = room.hostUid === uid;
   const seated = room.memberUids.includes(uid);
@@ -213,14 +174,15 @@ function Lobby({ room, uid, onQuit }: { room: Room; uid: string; onQuit: () => v
   };
 
   return (
-    <div className="pl-setup pl-lobby">
+    <div className="pl-home">
+      {header}
       <div className="pl-room-code">
-        <span>Room code</span>
+        <span className="pl-muted pl-small">Room code</span>
         <b>{room.code}</b>
       </div>
-      <div className="pl-actions pl-lobby-share">
+      <div className="pl-btn-row">
         {canShare && (
-          <button className="pl-btn" onClick={share}>
+          <button className="pl-btn pl-btn-main" onClick={share}>
             Share invite
           </button>
         )}
@@ -229,42 +191,36 @@ function Lobby({ room, uid, onQuit }: { room: Room; uid: string; onQuit: () => v
         </button>
       </div>
 
+      <h2 className="pl-home-heading">Players</h2>
       <ul className="pl-lobby-seats">
         {room.seats.map((s, i) => (
           <li key={i}>
-            <span className="pl-dot" style={{ background: COLOR_HEX[s.color] }} />
+            <PlayerToken
+              color={s.color}
+              name={s.name}
+              taken={room.seats.filter((_, j) => j !== i).map((o) => o.color)}
+              onPick={
+                // Your own colour, and the host can recolour bots.
+                !busy && (s.uid === uid || (isHost && s.isBot))
+                  ? (color) =>
+                      run(() => editLobby(room.code, (r) => r.seats.map((o, j) => (j === i ? { ...o, color } : o))))
+                  : undefined
+              }
+            />
             <span className="pl-lobby-name">
               {s.name}
-              {s.isBot && <small className="pl-tag">BOT</small>}
-              {s.uid === room.hostUid && <small className="pl-tag">HOST</small>}
-              {s.uid === uid && <small> (you)</small>}
+              {s.isBot && <span className="pl-tag">BOT</span>}
+              {s.uid === room.hostUid && <span className="pl-tag">HOST</span>}
+              {s.uid === uid && <span className="pl-muted pl-small"> (you)</span>}
             </span>
-            {s.uid === uid && (
-              <span className="pl-swatches pl-lobby-swatches">
-                {PLAYER_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    aria-label={c}
-                    className={`pl-swatch${s.color === c ? " on" : ""}`}
-                    style={{ background: COLOR_HEX[c] }}
-                    disabled={busy || room.seats.some((o, j) => j !== i && o.color === c)}
-                    onClick={() =>
-                      run(() =>
-                        editLobby(room.code, (r) => r.seats.map((o) => (o.uid === uid ? { ...o, color: c } : o))),
-                      )
-                    }
-                  />
-                ))}
-              </span>
-            )}
             {isHost && s.uid !== uid && (
               <button
-                className="pl-close"
-                aria-label={`Remove ${s.name}`}
+                className="pl-link pl-remove"
                 disabled={busy}
+                aria-label={`Remove ${s.name}`}
                 onClick={() => run(() => editLobby(room.code, (r) => r.seats.filter((_, j) => j !== i)))}
               >
-                ×
+                ✕
               </button>
             )}
           </li>
@@ -276,7 +232,6 @@ function Lobby({ room, uid, onQuit }: { room: Room; uid: string; onQuit: () => v
           className="pl-join"
           onSubmit={(e) => {
             e.preventDefault();
-            writeName(joinName.trim());
             run(() => joinRoom(room.code, uid, joinName.trim() || "Captain"));
           }}
         >
@@ -285,64 +240,71 @@ function Lobby({ room, uid, onQuit }: { room: Room; uid: string; onQuit: () => v
             value={joinName}
             maxLength={14}
             placeholder="Your name"
+            aria-label="Your name"
             onChange={(e) => setJoinName(e.target.value)}
           />
           <button className="pl-btn pl-btn-main" disabled={busy || room.seats.length >= MAX_PLAYERS}>
-            {room.seats.length >= MAX_PLAYERS ? "Full" : "Join"}
+            {room.seats.length >= MAX_PLAYERS ? "Room is full" : "Join game"}
           </button>
         </form>
       )}
 
-      {isHost && room.seats.length < MAX_PLAYERS && (
-        <button
-          className="pl-link"
-          disabled={busy}
-          onClick={() =>
-            run(() =>
-              editLobby(room.code, (r) => [
-                ...r.seats,
-                { uid: null, name: `Bot ${bots + 1}`, color: freeColor(r.seats), isBot: true },
-              ]),
-            )
-          }
-        >
-          + Add a bot
-        </button>
+      {isHost ? (
+        <>
+          {room.seats.length < MAX_PLAYERS && (
+            <div className="pl-link-row">
+              <button
+                className="pl-link"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    editLobby(room.code, (r) => {
+                      if (r.seats.length >= MAX_PLAYERS) throw new RoomError("That room is full.");
+                      return [
+                        ...r.seats,
+                        { uid: null, name: `Bot ${bots + 1}`, color: freeColor(r.seats), isBot: true },
+                      ];
+                    }),
+                  )
+                }
+              >
+                + Add bot
+              </button>
+            </div>
+          )}
+          <p className="pl-muted pl-small">Tap your token to change your colour. First to {WIN_POINTS} points wins.</p>
+          <button
+            className="pl-btn pl-btn-main pl-btn-big"
+            disabled={busy || room.seats.length < MIN_PLAYERS}
+            onClick={() => run(() => startGame(room.code))}
+          >
+            {room.seats.length < MIN_PLAYERS ? "Waiting for players…" : "Start game"}
+          </button>
+        </>
+      ) : (
+        seated && <p className="pl-muted">First to {WIN_POINTS} points. Waiting for the host to start…</p>
       )}
 
       {error && <p className="pl-error">{error}</p>}
 
-      <div className="pl-lobby-foot">
-        {isHost ? (
+      <div className="pl-link-row">
+        {seated && !isHost && (
           <button
-            className="pl-btn pl-btn-main pl-btn-wide"
-            disabled={busy || room.seats.length < MIN_PLAYERS}
-            onClick={() => run(() => startGame(room.code))}
+            className="pl-link"
+            disabled={busy}
+            onClick={() =>
+              run(async () => {
+                await editLobby(room.code, (r) => r.seats.filter((s) => s.uid !== uid));
+                onQuit();
+              })
+            }
           >
-            {room.seats.length < MIN_PLAYERS ? "Waiting for players…" : "Set sail"}
+            Leave room
           </button>
-        ) : (
-          seated && <p className="pl-setup-lead">Waiting for the host to start…</p>
         )}
-        <div className="pl-lobby-links">
-          {seated && !isHost && (
-            <button
-              className="pl-link"
-              disabled={busy}
-              onClick={() =>
-                run(async () => {
-                  await editLobby(room.code, (r) => r.seats.filter((s) => s.uid !== uid));
-                  onQuit();
-                })
-              }
-            >
-              Leave room
-            </button>
-          )}
-          <button className="pl-link" onClick={onQuit}>
-            Back
-          </button>
-        </div>
+        <button className="pl-link" onClick={onQuit}>
+          Back to menu
+        </button>
       </div>
     </div>
   );

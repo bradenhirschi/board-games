@@ -29,6 +29,9 @@ rules, how online play works, and the file map; read it first.
   mockups. When they ask for a mockup or rendering first, or the change is a big redesign,
   don't commit until they approve. They often reject a version, so make reverting easy.
 - **Say "device" in Plunder's UI text,** never "phone" or "computer": it's cross-platform.
+- **Every game's home screens share one layout** (Stock Market's is the standard; see "Adding a game" step 5
+  in the README): same header, tabs, room-code flow, setup page and lobby, each in the game's own style and
+  components. Change them together.
 - **Phones first.** Most play is on iPhones (Brave, Safari, and the installed Home Screen app).
   Check phone layouts at 390×664 (browser) and 390×800 (installed app); desktop at 1440×900.
   Nothing on a phone may need page scrolling, and the main turn button must always be visible.

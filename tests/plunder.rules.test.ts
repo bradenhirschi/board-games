@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 import {
   assertFails,
@@ -73,6 +75,15 @@ describe("plunder rooms", () => {
     );
   });
 
+  it("take any code of 3+ letters and numbers, like Stock Market's rooms", async () => {
+    for (const code of ["FAM", "FAMILY2026", "PLNDR"]) {
+      await assertSucceeds(db("host").doc(`plunderRooms/${code}`).set(lobby({ code })));
+    }
+    for (const code of ["AB", "abc", "AB-12"]) {
+      await assertFails(db("host").doc(`plunderRooms/${code}`).set(lobby({ code })));
+    }
+  });
+
   it("let players take or leave their own seat in the lobby, and only the host start", async () => {
     await seed(lobby());
     await assertSucceeds(
@@ -104,5 +115,23 @@ describe("plunder rooms", () => {
     await assertFails(room("amy").update({ version: 7 }));
     await assertFails(room("amy").update({ version: 6, seats: [] }));
     await assertFails(room("amy").update({ version: 6, memberUids: ["amy"] }));
+  });
+});
+
+describe("plunder presence", () => {
+  it("lets signed-in players see presence and update only their own entry", async () => {
+    const data = { name: "Amy", status: "home", seenAt: firebase.firestore.FieldValue.serverTimestamp() };
+    await assertSucceeds(db("amy").doc("plunderPresence/amy").set(data));
+    await assertSucceeds(db("host").collection("plunderPresence").get());
+    await assertFails(db("host").doc("plunderPresence/amy").set(data));
+    await assertFails(env.unauthenticatedContext().firestore().collection("plunderPresence").get());
+  });
+
+  it("rejects client timestamps, unknown statuses and extra fields", async () => {
+    const entry = db("amy").doc("plunderPresence/amy");
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: new Date() }));
+    await assertFails(entry.set({ name: "Amy", status: "sailing", seenAt: now }));
+    await assertFails(entry.set({ name: "Amy", status: "home", seenAt: now, email: "amy@example.com" }));
   });
 });
