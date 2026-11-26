@@ -71,6 +71,7 @@ type Props = {
   onAct: (a: Action) => void;
   /** Dismiss the first notice (notices are local: each device clears its own). */
   onDismiss: () => void;
+  /** The "New game" button once the game is won (online, for its players: "Play again", back to the lobby). */
   onNewGame: () => void;
   /** Pass-and-play: the person holding the device (after tapping through the hand-over cover). */
   holder?: number | null;
@@ -675,7 +676,7 @@ export default function PlunderGame({
         {phase.t === "gameOver" && (
           <div className="pl-actions">
             <button className="pl-btn pl-btn-main pl-btn-wide" onClick={onNewGame}>
-              New game
+              {online && seat !== null ? "Play again" : "New game"}
             </button>
           </div>
         )}

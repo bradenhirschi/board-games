@@ -15,6 +15,7 @@ import {
   editLobby,
   freeColor,
   joinRoom,
+  playAgain,
   startGame,
   submitMove,
   watchRoom,
@@ -468,7 +469,11 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         note={`Room ${room.code}`}
         onAct={(a) => void send(a)}
         onDismiss={() => setNotices((n) => n.slice(1))}
-        onNewGame={onQuit}
+        onNewGame={
+          seat === null
+            ? onQuit
+            : () => void playAgain(room.code, uid).catch((e) => alive.current && setError(message(e)))
+        }
         onMenu={onQuit}
       />
       {error && (

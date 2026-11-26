@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mustGoToMarket, type Action, type GameState, type Player } from "@/games/stock-market/lib/engine";
-import { kickPlayer, serverNow, submitMove, fetchRoom, type Room } from "@/games/stock-market/lib/rooms";
+import { kickPlayer, playAgain, serverNow, submitMove, fetchRoom, type Room } from "@/games/stock-market/lib/rooms";
 import {
   SUMMARY_STEP_MS,
   simulMove,
@@ -200,6 +200,15 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
     [room.code, uid, adopt],
   );
   const removed = useRemoved(room, uid);
+  /** Back to the lobby with everyone (the room shows it as soon as it's saved). */
+  const again = async () => {
+    setError(null);
+    try {
+      await playAgain(room.code, uid);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't go back to the lobby.");
+    }
+  };
   if (removed)
     return <Notice title={`Room ${room.code}`} text="The host removed you from this game." onQuit={onQuit} />;
 
@@ -237,6 +246,7 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
+        onPlayAgain={seated ? () => void again() : undefined}
         kickable={
           isHost && !over
             ? display.players.filter((p) => room.seats[p.id]?.uid && room.seats[p.id].uid !== uid)

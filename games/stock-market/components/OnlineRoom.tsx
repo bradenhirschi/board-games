@@ -19,6 +19,7 @@ import {
   isNewer,
   joinRoom,
   kickPlayer,
+  playAgain,
   startGame,
   submitMove,
   watchRoom,
@@ -506,6 +507,15 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
     [room.code, uid, adopt],
   );
   const removed = useRemoved(room, uid);
+  /** Back to the lobby with everyone (the room shows it as soon as it's saved). */
+  const again = async () => {
+    setError(null);
+    try {
+      await playAgain(room.code, uid);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't go back to the lobby.");
+    }
+  };
 
   const roll = useCallback(() => {
     if (rolling || pending) return;
@@ -554,6 +564,7 @@ function OnlineGame({ room, uid, onQuit }: { room: Room; uid: string; onQuit: ()
         dispatch={dispatch}
         roll={roll}
         onQuit={onQuit}
+        onPlayAgain={mySeat >= 0 ? () => void again() : undefined}
         kickable={
           isHost && display.phase.t !== "gameOver"
             ? display.players.filter((p) => room.seats[p.id]?.uid && room.seats[p.id].uid !== uid)
