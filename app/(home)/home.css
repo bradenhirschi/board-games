@@ -1,0 +1,115 @@
+/* The game picker only. Each game has its own stylesheet; nothing here reaches them. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #f4efe4;
+  color: #1d2a24;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.picker {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: max(2.5rem, env(safe-area-inset-top)) 1rem 2rem;
+}
+
+.picker h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.picker-sub {
+  margin: 0.25rem 0 1.5rem;
+  color: #6b6455;
+}
+
+.picker ul {
+  display: grid;
+  gap: 0.875rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1rem 0.875rem 0.875rem;
+  border-radius: 1.25rem;
+  color: inherit;
+  text-decoration: none;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 6px 18px rgb(0 0 0 / 0.08);
+  transition: transform 0.12s ease;
+}
+
+.pick:active {
+  transform: scale(0.98);
+}
+
+.pick img {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+
+.pick span {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.pick strong {
+  font-size: 1.25rem;
+}
+
+.pick small {
+  font-size: 0.9rem;
+  line-height: 1.3;
+  opacity: 0.8;
+}
+
+.pick b {
+  font-size: 2rem;
+  font-weight: 300;
+  opacity: 0.6;
+}
+
+.pick-stock {
+  background: #173f35;
+  color: #f5ecd9;
+}
+
+.pick-plunder {
+  background: #14202b;
+  color: #efe2c2;
+}
+
+.pick-plunder strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  letter-spacing: 0.04em;
+}
+
+.picker-tip {
+  margin: 1.5rem 0 0;
+  font-size: 0.85rem;
+  color: #6b6455;
+}

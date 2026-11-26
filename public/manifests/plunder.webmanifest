@@ -1,0 +1,17 @@
+{
+  "name": "Plunder",
+  "short_name": "Plunder",
+  "description": "A pirate board game.",
+  "id": "/plunder",
+  "start_url": "/plunder",
+  "scope": "/plunder",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14202b",
+  "theme_color": "#14202b",
+  "icons": [
+    { "src": "/icons/plunder/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/plunder/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/plunder/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

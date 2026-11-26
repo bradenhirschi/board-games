@@ -3,7 +3,7 @@
 # Stock Market: notes for Claude
 
 A collection of the owner's board games, built with Next.js. The first is a web version of their
-1960s-style stock-market board game ("STOCK MARKET"), served at `/` for now. Pass-and-play with bots, plus online play through Firebase. The README covers the game
+1960s-style stock-market board game ("STOCK MARKET"), served at `/stock-market`. `/` is a game picker (`app/(home)/`). Pass-and-play with bots, plus online play through Firebase. The README covers the game
 rules, how online play works, and the file map; read it first.
 
 ## Workflow (the owner relies on this)
@@ -50,7 +50,7 @@ rules, how online play works, and the file map; read it first.
   `app/(<game>)/` with its **own root layout** (own `<html>`, metadata, icons, and CSS import), so
   styles never leak between games. The only shared code is `shared/firebase.ts` (Firebase setup
   and sign-in), so one login carries across games. See "Adding a game" in the README.
-- **Games:** Stock Market (`/`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
+- **Games:** Stock Market (`/stock-market`) and **Plunder** (`/plunder`), a pirate game the owner is designing,
   inspired by Poptropica's Skullduggery Island. Keep its names, art and rules the owner's own (no
   Poptropica names, characters or art). The board is six 6×6 tiles traced from the owner's sample
   board (`games/plunder/lib/tiles.ts`). Islands are made of full-land squares (block ships),
@@ -100,10 +100,11 @@ rules, how online play works, and the file map; read it first.
   richest wins if several reach the target. The room's `stageStartedAt` (server time) drives timers.
 - `lib/sound.ts`: Web Audio synthesized sounds (dice, turn bell, ca-ching, "womp womp").
 - `components/Game.tsx`: the game screen (`GameView`), local game, turn controls.
-- `styles.css`: all Stock Market styles (imported by `app/(stock-market)/layout.tsx`). It has many layered phone/desktop overrides appended over time,
+- `styles.css`: all Stock Market styles (imported by `app/(stock-market)/stock-market/layout.tsx`). It has many layered phone/desktop overrides appended over time,
   so later rules often win on specificity. Check computed styles when something doesn't apply.
-- PWA: `app/manifest.ts` (site-wide), `app/(stock-market)/apple-icon.png`, `app/(stock-market)/icon.png`,
-  `public/icons/`.
+- PWA: each game is its own Home Screen app: `public/manifests/stock-market.webmanifest` (scope
+  `/stock-market`), `app/(stock-market)/stock-market/apple-icon.png` and `icon.png`, `public/icons/stock-market/`.
+  Plunder and the picker have the same set; their icons come from `scripts/render-icons.mjs`.
 
 ## Rules decisions already settled (don't change without asking)
 

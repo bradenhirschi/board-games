@@ -5,6 +5,8 @@ import "@/games/plunder/styles.css";
 export const metadata: Metadata = {
   title: "Plunder",
   description: "A pirate board game.",
+  // Its own Home Screen app: name, icon and start page are Plunder's, not the site's.
+  manifest: "/manifests/plunder.webmanifest",
   appleWebApp: { capable: true, title: "Plunder", statusBarStyle: "black-translucent" },
 };
 
