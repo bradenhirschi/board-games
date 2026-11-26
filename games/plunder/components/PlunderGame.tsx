@@ -185,8 +185,9 @@ export default function PlunderGame({
   const covered = !online && !actorBot && phase.t !== "gameOver" && humans > 1 && holder !== actor;
   const notice: Notice | undefined = covered ? undefined : s.notices[0];
   // News that shows for a moment and moves on: anything from a bot's turn, and finished deals.
-  // News about someone not played from this device also passes by on its own.
-  const botNotice = !!notice && !canControl(notice.player) && notice.t !== "drew";
+  // News about someone not played from this device also passes by on its own (a bot's card draw
+  // at the start of its turn isn't shown at all).
+  const botNotice = !!notice && !canControl(notice.player);
   const passing = !!notice && (botNotice || notice.t === "deal" || notice.t === "noDeal");
   const negotiating = !!s.trade || s.pendingAttack?.stage === "bribe";
   // A Treasure card waiting on a choice (this device's, or someone else's to watch).
