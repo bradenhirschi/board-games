@@ -26,7 +26,6 @@ import { Notice, useRemoved } from "./RoomNotice";
  */
 
 const d6 = () => 1 + Math.floor(Math.random() * 6);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** After a stage's time is up, wait this long (plus a little per seat) before playing for anyone still out. */
 const TIMEOUT_GRACE_MS = 1500;
@@ -84,23 +83,15 @@ export default function SimulGame({ room, uid, onQuit }: { room: Room; uid: stri
       setPending(true);
       setError(null);
       try {
-        for (let attempt = 0; ; attempt++) {
-          try {
-            const saved = await submitMove(latest.current.code, null, uid, (s) => {
-              const next = decide(s);
-              return next ? { state: next, actions: [] } : null;
-            });
-            if (saved && alive.current) adopt(saved);
-            else if (!saved && alive.current) {
-              const fresh = await fetchRoom(latest.current.code).catch(() => null);
-              if (fresh && alive.current && fresh.status === "playing") adopt(fresh);
-            }
-            return;
-          } catch (e) {
-            // Everyone saves to the same room at once, so a save can lose a race: try again.
-            if (attempt >= 3) throw e;
-            await sleep(200 + Math.random() * 600);
-          }
+        // Everyone saves to the same room at once; `submitMove` retries a save that loses a race.
+        const saved = await submitMove(latest.current.code, null, uid, (s) => {
+          const next = decide(s);
+          return next ? { state: next, actions: [] } : null;
+        });
+        if (saved && alive.current) adopt(saved);
+        else if (!saved && alive.current) {
+          const fresh = await fetchRoom(latest.current.code).catch(() => null);
+          if (fresh && alive.current && fresh.status === "playing") adopt(fresh);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't save your move.");
