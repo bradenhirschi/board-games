@@ -3477,3 +3477,13 @@ button.link {
     box-shadow: 0 -6px 24px rgb(0 0 0 / 0.18);
   }
 }
+
+/* The turn card's smaller buttons (Roll for salary, …) draw their 3D edge inside the button. As a
+   shadow below it, Safari sometimes left the edge on screen after the button was replaced (a stray
+   strip under the waiting "Roll dice" button). */
+.action-col .btn-primary:not(.btn-big) {
+  box-shadow: inset 0 -3px 0 var(--accent-shadow);
+}
+.action-col .btn-primary:not(.btn-big):active:not(:disabled) {
+  box-shadow: inset 0 -1px 0 var(--accent-shadow);
+}
