@@ -478,7 +478,11 @@ export function GameView({
               <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
             ) : (
               <div className="controls">
-                <p className="hint muted">{waitingNote ?? "Waiting for your turn…"}</p>
+                <div className="waiting-row">
+                  <p className="hint muted">{waitingNote ?? "Waiting for your turn…"}</p>
+                  {/* Switch auto-roll ahead of your turn: once it's on, your turn rolls before you could tap it. */}
+                  {!waitingNote && viewer.status === "work" && !mustGoToMarket(viewer) && <AutoRollSwitch />}
+                </div>
                 <button className="btn btn-primary btn-big" disabled>
                   Roll dice
                 </button>
