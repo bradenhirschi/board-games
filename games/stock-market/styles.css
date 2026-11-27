@@ -3146,18 +3146,8 @@ button.link {
   flex: 1;
 }
 
-/* "Auto-roll at work" switch beside "Roll for salary", and beside "Waiting for your turn…". */
-.controls .waiting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.controls .waiting-row .hint {
-  margin: 0;
-}
-.controls .btn-row .auto-roll,
-.controls .waiting-row .auto-roll {
+/* "Auto-roll at work" switch beside "Roll for salary" (also while waiting for your turn). */
+.controls .btn-row .auto-roll {
   display: inline-flex;
   flex: none;
   width: auto;

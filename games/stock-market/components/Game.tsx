@@ -437,9 +437,7 @@ export function GameView({
                 ? "Choose an occupation"
                 : isTurn
                   ? "Your turn"
-                  : current.isBot
-                    ? `${current.name} is playing`
-                    : `${current.name}'s turn`}
+                  : `${current.name}'s turn`}
               {statusNote && <span className="status-note">{statusNote}</span>}
               {simul?.headingEnd && ph.t !== "chooseCareers" && <span className="turn-heading-end">{simul.headingEnd}</span>}
               {simul?.secondsLeft != null && ph.t !== "chooseCareers" && (
@@ -477,16 +475,7 @@ export function GameView({
             ) : viewer.isBot ? (
               <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
             ) : (
-              <div className="controls">
-                <div className="waiting-row">
-                  <p className="hint muted">{waitingNote ?? "Waiting for your turn…"}</p>
-                  {/* Switch auto-roll ahead of your turn: once it's on, your turn rolls before you could tap it. */}
-                  {!waitingNote && viewer.status === "work" && !mustGoToMarket(viewer) && <AutoRollSwitch />}
-                </div>
-                <button className="btn btn-primary btn-big" disabled>
-                  Roll dice
-                </button>
-              </div>
+              <WaitingControls viewer={viewer} note={waitingNote} />
             )}
           </section>
         )}
@@ -771,6 +760,56 @@ function nextHuman(state: GameState): Player | null {
 }
 
 /** What a computer player is doing this turn (only shown in an all-bot game), without showing it the human controls. */
+/**
+ * While someone else plays: the viewer's own turn button, greyed out, where it will be on their
+ * turn (at work, "Roll for salary" with the Auto-roll switch, which can be changed ahead of the
+ * turn: once auto-roll is on, the turn rolls before there's time to tap it).
+ */
+function WaitingControls({ viewer, note }: { viewer: Player; note?: string }) {
+  const atWork = !note && viewer.status === "work";
+  return (
+    <div className="controls">
+      <p className="hint muted">{note ?? "Waiting for your turn…"}</p>
+      {atWork ? (
+        <div className="btn-row">
+          {mustGoToMarket(viewer) ? (
+            <button className="btn btn-primary" disabled>
+              Play the market →
+            </button>
+          ) : (
+            <>
+              <button className="btn btn-primary" disabled>
+                Roll for salary
+              </button>
+              <AutoRollSwitch />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="turn-actions">
+          {/* The Sell toggle your turn shows beside Roll dice (selling waits for your turn). */}
+          {!note && STOCK_ORDER.some((id) => viewer.shares[id] > 0) && (
+            <div className="fold">
+              <button className="btn fold-toggle" disabled>
+                Sell ▾
+              </button>
+            </div>
+          )}
+          <button className="btn btn-primary btn-big" disabled>
+            Roll dice
+          </button>
+        </div>
+      )}
+      {!atWork && (
+        // Holds the place of your turn's "Space / Enter also rolls" line, so nothing moves.
+        <div className="muted small" style={{ visibility: "hidden" }} aria-hidden>
+          Space / Enter also rolls
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BotTurn({ state, busy }: { state: GameState; busy: boolean }) {
   const p = state.players[state.current];
   const start = state.turnLogStart ?? 0;
@@ -917,7 +956,10 @@ function TurnControls({
             Roll dice
           </button>
         </div>
-        {!disabled && <div className="muted small">Space / Enter also rolls</div>}
+        {/* Hidden rather than removed while it can't roll, so nothing below moves. */}
+        <div className="muted small" style={disabled ? { visibility: "hidden" } : undefined}>
+          Space / Enter also rolls
+        </div>
       </div>
     );
   }
