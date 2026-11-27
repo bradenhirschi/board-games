@@ -55,6 +55,15 @@ service cloud.firestore {
         && request.resource.data.stateJson == null;
     }
 
+    // A game move saves the next version, and never skips ahead. It may *look* behind: when several
+    // devices save at once (simultaneous rounds), a write that lost the race is checked here against
+    // the winner's newer room. Letting it through lets Firestore's own transaction check turn it away
+    // as a conflict, which the app retries with the new room, instead of a permission error.
+    function nextVersion() {
+      return request.resource.data.version is int
+        && request.resource.data.version <= resource.data.version + 1;
+    }
+
     // Simultaneous turns: a stage's timer starts at the server's time of the write that starts it.
     function stageTimeHonest() {
       return unchanged(['stageStartedAt']) || request.resource.data.stageStartedAt == request.time;
@@ -102,7 +111,7 @@ service cloud.firestore {
         && request.auth.uid in resource.data.memberUids
         && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous'])
         && stageTimeHonest()
-        && request.resource.data.version == resource.data.version + 1
+        && nextVersion()
         && (
           resource.data.currentUid == request.auth.uid
           || resource.data.currentUid == null
@@ -115,7 +124,7 @@ service cloud.firestore {
         && request.auth.uid == resource.data.hostUid
         && unchanged(['code', 'hostUid', 'createdAt', 'status', 'target', 'botLevel', 'startWithCash', 'balancedCareers', 'simultaneous'])
         && stageTimeHonest()
-        && request.resource.data.version == resource.data.version + 1
+        && nextVersion()
         && request.resource.data.seats.size() == resource.data.seats.size()
         && request.resource.data.memberUids.toSet().difference(resource.data.memberUids.toSet()).size() == 0
         && resource.data.memberUids.toSet().difference(request.resource.data.memberUids.toSet()).size() == 1
@@ -189,7 +198,7 @@ service cloud.firestore {
         && resource.data.status == 'playing'
         && request.auth.uid in resource.data.memberUids
         && unchanged(['code', 'hostUid', 'createdAt', 'seats', 'memberUids', 'status'])
-        && request.resource.data.version == resource.data.version + 1
+        && nextVersion()
         && (
           resource.data.currentUid == request.auth.uid
           || resource.data.currentUid == null

@@ -1,6 +1,14 @@
 "use client";
 
-import { Timestamp, doc, onSnapshot, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
+import {
+  Timestamp,
+  doc,
+  onSnapshot,
+  runTransaction,
+  serverTimestamp,
+  type DocumentData,
+  type Transaction,
+} from "firebase/firestore";
 import {
   DEFAULT_TARGET,
   MAX_PLAYERS,
@@ -72,6 +80,31 @@ export function isRoomCode(code: string): boolean {
 export const ROOMS = "stockMarketRooms";
 
 const roomRef = (code: string) => doc(firebase().db, ROOMS, code);
+
+/** How many times a room save is tried before giving up. */
+const SAVE_ATTEMPTS = 8;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Run a transaction that saves the room, trying again if it loses a race. When several devices
+ * save the room at once (everyone in a simultaneous round, a crowd joining a lobby, two devices
+ * playing the same bot turn), Firestore can judge the losing write against the winner's newer
+ * room. The security rules then refuse it ("Missing or insufficient permissions") where it would
+ * otherwise just be retried, so retry those here too, after a short random wait, reading the room
+ * afresh each time. A write the rules really forbid still fails after the last try.
+ */
+async function saveRoom<T>(update: (tx: Transaction) => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runTransaction(firebase().db, update);
+    } catch (e) {
+      const code = (e as { code?: unknown }).code;
+      const lostRace = code === "permission-denied" || code === "failed-precondition" || code === "aborted";
+      if (!lostRace || attempt >= SAVE_ATTEMPTS) throw e;
+      await sleep(attempt * (100 + Math.random() * 400));
+    }
+  }
+}
 
 function parseRoom(data: DocumentData): Room {
   return {
@@ -156,7 +189,7 @@ async function takeSeat(code: string, uid: string, name: string, createIfMissing
     throw new RoomError("Enter a room code with at least 3 letters or numbers.");
   }
   const ref = roomRef(code);
-  await runTransaction(firebase().db, async (tx) => {
+  await saveRoom(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) {
       if (!createIfMissing) throw new RoomError(`There's no room ${code}.`);
@@ -210,7 +243,7 @@ export async function editLobby(
   code: string,
   edit: (room: Room) => Partial<GameSettings & Pick<Room, "seats">>,
 ): Promise<void> {
-  await runTransaction(firebase().db, async (tx) => {
+  await saveRoom(async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) throw new RoomError("That room no longer exists.");
     const room = parseRoom(snap.data());
@@ -233,7 +266,7 @@ export async function editLobby(
 
 /** "Play again": once the game is won, take everyone back to the lobby with the same seats and settings. */
 export async function playAgain(code: string, uid: string): Promise<void> {
-  await runTransaction(firebase().db, async (tx) => {
+  await saveRoom(async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) throw new RoomError("That room no longer exists.");
     const room = parseRoom(snap.data());
@@ -253,7 +286,7 @@ export async function playAgain(code: string, uid: string): Promise<void> {
 }
 
 export async function startGame(code: string): Promise<void> {
-  await runTransaction(firebase().db, async (tx) => {
+  await saveRoom(async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) throw new RoomError("That room no longer exists.");
     const room = parseRoom(snap.data());
@@ -297,7 +330,7 @@ export async function submitMove(
   by: string,
   decide: (state: GameState) => Resolved | null,
 ): Promise<Room | null> {
-  return runTransaction(firebase().db, async (tx) => {
+  return saveRoom(async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) return null;
     const room = parseRoom(snap.data());
@@ -334,7 +367,7 @@ export async function submitMove(
  * phone replays it) and their account leaves the room.
  */
 export async function kickPlayer(code: string, hostUid: string, seat: number): Promise<Room | null> {
-  return runTransaction(firebase().db, async (tx) => {
+  return saveRoom(async (tx) => {
     const snap = await tx.get(roomRef(code));
     if (!snap.exists()) return null;
     const room = parseRoom(snap.data());

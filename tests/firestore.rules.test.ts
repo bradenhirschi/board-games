@@ -165,9 +165,9 @@ describe("during a game", () => {
     await seed(playing({ currentUid: "host" }));
     await assertFails(room("amy").update({ version: 6 }));
   });
-  it("blocks skipped or repeated versions", async () => {
+  it("blocks skipped versions", async () => {
     await assertFails(room("amy").update({ version: 7 }));
-    await assertFails(room("amy").update({ version: 5 }));
+    await assertFails(room("amy").update({ version: "6" }));
   });
   it("lets any seated player run a bot's turn", async () => {
     await seed(playing({ currentUid: null }));
@@ -208,6 +208,33 @@ describe("simultaneous rounds", () => {
   it("start a stage's timer only at the server's time", async () => {
     await assertSucceeds(room("amy").update({ version: 6, stageStartedAt: now() }));
     await assertFails(room("amy").update({ version: 7, stageStartedAt: new Date(Date.now() - 60_000) }));
+  });
+});
+
+describe("eleven players saving a simultaneous round at once", () => {
+  // Saves that lose the race must come back as conflicts (which the app retries with the newer
+  // room), never as "Missing or insufficient permissions".
+  it("never refuses a save just because another landed first", async () => {
+    const uids = Array.from({ length: 11 }, (_, i) => `p${i}`);
+    await seed(
+      playing({
+        seats: uids.map((uid) => ({ uid, name: uid, isBot: false })),
+        memberUids: uids,
+        currentUid: null,
+      }),
+    );
+    const results = await Promise.allSettled(
+      uids.map((uid) => {
+        const store = db(uid);
+        const ref = store.doc("stockMarketRooms/ABCDE");
+        return store.runTransaction(async (tx) => {
+          const version = (await tx.get(ref)).data()!.version as number;
+          tx.update(ref, { version: version + 1, stateJson: `{"by":"${uid}"}` });
+        });
+      }),
+    );
+    const refused = results.filter((r) => r.status === "rejected" && r.reason?.code === "permission-denied");
+    if (refused.length > 0) throw new Error(`${refused.length} of ${uids.length} saves were refused`);
   });
 });
 
