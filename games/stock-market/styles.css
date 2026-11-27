@@ -3487,3 +3487,19 @@ button.link {
 .action-col .btn-primary:not(.btn-big):active:not(:disabled) {
   box-shadow: inset 0 -1px 0 var(--accent-shadow);
 }
+
+/* Phones: tapping another player's chip opens the standings, richest first. */
+.standings-sheet h2 {
+  margin: 0 0 6px;
+}
+.players-rank {
+  flex: none;
+  width: 1.6em;
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.players-picked {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}

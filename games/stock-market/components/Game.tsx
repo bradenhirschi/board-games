@@ -528,9 +528,21 @@ export function GameView({
             ) : sheet === viewer.id ? (
               <MeCard p={viewer} market={state.market} active={meActive} />
             ) : (
-              <section className="card others">
+              // Another player's chip: everyone's standing, richest first, with the tapped player shown.
+              <section className="card others standings-sheet">
+                <h2>Standings</h2>
                 <ul className="players">
-                  <PlayerRow p={state.players[sheet]} market={state.market} active={sheet === current.id && !winner} />
+                  {ranked.map((p, i) => (
+                    <PlayerRow
+                      key={p.id}
+                      p={p}
+                      market={state.market}
+                      active={p.id === current.id && !winner}
+                      rank={i + 1}
+                      you={p.id === viewer.id}
+                      picked={p.id === sheet}
+                    />
+                  ))}
                 </ul>
               </section>
             )}
@@ -1428,17 +1440,38 @@ function MeCard({ p, market, active }: { p: Player; market: number; active: bool
   );
 }
 
-function PlayerRow({ p, market, active }: { p: Player; market: number; active: boolean }) {
+function PlayerRow({
+  p,
+  market,
+  active,
+  rank,
+  you,
+  picked,
+}: {
+  p: Player;
+  market: number;
+  active: boolean;
+  /** Place in the standings (shown before the token). */
+  rank?: number;
+  you?: boolean;
+  /** The player whose chip was tapped: outlined and scrolled to the middle of the list. */
+  picked?: boolean;
+}) {
   const held = STOCK_ORDER.filter((id) => p.shares[id] > 0);
   return (
-    <li className={active ? "players-current" : ""}>
+    <li
+      className={[active && "players-current", picked && "players-picked"].filter(Boolean).join(" ")}
+      ref={picked ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}
+    >
       <div className="players-top">
+        {rank !== undefined && <span className="players-rank">{rank}</span>}
         <span className="token token-static" style={{ background: p.color }}>
           {p.name.slice(0, 1).toUpperCase()}
         </span>
         <span className="players-name">
           <span>
             {p.name} {p.isBot && <span className="tag">BOT</span>}
+            {you && <span className="muted small"> (you)</span>}
           </span>
           <span className="muted small players-where">
             {p.status === "work"
