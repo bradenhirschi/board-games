@@ -2943,9 +2943,12 @@ button.link {
   }
 }
 @media (max-width: 900px) and (min-height: 740px) {
-  /* Keep the turn card well clear of the rounded screen corners and the home-bar swipe. */
+  /* Keep the turn card well clear of the rounded screen corners and the home-bar swipe. 20px of
+     the bottom space moved to the top: iOS fades the page's top edge under the status bar, which
+     washed out the top of the top bar's buttons. The board keeps its size. */
   .game {
-    padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 32px));
+    padding-top: 30px;
+    padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 12px));
   }
 }
 @media (max-width: 900px) and (min-height: 740px) {
@@ -3146,7 +3149,7 @@ button.link {
   flex: 1;
 }
 
-/* "Auto-roll at work" switch beside "Roll for salary". */
+/* "Auto-roll at work" switch beside "Roll for salary" (also while waiting for your turn). */
 .controls .btn-row .auto-roll {
   display: inline-flex;
   flex: none;
@@ -3476,4 +3479,30 @@ button.link {
     max-height: none;
     box-shadow: 0 -6px 24px rgb(0 0 0 / 0.18);
   }
+}
+
+/* The turn card's smaller buttons (Roll for salary, …) draw their 3D edge inside the button. As a
+   shadow below it, Safari sometimes left the edge on screen after the button was replaced (a stray
+   strip under the waiting "Roll dice" button). */
+.action-col .btn-primary:not(.btn-big) {
+  box-shadow: inset 0 -3px 0 var(--accent-shadow);
+}
+.action-col .btn-primary:not(.btn-big):active:not(:disabled) {
+  box-shadow: inset 0 -1px 0 var(--accent-shadow);
+}
+
+/* Phones: tapping another player's chip opens the standings, richest first. */
+.standings-sheet h2 {
+  margin: 0 0 6px;
+}
+.players-rank {
+  flex: none;
+  width: 1.6em;
+  text-align: right;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.players-picked {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
 }

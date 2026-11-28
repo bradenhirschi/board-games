@@ -434,14 +434,14 @@ export function GameView({
               {simul && ph.t !== "chooseCareers"
                 ? simul.heading
                 : ph.t === "chooseCareers"
-                ? "Choose an occupation"
-                : isTurn
-                  ? "Your turn"
-                  : current.isBot
-                    ? `${current.name} is playing`
+                  ? "Choose an occupation"
+                  : isTurn
+                    ? "Your turn"
                     : `${current.name}'s turn`}
               {statusNote && <span className="status-note">{statusNote}</span>}
-              {simul?.headingEnd && ph.t !== "chooseCareers" && <span className="turn-heading-end">{simul.headingEnd}</span>}
+              {simul?.headingEnd && ph.t !== "chooseCareers" && (
+                <span className="turn-heading-end">{simul.headingEnd}</span>
+              )}
               {simul?.secondsLeft != null && ph.t !== "chooseCareers" && (
                 <span className={`turn-timer ${simul.secondsLeft <= 10 ? "turn-timer-low" : ""}`}>
                   {Math.floor(simul.secondsLeft / 60)}:{String(simul.secondsLeft % 60).padStart(2, "0")}
@@ -454,9 +454,7 @@ export function GameView({
               <div className="controls">
                 <p className="hint">
                   Waiting for other players…
-                  {simul.waitingFor.length > 0 && (
-                    <span className="muted"> ({simul.waitingFor.join(", ")})</span>
-                  )}
+                  {simul.waitingFor.length > 0 && <span className="muted"> ({simul.waitingFor.join(", ")})</span>}
                 </p>
                 <button className="btn btn-primary btn-big" disabled>
                   {simul.waitingButton}
@@ -477,12 +475,16 @@ export function GameView({
             ) : viewer.isBot ? (
               <BotTurn state={state} busy={!!rolling || ph.t === "moving"} />
             ) : (
-              <div className="controls">
-                <p className="hint muted">{waitingNote ?? "Waiting for your turn…"}</p>
-                <button className="btn btn-primary btn-big" disabled>
-                  Roll dice
-                </button>
-              </div>
+              <PreRollControls
+                state={state}
+                player={viewer}
+                waiting={waitingNote ?? "Waiting for your turn…"}
+                disabled
+                dispatch={dispatch}
+                roll={roll}
+                pickingStart={false}
+                setPickingStart={setPickingStart}
+              />
             )}
           </section>
         )}
@@ -526,9 +528,21 @@ export function GameView({
             ) : sheet === viewer.id ? (
               <MeCard p={viewer} market={state.market} active={meActive} />
             ) : (
-              <section className="card others">
+              // Another player's chip: everyone's standing, richest first, with the tapped player shown.
+              <section className="card others standings-sheet">
+                <h2>Standings</h2>
                 <ul className="players">
-                  <PlayerRow p={state.players[sheet]} market={state.market} active={sheet === current.id && !winner} />
+                  {ranked.map((p, i) => (
+                    <PlayerRow
+                      key={p.id}
+                      p={p}
+                      market={state.market}
+                      active={p.id === current.id && !winner}
+                      rank={i + 1}
+                      you={p.id === viewer.id}
+                      picked={p.id === sheet}
+                    />
+                  ))}
                 </ul>
               </section>
             )}
@@ -796,6 +810,142 @@ const SIDE_NAME = {
   right: "Right",
 } as const;
 
+interface PreRollProps {
+  state: GameState;
+  /** Whose controls: the current player on their turn, or the viewer while they wait. */
+  player: Player;
+  /** While someone else plays: shown in place of the choices, with the buttons greyed out. */
+  waiting?: string;
+  disabled: boolean;
+  dispatch: (a: Parameters<typeof reducer>[1]) => void;
+  roll: () => void;
+  pickingStart: boolean;
+  setPickingStart: (v: boolean) => void;
+}
+
+/**
+ * The turn card before the throw. The same card shows on the player's turn and, greyed out, while
+ * they wait (`waiting`), so the buttons never move or change between turns. Waiting players can
+ * still use the Auto-roll switch: once it's on, their turn rolls before there's time to tap it.
+ */
+function PreRollControls({
+  state,
+  player,
+  waiting,
+  disabled,
+  dispatch,
+  roll,
+  pickingStart,
+  setPickingStart,
+}: PreRollProps) {
+  const off = disabled || waiting !== undefined;
+  const note = waiting !== undefined && <p className="hint muted">{waiting}</p>;
+
+  if (player.status === "work") {
+    const must = mustGoToMarket(player);
+    return (
+      <div className="controls">
+        {note ||
+          (must ? (
+            <p className="hint">
+              You have <b>${fmt(player.cash)}</b>. Time to play the market!
+            </p>
+          ) : (
+            <div className="career-picks">
+              <CareerPicks
+                balanced={state.balancedCareers}
+                selected={player.career}
+                disabled={off}
+                onPick={(career) => dispatch({ type: "setCareer", career })}
+              />
+            </div>
+          ))}
+        {pickingStart && !waiting ? (
+          <div className="start-picks">
+            <p className="hint">Pick a START square (or click one on the board). There&apos;s no fee to start.</p>
+            <div className="btn-row">
+              {START_SQUARES.map((i) => (
+                <button
+                  key={i}
+                  className="btn"
+                  disabled={off}
+                  onClick={() => {
+                    setPickingStart(false);
+                    dispatch({ type: "goToMarket", start: i });
+                  }}
+                >
+                  {SIDE_NAME[sideOf(i) as keyof typeof SIDE_NAME]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="btn-row">
+            {must ? (
+              <button className="btn btn-primary" disabled={off} onClick={() => setPickingStart(true)}>
+                Play the market →
+              </button>
+            ) : (
+              <>
+                <button className="btn btn-primary" disabled={off || player.career === null} onClick={roll}>
+                  Roll for salary
+                </button>
+                <AutoRollSwitch />
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const pos = player.pos;
+  const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
+  let dirHint = "";
+  if (pos?.kind === "track") {
+    const sq = TRACK[pos.index];
+    dirHint =
+      sq.kind === "start"
+        ? `odd ${arrowFor(pos.index, "cw")} · even ${arrowFor(pos.index, "ccw")}`
+        : `you'll move ${arrowFor(pos.index, sq.dir)}`;
+  } else if (pos) dirHint = "continuing through the meeting";
+  return (
+    <div className="controls">
+      {note || (
+        <p className="hint">
+          On <b>{posName(pos)}</b>: {dirHint}
+        </p>
+      )}
+      <div className="turn-actions">
+        {held.length > 0 && (
+          <Fold label="Sell" disabled={waiting !== undefined}>
+            <div className="sell-box">
+              <div className="small muted">Sell now at the board price (only before you roll):</div>
+              {held.map((id) => (
+                <SellRow
+                  key={id}
+                  stock={id}
+                  owned={player.shares[id]}
+                  price={priceAt(id, state.market)}
+                  disabled={off}
+                  onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
+                />
+              ))}
+            </div>
+          </Fold>
+        )}
+        <button className="btn btn-primary btn-big" disabled={off} onClick={roll}>
+          Roll dice
+        </button>
+      </div>
+      {/* Hidden rather than removed while it can't roll, so nothing below moves. */}
+      <div className="muted small" style={off ? { visibility: "hidden" } : undefined}>
+        Space / Enter also rolls
+      </div>
+    </div>
+  );
+}
+
 function TurnControls({
   state,
   player,
@@ -818,103 +968,17 @@ function TurnControls({
 
   if (ph.t === "moving") return <p className="hint">Moving…</p>;
 
-  if (ph.t === "preRoll" && player.status === "work") {
-    const must = mustGoToMarket(player);
-    return (
-      <div className="controls">
-        {must && (
-          <p className="hint">
-            You have <b>${fmt(player.cash)}</b>. Time to play the market!
-          </p>
-        )}
-        {!must && (
-          <div className="career-picks">
-            <CareerPicks
-              balanced={state.balancedCareers}
-              selected={player.career}
-              disabled={disabled}
-              onPick={(career) => dispatch({ type: "setCareer", career })}
-            />
-          </div>
-        )}
-        {pickingStart ? (
-          <div className="start-picks">
-            <p className="hint">Pick a START square (or click one on the board). There&apos;s no fee to start.</p>
-            <div className="btn-row">
-              {START_SQUARES.map((i) => (
-                <button
-                  key={i}
-                  className="btn"
-                  disabled={disabled}
-                  onClick={() => {
-                    setPickingStart(false);
-                    dispatch({ type: "goToMarket", start: i });
-                  }}
-                >
-                  {SIDE_NAME[sideOf(i) as keyof typeof SIDE_NAME]}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="btn-row">
-            {!must && (
-              <button className="btn btn-primary" disabled={disabled || player.career === null} onClick={roll}>
-                Roll for salary
-              </button>
-            )}
-            {!must && <AutoRollSwitch />}
-            {must && (
-              <button className="btn btn-primary" disabled={disabled} onClick={() => setPickingStart(true)}>
-                Play the market →
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   if (ph.t === "preRoll") {
-    const pos = player.pos;
-    const held = STOCK_ORDER.filter((id) => player.shares[id] > 0);
-    let dirHint = "";
-    if (pos?.kind === "track") {
-      const sq = TRACK[pos.index];
-      dirHint =
-        sq.kind === "start"
-          ? `odd ${arrowFor(pos.index, "cw")} · even ${arrowFor(pos.index, "ccw")}`
-          : `you'll move ${arrowFor(pos.index, sq.dir)}`;
-    } else if (pos) dirHint = "continuing through the meeting";
     return (
-      <div className="controls">
-        <p className="hint">
-          On <b>{posName(pos)}</b>: {dirHint}
-        </p>
-        <div className="turn-actions">
-          {held.length > 0 && (
-            <Fold label="Sell">
-              <div className="sell-box">
-                <div className="small muted">Sell now at the board price (only before you roll):</div>
-                {held.map((id) => (
-                  <SellRow
-                    key={id}
-                    stock={id}
-                    owned={player.shares[id]}
-                    price={priceAt(id, state.market)}
-                    disabled={disabled}
-                    onSell={(qty) => dispatch({ type: "sell", stock: id, qty })}
-                  />
-                ))}
-              </div>
-            </Fold>
-          )}
-          <button className="btn btn-primary btn-big" disabled={disabled} onClick={roll}>
-            Roll dice
-          </button>
-        </div>
-        {!disabled && <div className="muted small">Space / Enter also rolls</div>}
-      </div>
+      <PreRollControls
+        state={state}
+        player={player}
+        disabled={disabled}
+        dispatch={dispatch}
+        roll={roll}
+        pickingStart={pickingStart}
+        setPickingStart={setPickingStart}
+      />
     );
   }
 
@@ -1253,11 +1317,11 @@ function SellRow({
  * Optional controls (selling). Desktop and very tall phones show them inline; other phones
  * show a toggle that opens them in a slide-up sheet, so the turn card never overflows.
  */
-function Fold({ label, children }: { label: string; children: ReactNode }) {
+function Fold({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`fold ${open ? "fold-open" : ""}`}>
-      <button className="btn fold-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+      <button className="btn fold-toggle" disabled={disabled} onClick={() => setOpen(!open)} aria-expanded={open}>
         {label} {open ? "▴" : "▾"}
       </button>
       {open && <div className="fold-backdrop" onClick={() => setOpen(false)} />}
@@ -1376,17 +1440,38 @@ function MeCard({ p, market, active }: { p: Player; market: number; active: bool
   );
 }
 
-function PlayerRow({ p, market, active }: { p: Player; market: number; active: boolean }) {
+function PlayerRow({
+  p,
+  market,
+  active,
+  rank,
+  you,
+  picked,
+}: {
+  p: Player;
+  market: number;
+  active: boolean;
+  /** Place in the standings (shown before the token). */
+  rank?: number;
+  you?: boolean;
+  /** The player whose chip was tapped: outlined and scrolled to the middle of the list. */
+  picked?: boolean;
+}) {
   const held = STOCK_ORDER.filter((id) => p.shares[id] > 0);
   return (
-    <li className={active ? "players-current" : ""}>
+    <li
+      className={[active && "players-current", picked && "players-picked"].filter(Boolean).join(" ")}
+      ref={picked ? (el) => el?.scrollIntoView({ block: "center" }) : undefined}
+    >
       <div className="players-top">
+        {rank !== undefined && <span className="players-rank">{rank}</span>}
         <span className="token token-static" style={{ background: p.color }}>
           {p.name.slice(0, 1).toUpperCase()}
         </span>
         <span className="players-name">
           <span>
             {p.name} {p.isBot && <span className="tag">BOT</span>}
+            {you && <span className="muted small"> (you)</span>}
           </span>
           <span className="muted small players-where">
             {p.status === "work"
