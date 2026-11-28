@@ -2943,9 +2943,12 @@ button.link {
   }
 }
 @media (max-width: 900px) and (min-height: 740px) {
-  /* Keep the turn card well clear of the rounded screen corners and the home-bar swipe. */
+  /* Keep the turn card well clear of the rounded screen corners and the home-bar swipe. 20px of
+     the bottom space moved to the top: iOS fades the page's top edge under the status bar, which
+     washed out the top of the top bar's buttons. The board keeps its size. */
   .game {
-    padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 32px));
+    padding-top: 30px;
+    padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 12px));
   }
 }
 @media (max-width: 900px) and (min-height: 740px) {
